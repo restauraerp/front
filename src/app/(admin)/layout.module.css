@@ -1,0 +1,7 @@
+.adminContainer { display: flex; min-height: 100vh; background: var(--background); }
+.sidebar { width: 260px; background: var(--surface); border-right: 1px solid #e5e7eb; padding: 1.5rem; }
+.sidebar h2 { color: var(--primary); margin-bottom: 2rem; font-size: 1.5rem; }
+.nav { display: flex; flex-direction: column; gap: 0.5rem; }
+.nav a { padding: 0.75rem 1rem; border-radius: 8px; color: var(--text-main); font-weight: 500; transition: all 0.2s; }
+.nav a:hover { background: rgba(217, 119, 6, 0.1); color: var(--primary); }
+.mainContent { flex: 1; padding: 2rem; overflow-y: auto; }

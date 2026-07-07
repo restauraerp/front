@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@plugin "daisyui" {
+  themes: restoraerp --default;
+}
+
+@theme {
+  /* Fonts */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+  --font-bangla: var(--font-hind-siliguri), ui-sans-serif, system-ui, sans-serif;
+
+  /* Additional Brand Colors */
+  --color-content-secondary: #5B6266;
+  --color-content-muted: #9CA3A6;
+}
+
+/* Custom restoraerp Theme */
+[data-theme="restoraerp"] {
+  /* Brand Primary */
+  --color-primary: #0F6E5C;
+  --color-primary-content: #FFFFFF;
+
+  /* Brand Secondary */
+  --color-secondary: #F4A825;
+  --color-secondary-content: #1A1D1F;
+
+  /* Backgrounds */
+  --color-base-100: #FAFAF8;
+  --color-base-200: #F2F5F4;
+  --color-base-300: #E4E7E6;
+  --color-base-content: #1A1D1F;
+
+  /* Semantic / Status */
+  --color-success: #1E8E5A;
+  --color-success-content: #FFFFFF;
+
+  --color-warning: #F4A825;
+  --color-warning-content: #1A1D1F;
+
+  --color-error: #D64545;
+  --color-error-content: #FFFFFF;
+
+  --color-info: #2F80ED;
+  --color-info-content: #FFFFFF;
+}
