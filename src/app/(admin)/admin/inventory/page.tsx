@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
+import { Boxes, Truck, ChefHat, ShoppingCart, MapPin, Trash2 } from 'lucide-react';
 
 export default function InventoryDashboard() {
   const [stats, setStats] = useState({ items: 0, suppliers: 0, recipes: 0, purchaseOrders: 0, storage: 0, waste: 0 });
@@ -45,7 +46,7 @@ export default function InventoryDashboard() {
     <div>
       <h1 className="text-2xl font-bold mb-8">Inventory Management</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Inventory Items">
+        <Card title={<div className="flex items-center gap-2"><Boxes className="text-primary" size={20} /> Inventory Items</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Manage raw materials, ingredients, and stock levels.</p>
             {loading ? (
@@ -57,7 +58,7 @@ export default function InventoryDashboard() {
           <Link href="/admin/inventory/items" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Items &rarr;</Link>
         </Card>
 
-        <Card title="Suppliers">
+        <Card title={<div className="flex items-center gap-2"><Truck className="text-primary" size={20} /> Suppliers</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Manage your vendors and contact details.</p>
             {loading ? (
@@ -69,7 +70,7 @@ export default function InventoryDashboard() {
           <Link href="/admin/inventory/suppliers" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Suppliers &rarr;</Link>
         </Card>
 
-        <Card title="Recipes">
+        <Card title={<div className="flex items-center gap-2"><ChefHat className="text-primary" size={20} /> Recipes</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Define ingredients and required quantities for products.</p>
             {loading ? (
@@ -81,7 +82,7 @@ export default function InventoryDashboard() {
           <Link href="/admin/inventory/recipes" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Recipes &rarr;</Link>
         </Card>
 
-        <Card title="Purchase Orders">
+        <Card title={<div className="flex items-center gap-2"><ShoppingCart className="text-primary" size={20} /> Purchase Orders</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Create and track purchase orders from suppliers.</p>
             {loading ? (
@@ -93,7 +94,7 @@ export default function InventoryDashboard() {
           <Link href="/admin/inventory/purchase-orders" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Orders &rarr;</Link>
         </Card>
 
-        <Card title="Storage Locations">
+        <Card title={<div className="flex items-center gap-2"><MapPin className="text-primary" size={20} /> Storage Locations</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Configure physical storage locations.</p>
             {loading ? (
@@ -105,7 +106,7 @@ export default function InventoryDashboard() {
           <Link href="/admin/locations" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Locations &rarr;</Link>
         </Card>
 
-        <Card title="Waste Logs">
+        <Card title={<div className="flex items-center gap-2"><Trash2 className="text-primary" size={20} /> Waste Logs</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Track inventory waste and spoilage.</p>
             {loading ? (

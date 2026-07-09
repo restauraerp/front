@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
+import { Package, Layers, Tag } from 'lucide-react';
 
 export default function Catalog() {
   const [stats, setStats] = useState({ products: 0, categories: 0, tags: 0 });
@@ -43,7 +44,7 @@ export default function Catalog() {
     <div>
       <h1 className="text-2xl font-bold mb-8">Catalog Management</h1>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card title="Products">
+        <Card title={<div className="flex items-center gap-2"><Package className="text-primary" size={20} /> Products</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Manage all sellable items on your menu.</p>
             {loading ? (
@@ -56,7 +57,7 @@ export default function Catalog() {
             Manage Products &rarr;
           </Link>
         </Card>
-        <Card title="Categories">
+        <Card title={<div className="flex items-center gap-2"><Layers className="text-primary" size={20} /> Categories</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Group products into Appetizers, Mains, etc.</p>
             {loading ? (
@@ -69,7 +70,7 @@ export default function Catalog() {
             Manage Categories &rarr;
           </Link>
         </Card>
-        <Card title="Tags">
+        <Card title={<div className="flex items-center gap-2"><Tag className="text-primary" size={20} /> Tags</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Tag items (e.g. Vegan, Spicy, Gluten-Free).</p>
             {loading ? (
