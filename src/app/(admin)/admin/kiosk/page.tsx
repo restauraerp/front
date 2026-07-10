@@ -1,10 +1,12 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi } from '@/lib/api';
 import { ChefHat, CheckCircle } from 'lucide-react';
 
 export default function KitchenKiosk() {
-  const [orders, setOrders] = useState<any[]>([]);
+  const [allOrders, setAllOrders] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [activeLocationId, setActiveLocationId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState<number | null>(null);
 
@@ -13,21 +15,13 @@ export default function KitchenKiosk() {
       const res = await fetchApi('/orders?nopaginate=1');
       let data = res.data || res || [];
       
-      // Filter by location
-      if (typeof window !== 'undefined') {
-        const activeLocationId = localStorage.getItem('restora_active_location_id');
-        if (activeLocationId) {
-          data = data.filter((o: any) => o.location_id === Number(activeLocationId));
-        }
-      }
-
       // Filter only pending and cooking orders
       data = data.filter((o: any) => o.status === 'pending' || o.status === 'cooking');
       
       // Sort: older orders first
       data.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
-      setOrders(data);
+      setAllOrders(data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -36,6 +30,25 @@ export default function KitchenKiosk() {
   };
 
   useEffect(() => {
+    fetchApi('/locations').then(res => {
+      const locs = res.data || res || [];
+      setLocations(locs);
+      
+      let savedLoc = null;
+      if (typeof window !== 'undefined') {
+        savedLoc = localStorage.getItem('restora_active_location_id');
+      }
+      
+      if (savedLoc && locs.some((l: any) => l.id === Number(savedLoc))) {
+        setActiveLocationId(Number(savedLoc));
+      } else if (locs.length > 0) {
+        setActiveLocationId(locs[0].id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+        }
+      }
+    }).catch(console.error);
+
     loadOrders();
     const interval = setInterval(loadOrders, 10000); // 10 seconds auto-refresh
     return () => clearInterval(interval);
@@ -53,32 +66,56 @@ export default function KitchenKiosk() {
     }
   };
 
-  if (loading) return <div className="flex justify-center items-center min-h-[50vh]"><span className="loading loading-spinner text-primary loading-lg"></span></div>;
+  const filteredOrders = useMemo(() => {
+    if (!activeLocationId) return allOrders;
+    return allOrders.filter(o => o.location_id === activeLocationId);
+  }, [allOrders, activeLocationId]);
+
+  if (loading && allOrders.length === 0) return <div className="flex justify-center items-center min-h-[50vh]"><span className="loading loading-spinner text-primary loading-lg"></span></div>;
 
   return (
     <div className="bg-base-200 min-h-screen p-4 sm:p-6 -m-6 text-base-content relative overflow-hidden">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-          <ChefHat size={28} /> Kitchen Display System
-        </h1>
-        <div className="text-sm opacity-70 flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+        <div className="flex items-center gap-4 flex-wrap">
+          <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
+            <ChefHat size={28} /> Kitchen Display System
+          </h1>
+          {locations.length > 0 && (
+            <select 
+              value={activeLocationId || ''}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                setActiveLocationId(id);
+                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+              }}
+              className="select select-sm select-bordered"
+              style={{ fontWeight: 600, color: '#4b5563' }}
+            >
+              <option value="" disabled>Select Location</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>📍 {loc.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
+        <div className="text-sm opacity-70 flex items-center gap-2 font-medium">
           <span className="relative flex h-3 w-3">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
             <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
           </span>
-          Live Sync
+          Live Sync Active
         </div>
       </div>
       
-      {orders.length === 0 ? (
+      {filteredOrders.length === 0 ? (
         <div className="text-center py-32 bg-base-100 rounded-2xl shadow-sm border border-base-300">
           <CheckCircle size={64} className="mx-auto text-success/50 mb-4" />
           <h2 className="text-2xl font-semibold opacity-80">Kitchen is clear!</h2>
-          <p className="opacity-50 text-sm mt-2">No pending or cooking orders.</p>
+          <p className="opacity-50 text-sm mt-2">No pending or cooking orders for this location.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {orders.map(order => (
+          {filteredOrders.map(order => (
             <div key={order.id} className={`flex flex-col bg-base-100 p-5 rounded-2xl shadow-md border-t-4 transition-all ${order.status === 'cooking' ? 'border-t-info' : 'border-t-warning'}`}>
               <div className="flex justify-between items-start mb-4 pb-3 border-b border-base-200">
                 <div>
