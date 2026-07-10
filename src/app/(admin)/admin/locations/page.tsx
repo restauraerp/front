@@ -27,7 +27,10 @@ export default function LocationsPage() {
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tableFormData, setTableFormData] = useState({ name: '', capacity: 4, is_active: 1 });
 
+  const [locationTypes, setLocationTypes] = useState<any[]>([]);
+
   useEffect(() => {
+    fetchApi('/location-types').then(res => setLocationTypes(res.data || res || [])).catch(console.error);
     loadData();
   }, []);
 
@@ -162,7 +165,7 @@ export default function LocationsPage() {
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Branch Name' },
-    { key: 'type', label: 'Type' },
+    { key: 'type', label: 'Type', render: (row: any) => row.type_title || (row.type ? row.type.replace('_', ' ').toUpperCase() : '') },
     { key: 'phone', label: 'Phone' },
     { key: 'is_active', label: 'Active', render: (row: any) => row.is_active ? 'Yes' : 'No' },
     { 
@@ -216,8 +219,16 @@ export default function LocationsPage() {
                 value={formData.type} 
                 onChange={handleInputChange}
               >
-                <option value="head_office">Head Office</option>
-                <option value="branch">Branch</option>
+                {locationTypes.length > 0 ? (
+                  locationTypes.map(lt => (
+                    <option key={lt.slug} value={lt.slug}>{lt.title}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="head_office">Head Office</option>
+                    <option value="branch">Branch</option>
+                  </>
+                )}
               </select>
             </div>
 
