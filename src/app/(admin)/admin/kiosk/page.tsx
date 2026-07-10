@@ -12,7 +12,7 @@ export default function KitchenKiosk() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetchApi('/orders?nopaginate=1');
+      const res = await fetchApi(`/orders?nopaginate=1&_t=${Date.now()}`);
       let data = res.data || res || [];
       
       // Filter only pending and cooking orders
@@ -98,12 +98,17 @@ export default function KitchenKiosk() {
             </select>
           )}
         </div>
-        <div className="text-sm opacity-70 flex items-center gap-2 font-medium">
-          <span className="relative flex h-3 w-3">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
-          </span>
-          Live Sync Active
+        <div className="flex items-center gap-3">
+          <button className="btn btn-ghost btn-sm bg-base-100 border border-base-300" onClick={loadOrders}>
+            Refresh
+          </button>
+          <div className="text-sm opacity-70 flex items-center gap-2 font-medium">
+            <span className="relative flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-success"></span>
+            </span>
+            Live Sync Active
+          </div>
         </div>
       </div>
       
