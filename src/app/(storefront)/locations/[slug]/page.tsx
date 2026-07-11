@@ -145,6 +145,23 @@ export default function LocationDetails({ params }: { params: Promise<{ slug: st
               </div>
             )}
           </section>
+
+          {location.map_url && (
+            <section className="mt-12">
+              <h3 className="text-2xl font-bold mb-6">Location Map</h3>
+              <div className="w-full h-96 rounded-xl overflow-hidden shadow-md border border-base-200">
+                <iframe 
+                  src={location.map_url} 
+                  width="100%" 
+                  height="100%" 
+                  style={{ border: 0 }} 
+                  allowFullScreen 
+                  loading="lazy" 
+                  referrerPolicy="no-referrer-when-downgrade"
+                ></iframe>
+              </div>
+            </section>
+          )}
         </div>
 
         {/* Sidebar: Booking & Details */}

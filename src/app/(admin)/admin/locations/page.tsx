@@ -15,6 +15,7 @@ export default function LocationsPage() {
     name: '',
     type: 'head_office',
     address: '',
+    map_url: '',
     phone: '',
     email: '',
     is_active: 1
@@ -107,7 +108,7 @@ export default function LocationsPage() {
       setImages(null);
       setVideos(null);
       setExistingMedia(null);
-      setFormData({ name: '', type: 'head_office', address: '', phone: '', email: '', is_active: 1 });
+      setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
       loadData();
     } catch (err) {
       console.error(err);
@@ -118,10 +119,11 @@ export default function LocationsPage() {
   const handleEdit = (row: any) => {
     setEditingId(row.id);
     setFormData({
-      name: row.name || '',
+      name: row.name,
       type: row.type || 'head_office',
-      address: row.address || '',
-      phone: row.phone || '',
+      address: row.address,
+      map_url: row.map_url || '',
+      phone: row.phone,
       email: row.email || '',
       is_active: row.is_active ? 1 : 0
     });
@@ -241,7 +243,7 @@ export default function LocationsPage() {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
           setExistingMedia(null);
-          setFormData({ name: '', type: 'head_office', address: '', phone: '', email: '', is_active: 1 });
+          setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Location'}
         </Button>
@@ -278,6 +280,10 @@ export default function LocationsPage() {
             
             <div style={{ gridColumn: '1 / -1' }}>
               <Input label="Address" name="address" value={formData.address} onChange={handleInputChange} required />
+            </div>
+            
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Input label="Google Map Embed URL" name="map_url" value={formData.map_url} onChange={handleInputChange} placeholder="https://www.google.com/maps/embed?..." required />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
