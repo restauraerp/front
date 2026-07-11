@@ -12,6 +12,8 @@ export default function EmployeesPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
@@ -25,17 +27,27 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [usersRes, rolesRes, locationsRes] = await Promise.all([
-        fetchApi('/users'),
-        fetchApi('/roles').catch(() => null),
-        fetchApi('/locations').catch(() => null)
+        fetchApi(`/users?page=${page}`),
+        fetchApi('/roles?nopaginate=true').catch(() => null),
+        fetchApi('/locations?nopaginate=true').catch(() => null)
       ]);
-      setEmployees(usersRes?.data || usersRes || []);
+      
+      if (usersRes && usersRes.data && Array.isArray(usersRes.data)) {
+         setEmployees(usersRes.data);
+         setTotalPages(usersRes.last_page || 1);
+      } else if (usersRes && usersRes.data && usersRes.data.data && Array.isArray(usersRes.data.data)) {
+         setEmployees(usersRes.data.data);
+         setTotalPages(usersRes.data.last_page || 1);
+      } else {
+         setEmployees(usersRes?.data || usersRes || []);
+         setTotalPages(1);
+      }
       
       const fetchedRoles = rolesRes?.data || rolesRes || [];
       if (Array.isArray(fetchedRoles)) {
@@ -189,7 +201,20 @@ export default function EmployeesPage() {
       )}
 
       <Card>
-        {loading ? <p>Loading employees...</p> : <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} />}
+        {loading ? <p>Loading employees...</p> : (
+          <>
+            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} />
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-6 pb-2">
+                <div className="join">
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>«</button>
+                  <button className="join-item btn btn-sm bg-base-100 cursor-default">Page {page} of {totalPages}</button>
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>»</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </Card>
     </div>
   );

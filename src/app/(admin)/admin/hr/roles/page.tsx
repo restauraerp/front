@@ -10,6 +10,8 @@ export default function RolesPage() {
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<{name: string, permissions: string[]}>({
@@ -20,16 +22,27 @@ export default function RolesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       const [rolesRes, permsRes] = await Promise.all([
-        fetchApi('/roles'),
+        fetchApi(`/roles?page=${page}`),
         fetchApi('/permissions')
       ]);
-      setRoles(rolesRes?.data || rolesRes || []);
+      
+      if (rolesRes && rolesRes.data && Array.isArray(rolesRes.data)) {
+         setRoles(rolesRes.data);
+         setTotalPages(rolesRes.last_page || 1);
+      } else if (rolesRes && rolesRes.data && rolesRes.data.data && Array.isArray(rolesRes.data.data)) {
+         setRoles(rolesRes.data.data);
+         setTotalPages(rolesRes.data.last_page || 1);
+      } else {
+         setRoles(rolesRes?.data || rolesRes || []);
+         setTotalPages(1);
+      }
+      
       setPermissions(permsRes?.data || permsRes || []);
     } catch (err) {
       console.error(err);
@@ -163,7 +176,20 @@ export default function RolesPage() {
       )}
 
       <Card>
-        {loading ? <p>Loading roles...</p> : <Table columns={columns} data={roles} onEdit={handleEdit} onDelete={handleDelete} />}
+        {loading ? <p>Loading roles...</p> : (
+          <>
+            <Table columns={columns} data={roles} onEdit={handleEdit} onDelete={handleDelete} />
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-6 pb-2">
+                <div className="join">
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>«</button>
+                  <button className="join-item btn btn-sm bg-base-100 cursor-default">Page {page} of {totalPages}</button>
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>»</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </Card>
     </div>
   );
