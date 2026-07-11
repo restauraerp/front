@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { UtensilsCrossed } from 'lucide-react';
 import { CartProvider } from './CartProvider';
 import { CartButton } from './CartButton';
+import { StorefrontNavLinks } from './StorefrontNavLinks';
 
 export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -16,15 +17,9 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
               <span className="font-bold text-lg tracking-tight">RestoraERP</span>
             </Link>
           </div>
-          <div className="flex-none hidden md:flex gap-6">
-            <Link href="/menu" className="text-sm font-medium text-base-content/70 hover:text-base-content transition-colors">Menu</Link>
-            <Link href="/booking" className="text-sm font-medium text-base-content/70 hover:text-base-content transition-colors">Reservations</Link>
-            <Link href="/about" className="text-sm font-medium text-base-content/70 hover:text-base-content transition-colors">About</Link>
-            <Link href="/contact" className="text-sm font-medium text-base-content/70 hover:text-base-content transition-colors">Contact</Link>
-          </div>
+          <StorefrontNavLinks />
           <div className="flex-none ml-6 flex gap-2">
             <CartButton />
-            <Link href="/admin" className="btn btn-ghost btn-sm">Admin</Link>
             <Link href="/booking" className="btn btn-primary btn-sm">Book a Table</Link>
           </div>
         </nav>
