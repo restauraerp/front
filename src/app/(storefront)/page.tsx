@@ -105,13 +105,13 @@ export default function Home() {
                     <ul tabIndex={0} className="dropdown-content z-[100] menu p-2 shadow-xl bg-base-100 rounded-box w-64 md:w-72 text-left mt-2">
                       {locations.map((loc: any) => (
                         <li key={loc.id}>
-                          <div className="flex flex-col items-start px-3 py-2 hover:bg-base-200">
+                          <Link href={`/locations/${loc.slug || loc.id}`} className="flex flex-col items-start px-3 py-2 hover:bg-base-200">
                             <span className="font-bold text-base-content leading-none">{loc.name}</span>
                             <span className="text-xs text-base-content/60 mt-1">{loc.address}</span>
                             {loc.contact_number && (
                               <span className="text-xs text-primary mt-1 font-medium">{loc.contact_number}</span>
                             )}
-                          </div>
+                          </Link>
                         </li>
                       ))}
                     </ul>
