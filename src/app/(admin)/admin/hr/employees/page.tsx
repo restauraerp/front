@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import styles from '@/components/ui/ui.module.css';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -149,10 +150,10 @@ export default function EmployeesPage() {
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
             
-            <div className="flex flex-col gap-1">
-              <label className="font-medium text-sm text-base-content/70">Location</label>
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Location</label>
               <select 
-                className="select select-bordered w-full"
+                className={styles.input}
                 name="location_id" 
                 value={formData.location_id} 
                 onChange={(e) => handleInputChange(e as any)}
@@ -164,10 +165,10 @@ export default function EmployeesPage() {
               </select>
             </div>
             
-            <div className="flex flex-col gap-1">
-              <label className="font-medium text-sm text-base-content/70">Role</label>
+            <div className={styles.inputGroup}>
+              <label className={styles.label}>Role</label>
               <select 
-                className="select select-bordered w-full"
+                className={styles.input}
                 name="role" 
                 value={formData.role} 
                 onChange={(e) => handleInputChange(e as any)}
