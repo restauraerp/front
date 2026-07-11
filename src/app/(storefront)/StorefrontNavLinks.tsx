@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, Utensils, CalendarDays, Info, Phone } from 'lucide-react';
+import { Home, Utensils, CalendarDays, Store, Phone } from 'lucide-react';
 
 export function StorefrontNavLinks() {
   const pathname = usePathname();
@@ -11,7 +11,7 @@ export function StorefrontNavLinks() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/menu', label: 'Menu', icon: Utensils },
     { href: '/booking', label: 'Reservations', icon: CalendarDays },
-    { href: '/about', label: 'About', icon: Info },
+    { href: '/about', label: 'About', icon: Store },
     { href: '/contact', label: 'Contact', icon: Phone },
   ];
 
