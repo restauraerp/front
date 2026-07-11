@@ -311,8 +311,12 @@ export default function LocationsPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
               <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Featured Video</label>
               {existingMedia?.featuredVideo && (
-                <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', color: 'gray' }}>
-                  Current: {existingMedia.featuredVideo.url}
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <video 
+                    src={`/storage/${existingMedia.featuredVideo.url}`} 
+                    controls 
+                    style={{ height: '120px', borderRadius: '4px', objectFit: 'cover' }} 
+                  />
                 </div>
               )}
               <input 

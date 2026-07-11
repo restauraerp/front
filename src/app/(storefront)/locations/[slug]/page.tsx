@@ -45,8 +45,8 @@ export default function LocationDetails({ params }: { params: Promise<{ slug: st
   const videos = location.videos || [];
   
   let featuredImageUrl = 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1600';
-  if (location.featuredImage) {
-    featuredImageUrl = `/storage/${location.featuredImage.url}`;
+  if (location.featured_image) {
+    featuredImageUrl = `/storage/${location.featured_image.url}`;
   } else if (images.length > 0) {
     featuredImageUrl = `/storage/${images[0].url}`;
   }
@@ -97,7 +97,7 @@ export default function LocationDetails({ params }: { params: Promise<{ slug: st
                 className={`flex items-center gap-2 font-bold text-lg pb-4 -mb-[17px] border-b-2 transition-colors ${activeTab === 'videos' ? 'border-primary text-primary' : 'border-transparent text-base-content/60 hover:text-base-content'}`}
                 onClick={() => setActiveTab('videos')}
               >
-                <Video size={20} /> Videos ({videos.length})
+                <Video size={20} /> Videos ({videos.length + (location.featured_video ? 1 : 0)})
               </button>
             </div>
 
@@ -120,11 +120,11 @@ export default function LocationDetails({ params }: { params: Promise<{ slug: st
 
             {activeTab === 'videos' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {location.featuredVideo && (
+                {location.featured_video && (
                   <div className="col-span-full mb-4">
                     <h4 className="text-lg font-bold mb-2">Featured Video</h4>
                     <video 
-                      src={`/storage/${location.featuredVideo.url}`} 
+                      src={`/storage/${location.featured_video.url}`} 
                       controls 
                       className="w-full h-80 object-cover rounded-xl shadow-sm bg-black"
                     />
@@ -137,7 +137,7 @@ export default function LocationDetails({ params }: { params: Promise<{ slug: st
                     controls 
                     className="w-full h-64 object-cover rounded-xl shadow-sm bg-black"
                   />
-                )) : (!location.featuredVideo && (
+                )) : (!location.featured_video && (
                   <div className="col-span-full py-12 text-center text-base-content/50 bg-base-200 rounded-xl">
                     No videos available for this location.
                   </div>
