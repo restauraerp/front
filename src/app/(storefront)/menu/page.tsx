@@ -38,6 +38,11 @@ export default function MenuPage() {
     }
   };
 
+  const validCategories = categories.map(cat => ({
+    ...cat,
+    count: products.filter(p => p.category_id === cat.id).length
+  })).filter(cat => cat.count > 0);
+
   const filteredProducts = activeCategory === 'all' 
     ? products 
     : products.filter(p => p.category_id === activeCategory);
@@ -64,16 +69,16 @@ export default function MenuPage() {
               onClick={() => setActiveCategory('all')}
               style={{ borderRadius: '9999px', padding: '0.5rem 1.5rem' }}
             >
-              All Items
+              All Items ({products.length})
             </Button>
-            {categories.map(cat => (
+            {validCategories.map(cat => (
               <Button 
                 key={cat.id}
                 variant={activeCategory === cat.id ? 'primary' : 'secondary'}
                 onClick={() => setActiveCategory(cat.id)}
                 style={{ borderRadius: '9999px', padding: '0.5rem 1.5rem' }}
               >
-                {cat.name}
+                {cat.name} ({cat.count})
               </Button>
             ))}
           </div>
