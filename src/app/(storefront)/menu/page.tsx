@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useCart } from '../CartProvider';
 
 export default function MenuPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -10,6 +11,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<number | 'all'>('all');
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const { addToCart } = useCart();
 
   useEffect(() => {
     loadData();
@@ -127,7 +129,7 @@ export default function MenuPage() {
                       </p>
                     )}
                     <div style={{ marginTop: '1rem' }}>
-                      <Button style={{ width: '100%' }} onClick={() => alert('Online ordering coming soon!')}>Order Now</Button>
+                      <Button style={{ width: '100%' }} onClick={() => addToCart(product, 1)}>Order Now</Button>
                     </div>
                   </div>
                 </div>
