@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { UserCircle } from 'lucide-react';
 import styles from '@/components/ui/ui.module.css';
 
 export default function EmployeesPage() {
@@ -21,8 +22,11 @@ export default function EmployeesPage() {
     email: '',
     password: '',
     location_id: '',
-    role: ''
+    role: '',
+    phone: '',
+    image_url: ''
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   useEffect(() => {
@@ -74,27 +78,45 @@ export default function EmployeesPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: any = { ...formData };
-      if (!payload.password) delete payload.password; // Don't send empty password on edit
+      const formDataToSend = new FormData();
+      Object.keys(formData).forEach(key => {
+        if (key === 'image_url') return;
+        if (key === 'password' && !formData.password) return;
+        if (formData[key as keyof typeof formData] !== null && formData[key as keyof typeof formData] !== undefined && formData[key as keyof typeof formData] !== '') {
+          formDataToSend.append(key, String(formData[key as keyof typeof formData]));
+        }
+      });
       
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+
       if (editingId) {
+        formDataToSend.append('_method', 'PUT');
         await fetchApi(`/users/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
+          method: 'POST',
+          body: formDataToSend,
         });
       } else {
         await fetchApi('/users', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: formDataToSend,
         });
       }
       
       setIsFormOpen(false);
       setEditingId(null);
-      setFormData({ name: '', email: '', password: '', location_id: '', role: '' });
+      setImageFile(null);
+      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
       loadData();
     } catch (err) {
       console.error(err);
@@ -109,8 +131,11 @@ export default function EmployeesPage() {
       email: row.email || '',
       password: '',
       location_id: row.location_id || '',
-      role: row.roles?.[0]?.name || ''
+      role: row.roles?.[0]?.name || '',
+      phone: row.phone || '',
+      image_url: row.image_url || ''
     });
+    setImageFile(null);
     setIsFormOpen(true);
   };
 
@@ -128,8 +153,26 @@ export default function EmployeesPage() {
 
   const columns = [
     { key: 'id', label: 'ID' },
+    { 
+      key: 'image', 
+      label: 'Photo',
+      render: (row: any) => row.image_url ? (
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden' }}>
+          <img 
+            src={`/storage/${row.image_url}`} 
+            alt={row.name} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+        </div>
+      ) : (
+        <div style={{ width: '40px', height: '40px', backgroundColor: '#e5e7eb', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+          <UserCircle size={24} />
+        </div>
+      )
+    },
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone', render: (row: any) => row.phone || '-' },
     { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
     { key: 'location', label: 'Location', render: (row: any) => row.location ? row.location.name : '-' }
   ];
@@ -141,7 +184,8 @@ export default function EmployeesPage() {
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
-          setFormData({ name: '', email: '', password: '', location_id: '', role: '' });
+          setImageFile(null);
+          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Employee'}
         </Button>
@@ -152,6 +196,7 @@ export default function EmployeesPage() {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+            <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+1234567890" />
             <Input 
               label="Password" 
               name="password" 
@@ -161,6 +206,21 @@ export default function EmployeesPage() {
               required={!editingId} 
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
+            
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
+              <label className="label"><span className="label-text font-medium">Profile Photo</span></label>
+              <input className="input input-bordered w-full" type="file" accept="image/*" onChange={handleFileChange} />
+              {formData.image_url && !imageFile && (
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img 
+                    src={`/storage/${formData.image_url}`} 
+                    alt="Current profile" 
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%', border: '1px solid #e5e7eb' }} 
+                  />
+                  <span className="text-xs text-base-content/60">Current photo</span>
+                </div>
+              )}
+            </div>
             
             <div className="form-control w-full">
               <label className="label"><span className="label-text font-medium">Location</span></label>
