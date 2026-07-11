@@ -152,9 +152,9 @@ export default function InventoryItemsPage() {
             <Input label="Cost Per Unit" name="cost_per_unit" type="number" step="0.01" value={formData.cost_per_unit} onChange={handleInputChange} />
             <Input label="Min Stock Level" name="min_stock_level" type="number" step="0.01" value={formData.min_stock_level} onChange={handleInputChange} />
             
-            <div className={styles.inputGroup} style={{ gridColumn: '1 / -1' }}>
-              <label className={styles.label}>Image Upload</label>
-              <input className={styles.input} type="file" accept="image/*" onChange={handleFileChange} />
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
+              <label className="label">Image Upload</label>
+              <input className="input input-bordered w-full" type="file" accept="image/*" onChange={handleFileChange} />
               {formData.image && !imageFile && (
                 <div style={{ marginTop: '10px' }}>
                   <img src={`/storage/${formData.image}`} alt="Current" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb' }} />
@@ -162,8 +162,8 @@ export default function InventoryItemsPage() {
               )}
             </div>
 
-            <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-              <label className={styles.label} style={{ marginBottom: '0.75rem', display: 'block', fontWeight: 600 }}>Location Stock & Availability</label>
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+              <label className="label" style={{ marginBottom: '0.75rem', display: 'block', fontWeight: 600 }}>Location Stock & Availability</label>
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', flexDirection: 'column' }}>
                 {locations.map(loc => {
                   const locData = formData.locations.find(l => l.location_id === loc.id) || { quantity: 0, is_active: false };

@@ -162,10 +162,10 @@ export default function EmployeesPage() {
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
             
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Location</label>
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Location</span></label>
               <select 
-                className={styles.input}
+                className="select select-bordered w-full"
                 name="location_id" 
                 value={formData.location_id} 
                 onChange={(e) => handleInputChange(e as any)}
@@ -177,10 +177,10 @@ export default function EmployeesPage() {
               </select>
             </div>
             
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Role</label>
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Role</span></label>
               <select 
-                className={styles.input}
+                className="select select-bordered w-full"
                 name="role" 
                 value={formData.role} 
                 onChange={(e) => handleInputChange(e as any)}

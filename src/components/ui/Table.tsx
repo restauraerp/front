@@ -1,6 +1,21 @@
 import React from 'react';
 import { Pencil, Trash2 } from 'lucide-react';
 
+const getStatusBadge = (status: any) => {
+  if (typeof status !== 'string') return String(status);
+  const s = status.toLowerCase();
+  if (['present', 'approved', 'paid', 'active', 'completed', 'delivered', 'ready', 'success', 'true'].includes(s)) {
+    return <span className="badge badge-success text-white font-medium px-3 py-1 h-auto rounded-full">{status}</span>;
+  }
+  if (['pending', 'in progress', 'late', 'processing', 'preparing', 'half day', 'scheduled', 'draft'].includes(s)) {
+    return <span className="badge badge-warning font-medium px-3 py-1 h-auto rounded-full">{status}</span>;
+  }
+  if (['absent', 'rejected', 'failed', 'cancelled', 'inactive', 'false'].includes(s)) {
+    return <span className="badge badge-error text-white font-medium px-3 py-1 h-auto rounded-full">{status}</span>;
+  }
+  return <span className="badge badge-ghost px-3 py-1 h-auto rounded-full">{status}</span>;
+};
+
 export const Table = ({ columns, data, onEdit, onDelete }: any) => {
   return (
     <div className="overflow-x-auto w-full">
@@ -31,9 +46,11 @@ export const Table = ({ columns, data, onEdit, onDelete }: any) => {
                   <td key={col.key} className="text-sm">
                     {col.render 
                       ? col.render(row)
-                      : row[col.key] !== null && row[col.key] !== undefined
-                        ? String(row[col.key])
-                        : <span className="text-base-content/30">—</span>}
+                      : (col.key === 'status' || col.key === 'payment_status' || col.key === 'delivery_status') && row[col.key] !== null && row[col.key] !== undefined
+                        ? getStatusBadge(row[col.key])
+                        : row[col.key] !== null && row[col.key] !== undefined
+                          ? String(row[col.key])
+                          : <span className="text-base-content/30">—</span>}
                   </td>
                 ))}
                 {(onEdit || onDelete) && (

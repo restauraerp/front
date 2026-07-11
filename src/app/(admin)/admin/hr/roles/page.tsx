@@ -123,7 +123,7 @@ export default function RolesPage() {
       render: (row: any) => (
         <div className="flex flex-wrap gap-1">
           {row.permissions?.map((p: any) => (
-            <span key={p.id} className="badge badge-sm badge-outline">{p.name.replace(/_/g, ' ')}</span>
+            <span key={p.id} className="badge badge-sm badge-outline rounded-full">{p.name.replace(/_/g, ' ')}</span>
           ))}
         </div>
       )

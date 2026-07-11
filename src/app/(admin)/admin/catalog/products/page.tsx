@@ -207,7 +207,7 @@ export default function ProductsPage() {
     { key: 'price', label: `Price (${settings.currency_symbol || '৳'})` },
     { key: 'type', label: 'Type' },
     { key: 'is_active', label: 'Active', render: (row: any) => (
-      <span className={`badge ${row.is_active ? 'badge-success text-white' : 'badge-ghost'}`}>
+      <span className={`badge ${row.is_active ? 'badge-success text-white' : 'badge-ghost'} px-3 py-1 h-auto rounded-full`}>
         {row.is_active ? 'Active' : 'Inactive'}
       </span>
     )},
@@ -236,9 +236,9 @@ export default function ProductsPage() {
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />
             
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Category</label>
-              <select className={styles.input} name="category_id" value={formData.category_id} onChange={handleInputChange}>
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Category</span></label>
+              <select className="select select-bordered w-full" name="category_id" value={formData.category_id} onChange={handleInputChange}>
                 <option value="">Select a category</option>
                 {categories.map((c: any) => (
                   <option key={c.id} value={c.id}>{c.name}</option>
@@ -246,19 +246,19 @@ export default function ProductsPage() {
               </select>
             </div>
 
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Type</label>
-              <select className={styles.input} name="type" value={formData.type} onChange={handleInputChange}>
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Type</span></label>
+              <select className="select select-bordered w-full" name="type" value={formData.type} onChange={handleInputChange}>
                 <option value="food">Food</option>
                 <option value="beverage">Beverage</option>
                 <option value="merchandise">Merchandise</option>
               </select>
             </div>
 
-            <div className={styles.inputGroup} style={{ gridColumn: '1 / -1' }}>
-              <label className={styles.label}>Description</label>
+            <div className="form-control w-full sm:col-span-2">
+              <label className="label"><span className="label-text font-medium">Description</span></label>
               <textarea 
-                className={styles.input} 
+                className="textarea textarea-bordered w-full" 
                 name="description" 
                 value={formData.description} 
                 onChange={handleInputChange} 
@@ -266,10 +266,10 @@ export default function ProductsPage() {
               />
             </div>
 
-            <div className={styles.inputGroup} style={{ gridColumn: '1 / -1' }}>
-              <label className={styles.label}>Image Upload</label>
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
+              <label className="label">Image Upload</label>
               <input 
-                className={styles.input}
+                className="input input-bordered w-full"
                 type="file"
                 accept="image/*"
                 onChange={handleFileChange}
@@ -286,16 +286,16 @@ export default function ProductsPage() {
               )}
             </div>
 
-            <div className={styles.inputGroup}>
-              <label className={styles.label}>Status</label>
-              <select className={styles.input} name="is_active" value={formData.is_active} onChange={handleInputChange}>
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Status</span></label>
+              <select className="select select-bordered w-full" name="is_active" value={formData.is_active} onChange={handleInputChange}>
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
               </select>
             </div>
 
-            <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-              <label className={styles.label} style={{ marginBottom: '0.75rem', display: 'block', fontWeight: 600 }}>Location Availability</label>
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+              <label className="label" style={{ marginBottom: '0.75rem', display: 'block', fontWeight: 600 }}>Location Availability</label>
               <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                 {locations.map(loc => {
                   const isAvailable = formData.locations.find(l => l.location_id === loc.id)?.is_available ?? false;
@@ -315,8 +315,8 @@ export default function ProductsPage() {
             </div>
 
             {editingId && (
-              <div className={styles.inputGroup} style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-                <label className={styles.label} style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
+              <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
+                <label className="label" style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
                   <span>Recipe / BOM</span>
                   <a href={`/admin/inventory/recipes?product_id=${editingId}&action=new`} target="_blank" style={{ color: 'var(--primary)', fontSize: '0.8rem', fontWeight: 'normal' }}>Manage Recipes &rarr;</a>
                 </label>
