@@ -10,7 +10,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
       <div className="drawer">
         <input id="mobile-menu-drawer" type="checkbox" className="drawer-toggle" />
         <div className="drawer-content flex flex-col min-h-screen">
-          <nav className="navbar bg-base-100/80 backdrop-blur-md border-b border-base-200 sticky top-0 z-50 px-4 md:px-6">
+          <nav className="navbar bg-base-100/90 backdrop-blur-md border-b border-base-200 shadow-md sticky top-0 z-50 px-4 md:px-6">
             <div className="flex-none md:hidden mr-2">
               <label htmlFor="mobile-menu-drawer" aria-label="open sidebar" className="btn btn-square btn-ghost">
                 <Menu size={24} />
