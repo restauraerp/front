@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/Input';
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -28,9 +29,10 @@ export default function EmployeesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [usersRes, rolesRes] = await Promise.all([
+      const [usersRes, rolesRes, locationsRes] = await Promise.all([
         fetchApi('/users'),
-        fetchApi('/roles').catch(() => null)
+        fetchApi('/roles').catch(() => null),
+        fetchApi('/locations').catch(() => null)
       ]);
       setEmployees(usersRes?.data || usersRes || []);
       
@@ -39,6 +41,13 @@ export default function EmployeesPage() {
         setRoles(fetchedRoles);
       } else if (fetchedRoles?.data && Array.isArray(fetchedRoles.data)) {
         setRoles(fetchedRoles.data);
+      }
+
+      const fetchedLocations = locationsRes?.data || locationsRes || [];
+      if (Array.isArray(fetchedLocations)) {
+        setLocations(fetchedLocations);
+      } else if (fetchedLocations?.data && Array.isArray(fetchedLocations.data)) {
+        setLocations(fetchedLocations.data);
       }
     } catch (err) {
       console.error(err);
@@ -109,7 +118,7 @@ export default function EmployeesPage() {
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
     { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
-    { key: 'location_id', label: 'Location ID' }
+    { key: 'location', label: 'Location', render: (row: any) => row.location ? row.location.name : '-' }
   ];
 
   return (
@@ -139,7 +148,21 @@ export default function EmployeesPage() {
               required={!editingId} 
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
-            <Input label="Location ID" name="location_id" type="number" value={formData.location_id} onChange={handleInputChange} />
+            
+            <div className="flex flex-col gap-1">
+              <label className="font-medium text-sm text-base-content/70">Location</label>
+              <select 
+                className="select select-bordered w-full"
+                name="location_id" 
+                value={formData.location_id} 
+                onChange={(e) => handleInputChange(e as any)}
+              >
+                <option value="">No Location</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
             
             <div className="flex flex-col gap-1">
               <label className="font-medium text-sm text-base-content/70">Role</label>
