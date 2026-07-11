@@ -30,7 +30,7 @@ const navItems = [
   { href: '/admin/catalog', label: 'Catalog', icon: Package },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
-  { href: '/admin/hr', label: 'HR', icon: Users },
+  { href: '/admin/hr', label: 'HRM', icon: Users },
   { href: '/admin/delivery', label: 'Delivery', icon: Truck },
   { href: '/admin/crm', label: 'CRM', icon: HeartHandshake },
   { href: '/admin/locations', label: 'Locations', icon: MapPin },

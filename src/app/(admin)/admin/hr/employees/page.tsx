@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -15,7 +16,8 @@ export default function EmployeesPage() {
     name: '',
     email: '',
     password: '',
-    location_id: ''
+    location_id: '',
+    role: ''
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
@@ -26,8 +28,18 @@ export default function EmployeesPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await fetchApi('/users');
-      setEmployees(res.data || res || []);
+      const [usersRes, rolesRes] = await Promise.all([
+        fetchApi('/users'),
+        fetchApi('/roles').catch(() => null)
+      ]);
+      setEmployees(usersRes?.data || usersRes || []);
+      
+      const fetchedRoles = rolesRes?.data || rolesRes || [];
+      if (Array.isArray(fetchedRoles)) {
+        setRoles(fetchedRoles);
+      } else if (fetchedRoles?.data && Array.isArray(fetchedRoles.data)) {
+        setRoles(fetchedRoles.data);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -60,7 +72,7 @@ export default function EmployeesPage() {
       
       setIsFormOpen(false);
       setEditingId(null);
-      setFormData({ name: '', email: '', password: '', location_id: '' });
+      setFormData({ name: '', email: '', password: '', location_id: '', role: '' });
       loadData();
     } catch (err) {
       console.error(err);
@@ -74,7 +86,8 @@ export default function EmployeesPage() {
       name: row.name || '',
       email: row.email || '',
       password: '',
-      location_id: row.location_id || ''
+      location_id: row.location_id || '',
+      role: row.roles?.[0]?.name || ''
     });
     setIsFormOpen(true);
   };
@@ -95,6 +108,7 @@ export default function EmployeesPage() {
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
+    { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
     { key: 'location_id', label: 'Location ID' }
   ];
 
@@ -105,7 +119,7 @@ export default function EmployeesPage() {
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
-          setFormData({ name: '', email: '', password: '', location_id: '' });
+          setFormData({ name: '', email: '', password: '', location_id: '', role: '' });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Employee'}
         </Button>
@@ -126,6 +140,21 @@ export default function EmployeesPage() {
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
             <Input label="Location ID" name="location_id" type="number" value={formData.location_id} onChange={handleInputChange} />
+            
+            <div className="flex flex-col gap-1">
+              <label className="font-medium text-sm text-base-content/70">Role</label>
+              <select 
+                className="select select-bordered w-full"
+                name="role" 
+                value={formData.role} 
+                onChange={(e) => handleInputChange(e as any)}
+              >
+                <option value="">No Role</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.name}>{r.name.replace('_', ' ').toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
             
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <Button type="submit" variant="primary">{editingId ? 'Update Employee' : 'Create Employee'}</Button>
