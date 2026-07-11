@@ -51,7 +51,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return [...prev, {
         product_id: product.id,
         name: product.name,
-        price: parseFloat(product.price),
+        price: parseFloat(product.sale_price || product.price),
         qty,
         image: product.images?.[0]?.url
       }];

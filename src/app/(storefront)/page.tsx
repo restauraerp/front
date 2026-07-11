@@ -132,9 +132,29 @@ export default function Home() {
                     <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   </figure>
                   <div className="card-body p-6">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-2 gap-4">
                       <h3 className="font-bold text-xl">{product.name}</h3>
-                      <span className="font-bold text-primary text-lg">{settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}</span>
+                      <div className="flex flex-col items-end shrink-0">
+                        {product.sale_price ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-red-500 text-white px-1.5 py-0.5 rounded text-[0.65rem] font-bold tracking-wider">
+                                SALE
+                              </span>
+                              <span className="text-xs line-through text-base-content/40 font-medium">
+                                {settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}
+                              </span>
+                            </div>
+                            <span className="font-black text-red-500 text-xl leading-none">
+                              {settings.currency_symbol || '৳'}{Number(product.sale_price).toFixed(2)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-primary text-lg">
+                            {settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-base-content/70 mb-4">{product.description}</p>
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary mt-auto">
