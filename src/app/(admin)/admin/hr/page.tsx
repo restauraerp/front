@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
-import { Users, CalendarCheck, CalendarOff, Banknote } from 'lucide-react';
+import { Users, CalendarCheck, CalendarOff, Banknote, Shield } from 'lucide-react';
 
 export default function HROverview() {
   const [stats, setStats] = useState({ employees: 0, attendances: 0, leaves: 0, payrolls: 0 });
@@ -88,6 +88,14 @@ export default function HROverview() {
             )}
           </div>
           <Link href="/admin/hr/payroll" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Payroll &rarr;</Link>
+        </Card>
+
+        <Card title={<div className="flex items-center gap-2"><Shield className="text-primary" size={20} /> Roles & Permissions</div>}>
+          <div className="mb-4">
+            <p className="text-base-content/70 mb-2 text-sm">Manage roles and access permissions.</p>
+            <div className="text-3xl font-bold text-primary opacity-0 pointer-events-none">0</div>
+          </div>
+          <Link href="/admin/hr/roles" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Roles &rarr;</Link>
         </Card>
 
       </div>
