@@ -39,10 +39,46 @@ const navItems = [
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
+const routePermissions: Record<string, string> = {
+  '/admin': 'view_dashboard',
+  '/admin/pos': 'view_pos',
+  '/admin/orders': 'view_orders',
+  '/admin/catalog': 'view_catalog',
+  '/admin/inventory': 'view_inventory',
+  '/admin/kiosk': 'view_kitchen_kiosk',
+  '/admin/hr': 'view_hr',
+  '/admin/delivery': 'view_delivery',
+  '/admin/crm': 'view_crm',
+  '/admin/locations': 'view_locations',
+  '/admin/accounting': 'view_accounting',
+  '/admin/website': 'view_website',
+  '/admin/settings': 'view_settings',
+};
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  React.useEffect(() => {
+    import('@/lib/api').then(({ fetchApi }) => {
+      fetchApi('/auth/me').then(res => {
+        const perms = res?.all_permissions || [];
+        setUserPermissions(perms);
+        const roles = res?.roles?.map((r: any) => r.name) || [];
+        if (roles.includes('super_admin')) setIsSuperAdmin(true);
+      }).catch(console.error);
+    });
+  }, []);
+
+  const hasAccess = (href: string) => {
+    if (isSuperAdmin) return true;
+    const reqPerm = routePermissions[href];
+    if (!reqPerm) return true;
+    return userPermissions.includes(reqPerm);
+  };
 
   const Sidebar = () => (
     <aside className="flex flex-col h-full bg-base-200 min-h-screen w-full overflow-hidden">
@@ -63,7 +99,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 overflow-x-hidden">
         <ul className="menu menu-sm px-2 gap-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.filter(item => hasAccess(item.href)).map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== '/admin' && pathname.startsWith(href));
             return (
               <li key={href}>
