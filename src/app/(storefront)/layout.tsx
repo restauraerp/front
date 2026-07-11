@@ -56,7 +56,6 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
                 <Link href="/about" className="link link-hover text-base-content/70">About Us</Link>
                 <Link href="/contact" className="link link-hover text-base-content/70">Contact</Link>
                 <Link href="/careers" className="link link-hover text-base-content/70">Careers</Link>
-                <Link href="/press" className="link link-hover text-base-content/70">Press Kit</Link>
               </nav> 
               <nav className="flex flex-col gap-3">
                 <h6 className="font-bold text-base-content/50 uppercase tracking-wider text-sm mb-1">Legal & Privacy</h6> 
