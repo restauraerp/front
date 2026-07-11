@@ -30,8 +30,61 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
             </div>
           </nav>
           <main className="flex-1">{children}</main>
-          <footer className="footer footer-center p-8 bg-base-200 text-base-content border-t border-base-300 text-sm text-base-content/50">
-            <p>© {new Date().getFullYear()} RestoraERP — Premium Restaurant Management System</p>
+          <footer className="bg-base-200 text-base-content border-t border-base-300">
+            <div className="p-10 max-w-7xl mx-auto w-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
+              <aside className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+                    <UtensilsCrossed className="text-primary-content" size={20} />
+                  </div>
+                  <span className="font-bold text-xl tracking-tight">RestoraERP</span>
+                </div>
+                <p className="max-w-xs text-base-content/70">
+                  Premium Restaurant Management System.<br/>
+                  Delivering exceptional dining experiences and robust operational tools for modern restaurants.
+                </p>
+              </aside> 
+              <nav className="flex flex-col gap-3">
+                <h6 className="font-bold text-base-content/50 uppercase tracking-wider text-sm mb-1">Services</h6> 
+                <Link href="/menu" className="link link-hover text-base-content/70">Our Menu</Link>
+                <Link href="/booking" className="link link-hover text-base-content/70">Table Reservations</Link>
+                <Link href="/locations" className="link link-hover text-base-content/70">Branch Locations</Link>
+                <Link href="/catering" className="link link-hover text-base-content/70">Catering</Link>
+              </nav> 
+              <nav className="flex flex-col gap-3">
+                <h6 className="font-bold text-base-content/50 uppercase tracking-wider text-sm mb-1">Company</h6> 
+                <Link href="/about" className="link link-hover text-base-content/70">About Us</Link>
+                <Link href="/contact" className="link link-hover text-base-content/70">Contact</Link>
+                <Link href="/careers" className="link link-hover text-base-content/70">Careers</Link>
+                <Link href="/press" className="link link-hover text-base-content/70">Press Kit</Link>
+              </nav> 
+              <nav className="flex flex-col gap-3">
+                <h6 className="font-bold text-base-content/50 uppercase tracking-wider text-sm mb-1">Legal & Privacy</h6> 
+                <Link href="/terms" className="link link-hover text-base-content/70">Terms of Service</Link>
+                <Link href="/privacy" className="link link-hover text-base-content/70">Privacy Policy</Link>
+                <Link href="/cookies" className="link link-hover text-base-content/70">Cookie Settings</Link>
+                <Link href="/refunds" className="link link-hover text-base-content/70">Refund Policy</Link>
+              </nav>
+            </div>
+            
+            <div className="footer footer-center p-6 border-t border-base-300/50 bg-base-200">
+              <aside>
+                <p className="text-sm text-base-content/60">
+                  © {new Date().getFullYear()} RestoraERP. All rights reserved.
+                </p>
+                <div className="flex gap-4 mt-4">
+                  <a href="https://twitter.com" target="_blank" rel="noreferrer" className="text-base-content/60 hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg>
+                  </a>
+                  <a href="https://instagram.com" target="_blank" rel="noreferrer" className="text-base-content/60 hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="20" x="2" y="2" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/></svg>
+                  </a>
+                  <a href="https://facebook.com" target="_blank" rel="noreferrer" className="text-base-content/60 hover:text-primary transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                  </a>
+                </div>
+              </aside>
+            </div>
           </footer>
         </div>
         
