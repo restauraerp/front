@@ -6,17 +6,18 @@ import { fetchApi } from '@/lib/api';
 import { Users, CalendarCheck, CalendarOff, Banknote, Shield } from 'lucide-react';
 
 export default function HROverview() {
-  const [stats, setStats] = useState({ employees: 0, attendances: 0, leaves: 0, payrolls: 0 });
+  const [stats, setStats] = useState({ employees: 0, attendances: 0, leaves: 0, payrolls: 0, roles: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
       try {
-        const [empRes, attRes, leaveRes, payRes] = await Promise.all([
+        const [empRes, attRes, leaveRes, payRes, rolesRes] = await Promise.all([
           fetchApi('/users?per_page=1').catch(() => null),
           fetchApi('/attendances?per_page=1').catch(() => null),
           fetchApi('/leaves?per_page=1').catch(() => null),
-          fetchApi('/payrolls?per_page=1').catch(() => null)
+          fetchApi('/payrolls?per_page=1').catch(() => null),
+          fetchApi('/roles?per_page=1').catch(() => null)
         ]);
 
         const getCount = (res: any) => res?.total || res?.meta?.total || (Array.isArray(res?.data) ? res.data.length : 0) || (Array.isArray(res) ? res.length : 0) || 0;
@@ -26,6 +27,7 @@ export default function HROverview() {
           attendances: getCount(attRes),
           leaves: getCount(leaveRes),
           payrolls: getCount(payRes),
+          roles: getCount(rolesRes),
         });
       } catch (error) {
         console.error("Failed to load HR stats", error);
@@ -93,7 +95,11 @@ export default function HROverview() {
         <Card title={<div className="flex items-center gap-2"><Shield className="text-primary" size={20} /> Roles & Permissions</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2 text-sm">Manage roles and access permissions.</p>
-            <div className="text-3xl font-bold text-primary opacity-0 pointer-events-none">0</div>
+            {loading ? (
+              <div className="skeleton h-8 w-24"></div>
+            ) : (
+              <div className="text-3xl font-bold text-primary">{stats.roles} <span className="text-sm font-normal text-base-content/60">Total</span></div>
+            )}
           </div>
           <Link href="/admin/hr/roles" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Roles &rarr;</Link>
         </Card>
