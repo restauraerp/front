@@ -3,12 +3,21 @@
 # Stop execution if any command fails
 set -e
 
-# Default to patch if no argument is provided
-BUMP_TYPE=${1:-patch}
+# Run the version bump command using custom Node script for X.YY.ZZ format
+echo "Bumping application version..."
+node -e "
+const fs = require('fs');
+const pkg = require('./package.json');
+let [x, y, z] = pkg.version.split('.').map(Number);
+z++;
+if (z > 99) { z = 0; y++; }
+if (y > 99) { y = 0; x++; }
+pkg.version = \`\${x}.\${y.toString().padStart(2, '0')}.\${z.toString().padStart(2, '0')}\`;
+fs.writeFileSync('./package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
 
-# Run the version bump command using npm
-echo "Bumping application version ($BUMP_TYPE)..."
-npm version $BUMP_TYPE --no-git-tag-version
+# Sync package-lock.json with the new version
+npm install --package-lock-only --ignore-scripts
 
 # Extract the new bumped version from package.json
 VERSION=$(node -p "require('./package.json').version")
@@ -18,7 +27,7 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
-# Stash the changes made by npm version
+# Stash the changes made by version bump
 echo "Stashing unstaged changes..."
 git stash
 

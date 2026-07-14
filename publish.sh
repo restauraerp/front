@@ -10,7 +10,7 @@ VERSION=$(node -p "require('./package.json').version")
 RELEASE_MESSAGE=${1:-"Release v$VERSION"}
 
 # Finishing the release
-git flow release finish -m "$RELEASE_MESSAGE"
+git flow release finish -m "$RELEASE_MESSAGE" "v$VERSION"
 echo "Release have been finished."
 
 git push
