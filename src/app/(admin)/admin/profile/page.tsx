@@ -50,8 +50,8 @@ export default function ProfilePage() {
                   <p className="text-xs text-base-content/50">Account Status</p>
                   <p className="font-semibold">
                     {user.email_verified_at
-                      ? <span className="badge badge-success badge-sm">Verified</span>
-                      : <span className="badge badge-warning badge-sm">Unverified</span>}
+                      ? <span className="badge badge-success badge-sm rounded-full text-white">Verified</span>
+                      : <span className="badge badge-warning badge-sm rounded-full text-white">Unverified</span>}
                   </p>
                 </div>
               </div>

@@ -5,29 +5,67 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { UserCircle } from 'lucide-react';
+import styles from '@/components/ui/ui.module.css';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
-    location_id: ''
+    location_id: '',
+    role: '',
+    phone: '',
+    image_url: ''
   });
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [page]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const res = await fetchApi('/users');
-      setEmployees(res.data || res || []);
+      const [usersRes, rolesRes, locationsRes] = await Promise.all([
+        fetchApi(`/users?page=${page}`),
+        fetchApi('/roles?nopaginate=true').catch(() => null),
+        fetchApi('/locations?nopaginate=true').catch(() => null)
+      ]);
+      
+      if (usersRes && usersRes.data && Array.isArray(usersRes.data)) {
+         setEmployees(usersRes.data);
+         setTotalPages(usersRes.last_page || 1);
+      } else if (usersRes && usersRes.data && usersRes.data.data && Array.isArray(usersRes.data.data)) {
+         setEmployees(usersRes.data.data);
+         setTotalPages(usersRes.data.last_page || 1);
+      } else {
+         setEmployees(usersRes?.data || usersRes || []);
+         setTotalPages(1);
+      }
+      
+      const fetchedRoles = rolesRes?.data || rolesRes || [];
+      if (Array.isArray(fetchedRoles)) {
+        setRoles(fetchedRoles);
+      } else if (fetchedRoles?.data && Array.isArray(fetchedRoles.data)) {
+        setRoles(fetchedRoles.data);
+      }
+
+      const fetchedLocations = locationsRes?.data || locationsRes || [];
+      if (Array.isArray(fetchedLocations)) {
+        setLocations(fetchedLocations);
+      } else if (fetchedLocations?.data && Array.isArray(fetchedLocations.data)) {
+        setLocations(fetchedLocations.data);
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -40,27 +78,45 @@ export default function EmployeesPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setImageFile(e.target.files[0]);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: any = { ...formData };
-      if (!payload.password) delete payload.password; // Don't send empty password on edit
+      const formDataToSend = new FormData();
+      Object.keys(formData).forEach(key => {
+        if (key === 'image_url') return;
+        if (key === 'password' && !formData.password) return;
+        if (formData[key as keyof typeof formData] !== null && formData[key as keyof typeof formData] !== undefined && formData[key as keyof typeof formData] !== '') {
+          formDataToSend.append(key, String(formData[key as keyof typeof formData]));
+        }
+      });
       
+      if (imageFile) {
+        formDataToSend.append('image', imageFile);
+      }
+
       if (editingId) {
+        formDataToSend.append('_method', 'PUT');
         await fetchApi(`/users/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
+          method: 'POST',
+          body: formDataToSend,
         });
       } else {
         await fetchApi('/users', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: formDataToSend,
         });
       }
       
       setIsFormOpen(false);
       setEditingId(null);
-      setFormData({ name: '', email: '', password: '', location_id: '' });
+      setImageFile(null);
+      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
       loadData();
     } catch (err) {
       console.error(err);
@@ -74,8 +130,12 @@ export default function EmployeesPage() {
       name: row.name || '',
       email: row.email || '',
       password: '',
-      location_id: row.location_id || ''
+      location_id: row.location_id || '',
+      role: row.roles?.[0]?.name || '',
+      phone: row.phone || '',
+      image_url: row.image_url || ''
     });
+    setImageFile(null);
     setIsFormOpen(true);
   };
 
@@ -93,9 +153,28 @@ export default function EmployeesPage() {
 
   const columns = [
     { key: 'id', label: 'ID' },
+    { 
+      key: 'image', 
+      label: 'Photo',
+      render: (row: any) => row.image_url ? (
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden' }}>
+          <img 
+            src={`/storage/${row.image_url}`} 
+            alt={row.name} 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+        </div>
+      ) : (
+        <div style={{ width: '40px', height: '40px', backgroundColor: '#e5e7eb', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+          <UserCircle size={24} />
+        </div>
+      )
+    },
     { key: 'name', label: 'Name' },
     { key: 'email', label: 'Email' },
-    { key: 'location_id', label: 'Location ID' }
+    { key: 'phone', label: 'Phone', render: (row: any) => row.phone || '-' },
+    { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
+    { key: 'location', label: 'Location', render: (row: any) => row.location ? row.location.name : '-' }
   ];
 
   return (
@@ -105,7 +184,8 @@ export default function EmployeesPage() {
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
-          setFormData({ name: '', email: '', password: '', location_id: '' });
+          setImageFile(null);
+          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Employee'}
         </Button>
@@ -116,6 +196,7 @@ export default function EmployeesPage() {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+            <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+1234567890" />
             <Input 
               label="Password" 
               name="password" 
@@ -125,7 +206,51 @@ export default function EmployeesPage() {
               required={!editingId} 
               placeholder={editingId ? 'Leave blank to keep current' : ''}
             />
-            <Input label="Location ID" name="location_id" type="number" value={formData.location_id} onChange={handleInputChange} />
+            
+            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
+              <label className="label"><span className="label-text font-medium">Profile Photo</span></label>
+              <input className="input input-bordered w-full" type="file" accept="image/*" onChange={handleFileChange} />
+              {formData.image_url && !imageFile && (
+                <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <img 
+                    src={`/storage/${formData.image_url}`} 
+                    alt="Current profile" 
+                    style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '50%', border: '1px solid #e5e7eb' }} 
+                  />
+                  <span className="text-xs text-base-content/60">Current photo</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Location</span></label>
+              <select 
+                className="select select-bordered w-full"
+                name="location_id" 
+                value={formData.location_id} 
+                onChange={(e) => handleInputChange(e as any)}
+              >
+                <option value="">No Location</option>
+                {locations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Role</span></label>
+              <select 
+                className="select select-bordered w-full"
+                name="role" 
+                value={formData.role} 
+                onChange={(e) => handleInputChange(e as any)}
+              >
+                <option value="">No Role</option>
+                {roles.map(r => (
+                  <option key={r.id} value={r.name}>{r.name.replace('_', ' ').toUpperCase()}</option>
+                ))}
+              </select>
+            </div>
             
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <Button type="submit" variant="primary">{editingId ? 'Update Employee' : 'Create Employee'}</Button>
@@ -136,7 +261,20 @@ export default function EmployeesPage() {
       )}
 
       <Card>
-        {loading ? <p>Loading employees...</p> : <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} />}
+        {loading ? <p>Loading employees...</p> : (
+          <>
+            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} />
+            {totalPages > 1 && (
+              <div className="flex justify-center mt-6 pb-2">
+                <div className="join">
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>«</button>
+                  <button className="join-item btn btn-sm bg-base-100 cursor-default">Page {page} of {totalPages}</button>
+                  <button className="join-item btn btn-sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>»</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
       </Card>
     </div>
   );

@@ -15,11 +15,17 @@ export default function LocationsPage() {
     name: '',
     type: 'head_office',
     address: '',
+    map_url: '',
     phone: '',
     email: '',
     is_active: 1
   });
+  const [featuredImage, setFeaturedImage] = useState<File | null>(null);
+  const [featuredVideo, setFeaturedVideo] = useState<File | null>(null);
+  const [images, setImages] = useState<FileList | null>(null);
+  const [videos, setVideos] = useState<FileList | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [existingMedia, setExistingMedia] = useState<any>(null);
 
   // Tables Management State
   const [managingTablesFor, setManagingTablesFor] = useState<any | null>(null);
@@ -27,7 +33,10 @@ export default function LocationsPage() {
   const [tablesLoading, setTablesLoading] = useState(false);
   const [tableFormData, setTableFormData] = useState({ name: '', capacity: 4, is_active: 1 });
 
+  const [locationTypes, setLocationTypes] = useState<any[]>([]);
+
   useEffect(() => {
+    fetchApi('/location-types').then(res => setLocationTypes(res.data || res || [])).catch(console.error);
     loadData();
   }, []);
 
@@ -51,26 +60,55 @@ export default function LocationsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload = {
-        ...formData,
-        is_active: parseInt(formData.is_active as any) === 1
-      };
+      const payload = new FormData();
+      Object.keys(formData).forEach(key => {
+        if (key === 'is_active') {
+          payload.append(key, parseInt(formData.is_active as any) === 1 ? '1' : '0');
+        } else if ((formData as any)[key]) {
+          payload.append(key, (formData as any)[key]);
+        }
+      });
+
+      if (featuredImage) {
+        payload.append('featured_image', featuredImage);
+      }
+      if (featuredVideo) {
+        payload.append('featured_video', featuredVideo);
+      }
+
+      if (images) {
+        for (let i = 0; i < images.length; i++) {
+          payload.append('images[]', images[i]);
+        }
+      }
+      
+      if (videos) {
+        for (let i = 0; i < videos.length; i++) {
+          payload.append('videos[]', videos[i]);
+        }
+      }
 
       if (editingId) {
+        payload.append('_method', 'PUT');
         await fetchApi(`/locations/${editingId}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
+          method: 'POST',
+          body: payload,
         });
       } else {
         await fetchApi('/locations', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: payload,
         });
       }
       
       setIsFormOpen(false);
       setEditingId(null);
-      setFormData({ name: '', type: 'head_office', address: '', phone: '', email: '', is_active: 1 });
+      setFeaturedImage(null);
+      setFeaturedVideo(null);
+      setImages(null);
+      setVideos(null);
+      setExistingMedia(null);
+      setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
       loadData();
     } catch (err) {
       console.error(err);
@@ -81,12 +119,19 @@ export default function LocationsPage() {
   const handleEdit = (row: any) => {
     setEditingId(row.id);
     setFormData({
-      name: row.name || '',
+      name: row.name,
       type: row.type || 'head_office',
-      address: row.address || '',
-      phone: row.phone || '',
+      address: row.address,
+      map_url: row.map_url || '',
+      phone: row.phone,
       email: row.email || '',
       is_active: row.is_active ? 1 : 0
+    });
+    setExistingMedia({
+      featuredImage: row.featured_image,
+      featuredVideo: row.featured_video,
+      images: row.images || [],
+      videos: row.videos || []
     });
     setIsFormOpen(true);
   };
@@ -162,7 +207,7 @@ export default function LocationsPage() {
   const columns = [
     { key: 'id', label: 'ID' },
     { key: 'name', label: 'Branch Name' },
-    { key: 'type', label: 'Type' },
+    { key: 'type', label: 'Type', render: (row: any) => row.type_title || (row.type ? row.type.replace('_', ' ').toUpperCase() : '') },
     { key: 'phone', label: 'Phone' },
     { key: 'is_active', label: 'Active', render: (row: any) => row.is_active ? 'Yes' : 'No' },
     { 
@@ -194,10 +239,11 @@ export default function LocationsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
         <h1>Locations Management</h1>
-        <Button onClick={() => {
+          <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
-          setFormData({ name: '', type: 'head_office', address: '', phone: '', email: '', is_active: 1 });
+          setExistingMedia(null);
+          setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Location'}
         </Button>
@@ -216,8 +262,16 @@ export default function LocationsPage() {
                 value={formData.type} 
                 onChange={handleInputChange}
               >
-                <option value="head_office">Head Office</option>
-                <option value="branch">Branch</option>
+                {locationTypes.length > 0 ? (
+                  locationTypes.map(lt => (
+                    <option key={lt.slug} value={lt.slug}>{lt.title}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="head_office">Head Office</option>
+                    <option value="branch">Branch</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -226,6 +280,10 @@ export default function LocationsPage() {
             
             <div style={{ gridColumn: '1 / -1' }}>
               <Input label="Address" name="address" value={formData.address} onChange={handleInputChange} required />
+            </div>
+            
+            <div style={{ gridColumn: '1 / -1' }}>
+              <Input label="Google Map Embed URL" name="map_url" value={formData.map_url} onChange={handleInputChange} placeholder="https://www.google.com/maps/embed?..." required />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -239,6 +297,69 @@ export default function LocationsPage() {
                 <option value={1}>Active</option>
                 <option value={0}>Inactive</option>
               </select>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Featured Image</label>
+              {existingMedia?.featuredImage && (
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <img src={`/storage/${existingMedia.featuredImage.url}`} alt="Featured" style={{ height: '80px', borderRadius: '4px', objectFit: 'cover' }} />
+                </div>
+              )}
+              <input 
+                type="file" 
+                accept="image/*"
+                onChange={(e) => setFeaturedImage(e.target.files?.[0] || null)}
+                style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Featured Video</label>
+              {existingMedia?.featuredVideo && (
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <video 
+                    src={`/storage/${existingMedia.featuredVideo.url}`} 
+                    controls 
+                    style={{ height: '120px', borderRadius: '4px', objectFit: 'cover' }} 
+                  />
+                </div>
+              )}
+              <input 
+                type="file" 
+                accept="video/*"
+                onChange={(e) => setFeaturedVideo(e.target.files?.[0] || null)}
+                style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Images (Multiple)</label>
+              {existingMedia?.images?.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', marginBottom: '0.5rem' }}>
+                  {existingMedia.images.map((img: any) => (
+                    <img key={img.id} src={`/storage/${img.url}`} alt="Gallery" style={{ height: '60px', borderRadius: '4px', objectFit: 'cover' }} />
+                  ))}
+                </div>
+              )}
+              <input 
+                type="file" 
+                multiple 
+                accept="image/*"
+                onChange={(e) => setImages(e.target.files)}
+                style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Videos (Multiple)</label>
+              <input 
+                type="file" 
+                multiple 
+                accept="video/*"
+                onChange={(e) => setVideos(e.target.files)}
+                style={{ padding: '0.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+              />
             </div>
             
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>

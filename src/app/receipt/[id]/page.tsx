@@ -27,7 +27,7 @@ export default function ReceiptPage() {
   if (!order) return <div className="p-10 text-center font-mono">Order not found.</div>;
 
   return (
-    <div id="receipt" style={{ maxWidth: '300px', margin: '0 auto', padding: '20px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff', minHeight: '100vh' }}>
+    <div id="receipt" style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }}>
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>RESTORA ERP</h1>
         <p style={{ margin: '0', fontSize: '0.85rem' }}>123 Restaurant Street</p>
@@ -106,12 +106,14 @@ export default function ReceiptPage() {
         <p style={{ margin: '0', fontSize: '0.75rem', marginTop: '5px' }}>Powered by RestoraERP</p>
       </div>
 
-      {/* CSS to hide non-receipt elements when printing */}
+      {/* CSS to optimize for thermal printers */}
       <style dangerouslySetInnerHTML={{__html: `
+        @page { margin: 0; }
+        body { margin: 0; padding: 0; background: #fff; }
         @media print {
           body * { visibility: hidden; }
           #receipt, #receipt * { visibility: visible; }
-          #receipt { position: absolute; left: 0; top: 0; width: 100%; }
+          #receipt { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; }
         }
       `}} />
     </div>

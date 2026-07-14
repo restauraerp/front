@@ -18,6 +18,7 @@ export default function Home() {
   const [settings, setSettings] = useState<Record<string, string>>({});
   const [reviews, setReviews] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
 
   useEffect(() => {
     // Load website settings
@@ -41,6 +42,12 @@ export default function Home() {
       .then(res => {
         const data = res?.data || res || [];
         setProducts(data.filter((p: any) => p.images && p.images.length > 0).slice(0, 3));
+      }).catch(console.error);
+
+    // Load locations
+    fetchApi('/locations')
+      .then(res => {
+        setLocations(res?.data || res || []);
       }).catch(console.error);
   }, []);
 
@@ -87,9 +94,32 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 py-10 grid grid-cols-1 md:grid-cols-3 gap-8 text-center divide-y md:divide-y-0 md:divide-x divide-base-300">
           <div className="flex flex-col items-center gap-3 pt-6 md:pt-0">
             <MapPin className="text-primary" size={28} />
-            <div>
-              <h3 className="font-bold text-lg mb-1">Location</h3>
-              <p className="text-sm text-base-content/70">{address}</p>
+            <div className="flex flex-col items-center">
+              <h3 className="font-bold text-lg mb-1">{locations.length > 1 ? 'Multiple Locations' : 'Our Location'}</h3>
+              
+              {locations.length > 1 ? (
+                <>
+                  <p className="text-sm text-base-content/70 mb-2">Visit any of our {locations.length} branches</p>
+                  <div className="dropdown dropdown-hover dropdown-bottom md:dropdown-right">
+                    <div tabIndex={0} role="button" className="btn btn-sm btn-outline btn-primary rounded-full px-4">View Branches</div>
+                    <ul tabIndex={0} className="dropdown-content z-[100] menu p-2 shadow-xl bg-base-100 rounded-box w-64 md:w-72 text-left mt-2">
+                      {locations.map((loc: any) => (
+                        <li key={loc.id}>
+                          <Link href={`/locations/${loc.slug || loc.id}`} className="flex flex-col items-start px-3 py-2 hover:bg-base-200">
+                            <span className="font-bold text-base-content leading-none">{loc.name}</span>
+                            <span className="text-xs text-base-content/60 mt-1">{loc.address}</span>
+                            {loc.contact_number && (
+                              <span className="text-xs text-primary mt-1 font-medium">{loc.contact_number}</span>
+                            )}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </>
+              ) : (
+                <p className="text-sm text-base-content/70 max-w-xs">{locations[0]?.address || address}</p>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-center gap-3 pt-6 md:pt-0">
@@ -132,9 +162,29 @@ export default function Home() {
                     <img src={imageUrl} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   </figure>
                   <div className="card-body p-6">
-                    <div className="flex justify-between items-start mb-2">
+                    <div className="flex justify-between items-start mb-2 gap-4">
                       <h3 className="font-bold text-xl">{product.name}</h3>
-                      <span className="font-bold text-primary text-lg">{settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}</span>
+                      <div className="flex flex-col items-end shrink-0">
+                        {product.sale_price ? (
+                          <div className="flex flex-col items-end gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="bg-red-500 text-white px-1.5 py-0.5 rounded text-[0.65rem] font-bold tracking-wider">
+                                SALE
+                              </span>
+                              <span className="text-xs line-through text-base-content/40 font-medium">
+                                {settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}
+                              </span>
+                            </div>
+                            <span className="font-black text-red-500 text-xl leading-none">
+                              {settings.currency_symbol || '৳'}{Number(product.sale_price).toFixed(2)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-bold text-primary text-lg">
+                            {settings.currency_symbol || '৳'}{Number(product.price).toFixed(2)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-base-content/70 mb-4">{product.description}</p>
                     <div className="flex items-center gap-2 text-xs font-semibold text-primary mt-auto">

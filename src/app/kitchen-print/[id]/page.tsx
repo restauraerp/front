@@ -27,7 +27,7 @@ export default function KitchenPrintPage() {
   if (!order) return <div className="p-10 text-center font-mono">Order not found.</div>;
 
   return (
-    <div id="kot" style={{ maxWidth: '300px', margin: '0 auto', padding: '20px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff', minHeight: '100vh' }}>
+    <div id="kot" style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }}>
       <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>KITCHEN ORDER TICKET</h1>
         <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0' }}>{order.order_type.replace('_', ' ').toUpperCase()}</h2>
@@ -72,12 +72,14 @@ export default function KitchenPrintPage() {
         </tbody>
       </table>
 
-      {/* CSS to hide non-receipt elements when printing */}
+      {/* CSS to optimize for thermal printers */}
       <style dangerouslySetInnerHTML={{__html: `
+        @page { margin: 0; }
+        body { margin: 0; padding: 0; background: #fff; }
         @media print {
           body * { visibility: hidden; }
           #kot, #kot * { visibility: visible; }
-          #kot { position: absolute; left: 0; top: 0; width: 100%; }
+          #kot { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 10px; }
         }
       `}} />
     </div>

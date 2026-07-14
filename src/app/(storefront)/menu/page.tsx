@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { useCart } from '../CartProvider';
 
 export default function MenuPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -10,6 +11,7 @@ export default function MenuPage() {
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState<number | 'all'>('all');
   const [settings, setSettings] = useState<Record<string, string>>({});
+  const { addToCart } = useCart();
 
   useEffect(() => {
     loadData();
@@ -35,6 +37,11 @@ export default function MenuPage() {
       setLoading(false);
     }
   };
+
+  const validCategories = categories.map(cat => ({
+    ...cat,
+    count: products.filter(p => p.category_id === cat.id).length
+  })).filter(cat => cat.count > 0);
 
   const filteredProducts = activeCategory === 'all' 
     ? products 
@@ -62,16 +69,16 @@ export default function MenuPage() {
               onClick={() => setActiveCategory('all')}
               style={{ borderRadius: '9999px', padding: '0.5rem 1.5rem' }}
             >
-              All Items
+              All Items ({products.length})
             </Button>
-            {categories.map(cat => (
+            {validCategories.map(cat => (
               <Button 
                 key={cat.id}
                 variant={activeCategory === cat.id ? 'primary' : 'secondary'}
                 onClick={() => setActiveCategory(cat.id)}
                 style={{ borderRadius: '9999px', padding: '0.5rem 1.5rem' }}
               >
-                {cat.name}
+                {cat.name} ({cat.count})
               </Button>
             ))}
           </div>
@@ -119,7 +126,27 @@ export default function MenuPage() {
                   <div style={{ padding: '1.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 600, margin: 0, color: 'var(--text-main)' }}>{product.name}</h3>
-                      <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>{settings.currency_symbol || '৳'}{product.price}</span>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        {product.sale_price ? (
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <span style={{ backgroundColor: '#ef4444', color: 'white', padding: '0.1rem 0.4rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold', letterSpacing: '0.05em' }}>
+                                    SALE
+                                </span>
+                                <span style={{ fontSize: '1rem', textDecoration: 'line-through', color: '#9ca3af' }}>
+                                  {settings.currency_symbol || '৳'}{product.price}
+                                </span>
+                            </div>
+                            <span style={{ fontSize: '1.5rem', fontWeight: 900, color: '#ef4444' }}>
+                              {settings.currency_symbol || '৳'}{product.sale_price}
+                            </span>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--primary)' }}>
+                            {settings.currency_symbol || '৳'}{product.price}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     {product.description && (
                       <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.5, margin: '0.5rem 0 1rem 0' }}>
@@ -127,7 +154,7 @@ export default function MenuPage() {
                       </p>
                     )}
                     <div style={{ marginTop: '1rem' }}>
-                      <Button style={{ width: '100%' }} onClick={() => alert('Online ordering coming soon!')}>Order Now</Button>
+                      <Button style={{ width: '100%' }} onClick={() => addToCart(product, 1)}>Order Now</Button>
                     </div>
                   </div>
                 </div>

@@ -44,3 +44,15 @@
   --color-info: #2F80ED;
   --color-info-content: #FFFFFF;
 }
+
+@layer components {
+  .input, .select, .textarea {
+    border: 1px solid var(--color-base-300);
+  }
+  .input:focus, .select:focus, .textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 1px var(--color-primary);
+  }
+
+}

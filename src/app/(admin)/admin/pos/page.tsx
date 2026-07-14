@@ -230,11 +230,11 @@ export default function POS() {
   };
 
   return (
-    <div style={{ display: 'flex', gap: '1rem', height: 'calc(100vh - 4rem)' }}>
+    <div className="flex flex-col md:flex-row gap-4 p-2 md:p-0 md:h-[calc(100vh-4rem)]">
       {/* Left: Product Section */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+      <div className="flex-1 flex flex-col min-w-0 h-[65vh] md:h-full">
         {/* Header Row: Title + Search + Location */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <div className="flex items-center gap-4 mb-3 flex-wrap">
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>Point of Sale</h1>
 
           {/* Location Switcher */}
@@ -255,17 +255,13 @@ export default function POS() {
             </select>
           )}
 
-          <div style={{ position: 'relative', flex: 1, minWidth: '200px', maxWidth: '320px' }}>
-            <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
+          <div className="relative flex-1 min-w-[200px] max-w-[320px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search products…"
-              style={{
-                width: '100%', padding: '0.55rem 0.75rem 0.55rem 2.2rem',
-                borderRadius: '10px', border: '1px solid #e5e7eb', fontSize: '0.85rem',
-                outline: 'none', background: 'white',
-              }}
+              className="w-full py-2 pl-9 pr-3 rounded-lg border border-gray-200 text-sm outline-none bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
             />
           </div>
         </div>
@@ -300,7 +296,7 @@ export default function POS() {
         </div>
 
         {/* Product Grid */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div className="flex-1 overflow-y-auto min-h-0 pb-4">
           {loading ? (
             <div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg text-primary" /></div>
           ) : filteredProducts.length === 0 ? (
@@ -309,7 +305,7 @@ export default function POS() {
               <p>{searchQuery || selectedCategory ? 'No matching products found.' : 'No products available.'}</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(165px, 1fr))', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
               {filteredProducts.map(p => (
                 <button
                   key={p.id}
@@ -343,7 +339,7 @@ export default function POS() {
       </div>
 
       {/* Right: Cart & Order Config */}
-      <div style={{ width: '33.333%', display: 'flex', flexDirection: 'column', gap: '0.5rem', flexShrink: 0 }}>
+      <div className="w-full md:w-1/3 flex flex-col gap-2 shrink-0 md:h-full">
         {/* Order Config Panel */}
         <div style={{ background: 'white', borderRadius: '14px', border: '1px solid #e5e7eb', padding: '0.75rem', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
           <button
@@ -434,8 +430,8 @@ export default function POS() {
         )}
 
         {/* Cart */}
-        <div style={{ flex: 1, background: 'white', borderRadius: '14px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', boxShadow: '0 2px 8px rgba(0,0,0,0.04)', minHeight: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.65rem 0.75rem', borderBottom: '1px solid #f3f4f6' }}>
+        <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[400px] md:min-h-0 overflow-hidden">
+          <div className="flex items-center justify-between py-3 px-4 border-b border-gray-100">
             <h2 style={{ fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>Current Order</h2>
             <div style={{ display: 'flex', gap: '0.3rem' }}>
               {cart.length > 0 && (
@@ -495,7 +491,7 @@ export default function POS() {
           </div>
 
           {/* Footer: Discount, Payment, Totals */}
-          <div style={{ borderTop: '1px solid #f3f4f6', padding: '0.6rem 0.65rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="border-t border-gray-100 py-3 px-4 flex flex-col gap-2 bg-white z-10 shrink-0">
             <DiscountInput discounts={discounts} appliedDiscount={appliedDiscount} onApply={setAppliedDiscount} subtotal={subtotal} />
 
             <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '0.4rem' }}>

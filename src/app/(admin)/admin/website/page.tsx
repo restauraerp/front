@@ -102,7 +102,7 @@ function SettingsTab() {
               <tr key={s.id} className="hover">
                 <td className="font-mono text-xs text-primary font-medium">{s.key}</td>
                 <td className="text-sm max-w-xs truncate">{s.value}</td>
-                <td><span className="badge badge-ghost badge-xs">{s.type}</span></td>
+                <td><span className="badge badge-ghost badge-xs rounded-full">{s.type}</span></td>
                 <td>
                   <div className="flex gap-1">
                     <button className="btn btn-ghost btn-xs btn-square tooltip" data-tip="Edit" onClick={() => startEdit(s)}><Pencil size={12}/></button>

@@ -1,0 +1,114 @@
+name: front-deploy
+
+# Deploys this Next.js app to the production EC2 box on every tag that
+# starts with "v" (e.g. v1.0.0, v2025.06.18).
+#
+# Required repo secrets:
+#   PUBLIC_DEPLOY_SSH_KEY  - publicdeploy's private key (terraform output -raw
+#                            publicdeploy_ssh_private_key, from infra/)
+#   DEPLOY_HOST            - instance public IP or domain (terraform output -raw
+#                            public_ip)
+#   DEPLOY_USER            - optional; defaults to "publicdeploy"
+#   FRONT_ENV              - The .env contents for the Next.js frontend
+
+on:
+  push:
+    tags:
+      - "v*"
+
+concurrency:
+  group: front-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'publicdeploy' }}
+      RELEASE: ${{ github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies and build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PUBLIC_DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Upload release
+        run: |
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p /var/www/front/releases/$RELEASE"
+          rsync -az --delete \
+            -e "ssh -i ~/.ssh/id_deploy" \
+            --exclude='.git' --exclude='.github' --exclude='node_modules' \
+            --exclude='.env' --exclude='tests' \
+            --exclude='.idea' --exclude='.claude' \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/front/releases/$RELEASE/"
+
+      - name: Activate release (link shared, npm install, flip current, restart)
+        run: |
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
+          set -euo pipefail
+          APP=/var/www/front
+          REL="$APP/releases/$RELEASE"
+
+          mkdir -p "$APP/shared"
+          DEPLOY
+
+          # Copy env to shared/.env if secret exists
+          if [ -n "${{ secrets.FRONT_ENV }}" ]; then
+            ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "cat > /var/www/front/shared/.env" << 'EOF'
+          ${{ secrets.FRONT_ENV }}
+          EOF
+          else
+            ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "touch /var/www/front/shared/.env"
+          fi
+
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
+          set -euo pipefail
+          APP=/var/www/front
+          REL="$APP/releases/$RELEASE"
+
+          # Wire persistent state from shared/ into this release.
+          ln -sfn "$APP/shared/.env" "$REL/.env"
+
+          cd "$REL"
+          
+          # Next.js requires production dependencies to start
+          npm ci --omit=dev
+
+          # Atomic cutover.
+          ln -sfn "$REL" "$APP/current"
+
+          # PM2 uses the ecosystem ecosystem or direct start
+          # Ensure PM2 has been started before with `pm2 start npm --name "front" -- start`
+          if pm2 show front > /dev/null 2>&1; then
+            pm2 restart front
+          else
+            cd "$APP/current" && pm2 start npm --name "front" -- start
+            pm2 save
+          fi
+
+          # Keep the 5 most recent releases; delete older ones.
+          cd "$APP/releases"
+          ls -1dt */ | tail -n +6 | xargs -r rm -rf
+          echo "Deployed $RELEASE"
+          DEPLOY

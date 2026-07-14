@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -21,6 +21,8 @@ import {
   UtensilsCrossed,
   Globe,
   ScrollText,
+  Home,
+  ArrowLeft,
 } from 'lucide-react';
 
 const navItems = [
@@ -29,8 +31,8 @@ const navItems = [
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
   { href: '/admin/catalog', label: 'Catalog', icon: Package },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
-  { href: '/admin/hr', label: 'HR', icon: Users },
-  { href: '/admin/kiosk', label: 'Kiosk', icon: Monitor },
+  { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
+  { href: '/admin/hr', label: 'HRM', icon: Users },
   { href: '/admin/delivery', label: 'Delivery', icon: Truck },
   { href: '/admin/crm', label: 'CRM', icon: HeartHandshake },
   { href: '/admin/locations', label: 'Locations', icon: MapPin },
@@ -39,10 +41,92 @@ const navItems = [
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
+const routePermissions: Record<string, string> = {
+  '/admin': 'view_dashboard',
+  '/admin/pos': 'view_pos',
+  '/admin/orders': 'view_orders',
+  '/admin/catalog': 'view_catalog',
+  '/admin/inventory': 'view_inventory',
+  '/admin/kiosk': 'view_kitchen_kiosk',
+  '/admin/hr': 'view_hr',
+  '/admin/delivery': 'view_delivery',
+  '/admin/crm': 'view_crm',
+  '/admin/locations': 'view_locations',
+  '/admin/accounting': 'view_accounting',
+  '/admin/website': 'view_website',
+  '/admin/settings': 'view_settings',
+};
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  const renderBreadcrumbs = () => {
+    const segments = pathname.split('/').filter(Boolean);
+    if (segments.length <= 1) return null; // hide on dashboard home
+
+    const moduleHref = `/${segments[0]}/${segments[1]}`;
+    const moduleLabel = navItems.find(i => i.href === moduleHref)?.label || (segments[1].charAt(0).toUpperCase() + segments[1].slice(1));
+    const isSubPage = segments.length > 2;
+
+    return (
+      <div className="mb-6 space-y-1">
+        <div className="text-sm breadcrumbs p-0 text-base-content/60">
+          <ul>
+            <li><Link href="/admin"><Home size={14} className="mr-1"/> Dashboard</Link></li>
+            {segments.length > 1 && (
+              <li>
+                {isSubPage ? <Link href={moduleHref}>{moduleLabel}</Link> : <span className="text-base-content font-medium">{moduleLabel}</span>}
+              </li>
+            )}
+            {segments.slice(2).map((seg, idx) => {
+              const url = `/${segments.slice(0, idx + 3).join('/')}`;
+              const isLast = idx === segments.length - 3;
+              const title = seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, ' ');
+              return (
+                <li key={url}>
+                  {isLast ? <span className="text-base-content font-medium">{title}</span> : <Link href={url}>{title}</Link>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+        
+        {isSubPage && (
+          <div>
+            <button 
+              onClick={() => router.push(moduleHref)}
+              className="btn btn-sm btn-ghost gap-2 pl-0 hover:bg-transparent hover:text-primary transition-colors -ml-2 text-base-content/70"
+            >
+              <ArrowLeft size={16} /> Back to {moduleLabel}
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  React.useEffect(() => {
+    import('@/lib/api').then(({ fetchApi }) => {
+      fetchApi('/auth/me').then(res => {
+        const perms = res?.all_permissions || [];
+        setUserPermissions(perms);
+        const roles = res?.roles?.map((r: any) => r.name) || [];
+        if (roles.includes('super_admin')) setIsSuperAdmin(true);
+      }).catch(console.error);
+    });
+  }, []);
+
+  const hasAccess = (href: string) => {
+    if (isSuperAdmin) return true;
+    const reqPerm = routePermissions[href];
+    if (!reqPerm) return true;
+    return userPermissions.includes(reqPerm);
+  };
 
   const Sidebar = () => (
     <aside className="flex flex-col h-full bg-base-200 min-h-screen w-full overflow-hidden">
@@ -63,7 +147,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-3 overflow-x-hidden">
         <ul className="menu menu-sm px-2 gap-1">
-          {navItems.map(({ href, label, icon: Icon }) => {
+          {navItems.filter(item => hasAccess(item.href)).map(({ href, label, icon: Icon }) => {
             const isActive = pathname === href || (href !== '/admin' && pathname.startsWith(href));
             return (
               <li key={href}>
@@ -147,6 +231,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
           {/* Main */}
           <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
+            {renderBreadcrumbs()}
             {children}
           </main>
         </div>

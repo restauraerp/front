@@ -191,6 +191,76 @@ export default function OrdersPage() {
     );
   };
 
+  const renderOrderCard = (order: any) => {
+    const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
+    const showLogistics = ['delivery', 'catering'].includes(order.order_type);
+    
+    return (
+      <div key={order.id} className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <div className="font-extrabold text-lg text-primary mb-0.5">
+              {order.table?.name || (order.order_type ? order.order_type.replace('_', ' ').toUpperCase() : 'NO TABLE')}
+            </div>
+            <div className="text-xs text-base-content/60">Order #{order.id} • {order.customer?.name || 'Walk-in'}</div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span className={`badge ${s.badge} badge-sm font-bold shadow-sm`}>{s.label}</span>
+            <span className={`badge ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'} badge-sm font-bold shadow-sm`}>
+              {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+            </span>
+          </div>
+        </div>
+        
+        {showLogistics && (
+          <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
+            <div className="text-xs font-semibold mb-1 flex items-center gap-1">
+              <Clock size={12} className="text-primary"/> 
+              {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP'}
+            </div>
+            <div className="text-[10px] opacity-80 flex items-start gap-1">
+              <MapPin size={12} className="mt-0.5 text-error flex-shrink-0" />
+              <span className="line-clamp-2">{order.delivery_address || 'No address provided'}</span>
+            </div>
+            {order.latitude && order.longitude && (
+              <a href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" className="text-[10px] text-blue-500 hover:underline mt-1 inline-block">
+                View on Maps
+              </a>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center justify-between mb-3 bg-base-200/50 p-2 rounded-lg">
+          <LiveTimer placedAt={order.created_at} />
+          <span className="font-bold text-sm">৳{order.total}</span>
+        </div>
+
+        <div className="flex-1 overflow-y-auto mb-1 pr-1 text-sm space-y-2" style={{ maxHeight: '120px' }}>
+          {order.items?.map((item: any) => {
+            const imgUrl = item.product?.images?.[0]?.url;
+            return (
+              <div key={item.id} className="flex items-center gap-2 text-base-content/80 bg-base-100 p-1 rounded-md border border-base-200 shadow-sm">
+                <div className="w-8 h-8 rounded overflow-hidden bg-base-200 flex-shrink-0 flex items-center justify-center">
+                  {imgUrl ? (
+                    <img src={`/storage/${imgUrl}`} alt={item.product?.name} className="w-full h-full object-cover" />
+                  ) : (
+                    <ChefHat size={14} className="text-base-content/40" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="truncate text-xs font-semibold">{order.order_type === 'delivery' && !item.product?.name ? `Item ${item.product_id}` : (item.product?.name || `Item ${item.product_id}`)}</div>
+                  <div className="text-[10px] opacity-70">Qty: {item.qty}</div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {renderActions(order)}
+      </div>
+    );
+  };
+
   // Filter & Sort Logic
   const filteredOrders = useMemo(() => {
     let current = orders.filter(o => {
@@ -218,8 +288,8 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <h1 className="text-2xl font-bold">Order Management</h1>
           {locations.length > 0 && (
             <select 
@@ -239,23 +309,23 @@ export default function OrdersPage() {
             </select>
           )}
         </div>
-        <button className="btn btn-ghost btn-sm gap-2" onClick={loadOrders}>
+        <button className="btn btn-ghost btn-sm gap-2 self-start md:self-auto" onClick={loadOrders}>
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
-      <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold">
+      <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
         {['all_orders', 'dine_in', 'takeaway', 'delivery', 'catering'].map(tab => (
-          <a key={tab} className={`tab tab-lg ${activeTab === tab ? 'tab-active' : ''} capitalize`} onClick={() => setActiveTab(tab)}>
+          <a key={tab} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap ${activeTab === tab ? 'tab-active' : ''} capitalize`} onClick={() => setActiveTab(tab)}>
             {tab.replace('_', '-')}
           </a>
         ))}
       </div>
 
       <Card>
-        <div className="flex justify-between items-center mb-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
           <h2 className="text-lg font-bold capitalize">{activeTab.replace('_', '-')} Orders</h2>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center gap-2 text-sm">
             <span className="text-base-content/60">Sort by:</span>
             {activeTab === 'dine_in' ? (
               <select className="select select-bordered select-sm" value={sortDineIn} onChange={e => setSortDineIn(e.target.value)}>
@@ -282,57 +352,15 @@ export default function OrdersPage() {
           activeTab === 'dine_in' ? (
             /* DINE-IN VISUAL GRID */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredOrders.map(order => {
-                const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
-                return (
-                  <div key={order.id} className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <div className="font-extrabold text-lg text-primary mb-0.5">{order.table?.name || 'No Table'}</div>
-                        <div className="text-xs text-base-content/60">Order #{order.id} • {order.customer?.name || 'Walk-in'}</div>
-                      </div>
-                      <div className="flex flex-col items-end gap-1">
-                        <span className={`badge ${s.badge} badge-sm font-bold shadow-sm`}>{s.label}</span>
-                        <span className={`badge ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'} badge-sm font-bold shadow-sm`}>
-                          {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
-                        </span>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between mb-3 bg-base-200/50 p-2 rounded-lg">
-                      <LiveTimer placedAt={order.created_at} />
-                      <span className="font-bold text-sm">৳{order.total}</span>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto mb-1 pr-1 text-sm space-y-2" style={{ maxHeight: '120px' }}>
-                      {order.items?.map((item: any) => {
-                        const imgUrl = item.product?.images?.[0]?.url;
-                        return (
-                          <div key={item.id} className="flex items-center gap-2 text-base-content/80 bg-base-100 p-1 rounded-md border border-base-200 shadow-sm">
-                            <div className="w-8 h-8 rounded overflow-hidden bg-base-200 flex-shrink-0 flex items-center justify-center">
-                              {imgUrl ? (
-                                <img src={`/storage/${imgUrl}`} alt={item.product?.name} className="w-full h-full object-cover" />
-                              ) : (
-                                <ChefHat size={14} className="text-base-content/40" />
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="truncate text-xs font-semibold">{item.product?.name || `Item ${item.product_id}`}</div>
-                              <div className="text-[10px] opacity-70">Qty: {item.qty}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {renderActions(order)}
-                  </div>
-                );
-              })}
+              {filteredOrders.map(order => renderOrderCard(order))}
             </div>
           ) : (
             /* LIST VIEW FOR ALL ORDERS, TAKEAWAY, DELIVERY, CATERING */
-            <div className="overflow-x-auto">
+            <>
+              <div className="grid grid-cols-1 md:hidden gap-4">
+                {filteredOrders.map(order => renderOrderCard(order))}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
               <table className="table table-zebra w-full">
                 <thead>
                   <tr>
@@ -389,7 +417,8 @@ export default function OrdersPage() {
                   })}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )
         )}
       </Card>
