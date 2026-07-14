@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.00",
+  "version": "1.00.01",
   "private": true,
   "scripts": {
     "dev": "next dev --turbo -p 3029",
