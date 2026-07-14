@@ -43,7 +43,11 @@ jobs:
 
       - name: Install dependencies and build
         env:
-          NEXT_PUBLIC_API_URL: https://api.restauraerp.com/api/v1
+          # Relative path, not an absolute cross-origin URL: the browser
+          # calls same-origin /api/v1/..., and next.config.ts's rewrites()
+          # proxies it server-side to API_INTERNAL_URL. Avoids CORS/mixed-
+          # content entirely, matches the app's local .env convention.
+          NEXT_PUBLIC_API_URL: /api/v1
         run: |
           npm ci
           npm run build
@@ -100,14 +104,15 @@ jobs:
           # Atomic cutover.
           ln -sfn "$REL" "$APP/current"
 
-          # PM2 uses the ecosystem ecosystem or direct start
-          # Ensure PM2 has been started before with `pm2 start npm --name "front" -- start`
-          if pm2 show front > /dev/null 2>&1; then
-            pm2 restart front
-          else
-            cd "$APP/current" && pm2 start npm --name "front" -- start
-            pm2 save
-          fi
+          # PM2 caches the cwd it resolves at `pm2 start` time (Node's
+          # process.cwd() follows the "current" symlink to its real path at
+          # startup), so `pm2 restart` alone would keep re-launching whatever
+          # release was live the very first time this ran, never picking up
+          # later deploys. Delete and recreate every time so cwd is
+          # re-resolved against the freshly-flipped "current" symlink.
+          pm2 delete front > /dev/null 2>&1 || true
+          cd "$APP/current" && pm2 start npm --name "front" -- start
+          pm2 save
 
           # Keep the 5 most recent releases; delete older ones.
           cd "$APP/releases"
