@@ -3,20 +3,22 @@
 # Stop execution if any command fails
 set -e
 
-# Run the version bump command
-echo "Bumping application version..."
-php artisan version:bump
+# Default to patch if no argument is provided
+BUMP_TYPE=${1:-patch}
 
-# Extract the new bumped version from .env.example
-# Remove carriage returns if any, to prevent issues with git flow
-VERSION=$(grep "^APP_VERSION=" .env.example | cut -d '=' -f 2 | tr -d '\r')
+# Run the version bump command using npm
+echo "Bumping application version ($BUMP_TYPE)..."
+npm version $BUMP_TYPE --no-git-tag-version
+
+# Extract the new bumped version from package.json
+VERSION=$(node -p "require('./package.json').version")
 
 if [ -z "$VERSION" ]; then
-    echo "Error: Could not extract APP_VERSION from .env.example"
+    echo "Error: Could not extract version from package.json"
     exit 1
 fi
 
-# Stash the changes made by version:bump
+# Stash the changes made by npm version
 echo "Stashing unstaged changes..."
 git stash
 
@@ -30,7 +32,7 @@ git stash pop 0
 
 # Commit the version bump
 echo "Committing the version bump..."
-git add .env.example
+git add package.json package-lock.json
 git commit -m "chore(release): version bumped to $VERSION"
 
 # Publishing the release

@@ -3,8 +3,8 @@
 # Stop execution if any command fails
 set -e
 
-# Extract the version from the .env file
-VERSION=$(grep "^APP_VERSION=" .env.example | cut -d '=' -f 2 | tr -d '\r')
+# Extract the version from package.json
+VERSION=$(node -p "require('./package.json').version")
 
 # Get the release message from the first script argument, or use a default
 RELEASE_MESSAGE=${1:-"Release v$VERSION"}
