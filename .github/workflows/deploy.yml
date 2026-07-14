@@ -48,6 +48,11 @@ jobs:
           # proxies it server-side to API_INTERNAL_URL. Avoids CORS/mixed-
           # content entirely, matches the app's local .env convention.
           NEXT_PUBLIC_API_URL: /api/v1
+          # next.config.ts reads this at module load to build rewrites(),
+          # and rewrites() is compiled into routes-manifest.json at build
+          # time (Next does NOT re-read it from shared/.env at server
+          # startup) - it must be present here, not only in FRONT_ENV.
+          API_INTERNAL_URL: http://127.0.0.1:8000
         run: |
           npm ci
           npm run build
