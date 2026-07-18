@@ -7,9 +7,12 @@ import { UtensilsCrossed, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
-  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === 'true';
-  const [email, setEmail] = useState(isDemo ? process.env.NEXT_PUBLIC_DEMO_EMAIL || 'admin@demo.com' : '');
-  const [password, setPassword] = useState(isDemo ? process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'password' : '');
+  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === 'true' || process.env.NEXT_PUBLIC_IS_DEMO === '"true"';
+  const demoEmail = (process.env.NEXT_PUBLIC_DEMO_EMAIL || 'demo@restauraerp.com').replace(/^"|"$/g, '');
+  const demoPassword = (process.env.NEXT_PUBLIC_DEMO_PASSWORD || 'demo').replace(/^"|"$/g, '');
+  
+  const [email, setEmail] = useState(isDemo ? demoEmail : '');
+  const [password, setPassword] = useState(isDemo ? demoPassword : '');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
