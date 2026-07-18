@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.09",
+  "version": "1.00.10",
   "private": true,
   "scripts": {
     "dev": "next dev --turbo -p 3029",
@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@next/third-parties": "^16.2.10",
     "@tailwindcss/postcss": "^4.3.2",
     "daisyui": "^5.6.5",
     "lucide-react": "^1.22.0",

@@ -58,6 +58,7 @@ jobs:
           NEXT_PUBLIC_IS_DEMO: "true"
           NEXT_PUBLIC_DEMO_EMAIL: "demo@restauraerp.com"
           NEXT_PUBLIC_DEMO_PASSWORD: "demo"
+          NEXT_PUBLIC_GTM_ID: "GTM-M8HZRXPH"
         run: |
           if [ -n "${{ secrets.FRONT_ENV }}" ]; then
             cat << 'EOF' > .env.production

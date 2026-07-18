@@ -13,6 +13,14 @@ export default function Login() {
   
   const [email, setEmail] = useState(isDemo ? demoEmail : '');
   const [password, setPassword] = useState(isDemo ? demoPassword : '');
+
+  // Force autofill on mount for incognito browsers that strip initial state
+  React.useEffect(() => {
+    if (isDemo) {
+      setEmail(demoEmail);
+      setPassword(demoPassword);
+    }
+  }, [isDemo, demoEmail, demoPassword]);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
