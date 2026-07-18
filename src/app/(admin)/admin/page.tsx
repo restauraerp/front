@@ -19,18 +19,26 @@ const quickLinks = [
 ];
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ orders: 0, products: 0, customers: 0 });
+  const [stats, setStats] = useState({ orders: 0, products: 0, customers: 0, revenue: 0 });
 
   useEffect(() => {
     Promise.allSettled([
-      fetchApi('/orders'),
+      fetchApi('/orders?nopaginate=1'),
       fetchApi('/products'),
       fetchApi('/customers'),
-    ]).then(([orders, products, customers]) => {
+    ]).then(([ordersRes, productsRes, customersRes]) => {
+      const ordersData = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data || ordersRes.value || []) : [];
+      let totalRev = 0;
+      ordersData.forEach((o: any) => {
+        if (o.status !== 'Cancelled' && o.status !== 'Failed') {
+          totalRev += Number(o.total || 0);
+        }
+      });
       setStats({
-        orders: orders.status === 'fulfilled' ? (orders.value?.data || orders.value || []).length : 0,
-        products: products.status === 'fulfilled' ? (products.value?.data || products.value || []).length : 0,
-        customers: customers.status === 'fulfilled' ? (customers.value?.data || customers.value || []).length : 0,
+        orders: ordersData.length,
+        products: productsRes.status === 'fulfilled' ? (productsRes.value?.data || productsRes.value || []).length : 0,
+        customers: customersRes.status === 'fulfilled' ? (customersRes.value?.data || customersRes.value || []).length : 0,
+        revenue: totalRev,
       });
     });
   }, []);
@@ -48,7 +56,12 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
+          <div className="stat-figure text-success"><TrendingUp size={28} /></div>
+          <div className="stat-title text-xs">Total Revenue</div>
+          <div className="stat-value text-success text-3xl">৳{stats.revenue.toFixed(2)}</div>
+        </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-primary"><ShoppingCart size={28} /></div>
           <div className="stat-title text-xs">Total Orders</div>
@@ -60,9 +73,9 @@ export default function Dashboard() {
           <div className="stat-value text-info text-3xl">{stats.products}</div>
         </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-figure text-success"><Users size={28} /></div>
+          <div className="stat-figure text-secondary"><Users size={28} /></div>
           <div className="stat-title text-xs">Customers</div>
-          <div className="stat-value text-success text-3xl">{stats.customers}</div>
+          <div className="stat-value text-secondary text-3xl">{stats.customers}</div>
         </div>
       </div>
 
