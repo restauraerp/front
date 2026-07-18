@@ -10,6 +10,11 @@ export default function DeliveryPage() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
+  const [orders, setOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  
+  const [riders, setRiders] = useState<any[]>([]);
+  
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     order_id: '',
@@ -20,9 +25,42 @@ export default function DeliveryPage() {
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
+  const [locations, setLocations] = useState<any[]>([]);
+  const [activeLocationId, setActiveLocationId] = useState<number | null>(null);
+
   useEffect(() => {
+    fetchApi('/locations').then(res => {
+      const locs = res.data || res || [];
+      setLocations(locs);
+      let savedLoc = null;
+      if (typeof window !== 'undefined') {
+        savedLoc = localStorage.getItem('restora_active_location_id');
+      }
+      if (savedLoc) {
+        setActiveLocationId(Number(savedLoc));
+      } else if (locs.length > 0) {
+        setActiveLocationId(locs[0].id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+        }
+      }
+    }).catch(console.error);
+
     loadData();
+    loadOrders();
+    loadRiders();
   }, []);
+
+  const loadRiders = async () => {
+    try {
+      const res = await fetchApi('/users?nopaginate=1');
+      const allUsers = res.data || res || [];
+      const riderUsers = allUsers.filter((u: any) => u.roles && u.roles.some((r: any) => r.name === 'rider'));
+      setRiders(riderUsers);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -33,6 +71,20 @@ export default function DeliveryPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      const res = await fetchApi('/orders?nopaginate=1');
+      const allOrders = res.data || res || [];
+      const deliverable = allOrders.filter((o: any) => o.order_type === 'delivery');
+      setOrders(deliverable);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingOrders(false);
     }
   };
 
@@ -66,6 +118,7 @@ export default function DeliveryPage() {
       setEditingId(null);
       setFormData({ order_id: '', rider_id: '', address: '', delivery_charge: '0.00', status: 'Pending' });
       loadData();
+      loadOrders();
     } catch (err) {
       console.error(err);
       alert('Failed to save delivery assignment');
@@ -82,6 +135,19 @@ export default function DeliveryPage() {
       status: row.status || 'Pending'
     });
     setIsFormOpen(true);
+  };
+
+  const handleAssignOrder = (order: any) => {
+    setIsFormOpen(true);
+    setEditingId(null);
+    setFormData({
+      order_id: order.id.toString(),
+      rider_id: '',
+      address: order.delivery_address || (order.customer ? order.customer.address : ''),
+      delivery_charge: order.delivery_charge || '0.00',
+      status: 'Pending'
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (row: any) => {
@@ -103,10 +169,40 @@ export default function DeliveryPage() {
     { key: 'status', label: 'Status' }
   ];
 
+  const filteredOrders = orders.filter(o => activeLocationId ? o.location_id === activeLocationId : true);
+  
+  const filteredDeliveries = deliveries.filter(d => {
+    if (!activeLocationId) return true;
+    const dOrder = orders.find(o => o.id === d.order_id);
+    if (dOrder) {
+      return dOrder.location_id === activeLocationId;
+    }
+    // If order is not loaded or missing, fallback to hiding it when a branch is selected
+    return false; 
+  });
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <h1>Delivery & Riders</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h1 style={{ margin: 0 }}>Delivery & Riders</h1>
+          {locations.length > 0 && (
+            <select
+              className="select select-bordered select-sm"
+              value={activeLocationId || ''}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                setActiveLocationId(id);
+                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+              }}
+            >
+              <option value="" disabled>Select Location</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
@@ -119,7 +215,36 @@ export default function DeliveryPage() {
         <Card title={editingId ? 'Edit Assignment' : 'Assign Delivery'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Order ID" name="order_id" type="number" value={formData.order_id} onChange={handleInputChange} required />
-            <Input label="Rider ID (User ID)" name="rider_id" type="number" value={formData.rider_id} onChange={handleInputChange} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Assign Rider</label>
+              <select 
+                style={{ padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: '8px', fontFamily: 'inherit' }} 
+                name="rider_id" value={formData.rider_id} onChange={handleInputChange}
+              >
+                <option value="">-- Select Rider (Optional) --</option>
+                {riders
+                  .filter((rider) => {
+                    if (formData.order_id) {
+                      const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
+                      if (selectedOrder && selectedOrder.location_id) {
+                        return rider.location_id === selectedOrder.location_id;
+                      }
+                    } else if (activeLocationId) {
+                      return rider.location_id === activeLocationId;
+                    }
+                    return true;
+                  })
+                  .map(rider => {
+                    const activeCount = deliveries.filter((d: any) => d.rider_id === rider.id && !['Delivered', 'Failed', 'Cancelled'].includes(d.status)).length;
+                    const statusText = activeCount > 0 ? ` (On Delivery: ${activeCount} active)` : '';
+                    return (
+                      <option key={rider.id} value={rider.id}>
+                        {rider.name} - {rider.location?.name || 'No Branch'}{statusText}
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
             <Input label="Delivery Charge" name="delivery_charge" type="number" step="0.01" value={formData.delivery_charge} onChange={handleInputChange} required />
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
@@ -151,9 +276,65 @@ export default function DeliveryPage() {
         </Card>
       )}
 
-      <Card>
-        {loading ? <p>Loading deliveries...</p> : <Table columns={columns} data={deliveries} onEdit={handleEdit} onDelete={handleDelete} />}
-      </Card>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+        <Card title="Deliverable Orders">
+          {loadingOrders ? (
+            <p>Loading deliverable orders...</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="table w-full text-sm">
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Address</th>
+                    <th>Total</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredOrders.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-4">No deliverable orders found in this branch</td></tr>
+                  ) : (
+                    filteredOrders.map((order) => {
+                      const isAssigned = deliveries.some(d => d.order_id === order.id);
+                      return (
+                        <tr key={order.id}>
+                          <td className="font-semibold">#{order.id}</td>
+                          <td>{order.customer?.name || 'Walk-in'}</td>
+                          <td className="max-w-xs truncate" title={order.delivery_address || (order.customer ? order.customer.address : '')}>
+                            {order.delivery_address || (order.customer ? order.customer.address : 'No address provided')}
+                          </td>
+                          <td>৳{Number(order.total).toFixed(2)}</td>
+                          <td>
+                            <span className={`badge ${order.status === 'completed' ? 'badge-success' : 'badge-warning'} badge-sm`}>
+                              {order.status}
+                            </span>
+                          </td>
+                          <td>
+                            <Button 
+                              variant={isAssigned ? "secondary" : "primary"} 
+                              onClick={() => handleAssignOrder(order)}
+                              style={{ padding: '0.25rem 0.75rem', fontSize: '0.75rem' }}
+                            >
+                              {isAssigned ? 'Reassign' : 'Assign Rider'}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+
+        <Card title="Assigned Deliveries">
+          {loading ? <p>Loading deliveries...</p> : <Table columns={columns} data={filteredDeliveries} onEdit={handleEdit} onDelete={handleDelete} />}
+        </Card>
+      </div>
     </div>
   );
 }
