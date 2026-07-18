@@ -3,12 +3,13 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
-import { UtensilsCrossed, LogIn, AlertCircle } from 'lucide-react';
+import { UtensilsCrossed, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -80,15 +81,25 @@ export default function Login() {
               <label className="label">
                 <span className="label-text font-medium">Password</span>
               </label>
-              <input
-                className="input input-bordered w-full"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                suppressHydrationWarning
-              />
+              <div className="relative">
+                <input
+                  className="input input-bordered w-full pr-10"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  suppressHydrationWarning
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 flex items-center px-3 text-base-content/50 hover:text-base-content focus:outline-none cursor-pointer"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
