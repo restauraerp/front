@@ -23,6 +23,7 @@ import {
   ScrollText,
   Home,
   ArrowLeft,
+  BarChart3,
 } from 'lucide-react';
 
 const navItems = [
@@ -38,6 +39,7 @@ const navItems = [
   { href: '/admin/locations', label: 'Locations', icon: MapPin },
   { href: '/admin/accounting', label: 'Accounting', icon: BookOpen },
   { href: '/admin/website', label: 'Website', icon: Globe },
+  { href: '/admin/reporting', label: 'Reporting', icon: BarChart3 },
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
