@@ -53,6 +53,11 @@ jobs:
           # time (Next does NOT re-read it from shared/.env at server
           # startup) - it must be present here, not only in FRONT_ENV.
           API_INTERNAL_URL: http://127.0.0.1:8000
+          
+          # Explicitly set Demo variables for the build
+          NEXT_PUBLIC_IS_DEMO: "true"
+          NEXT_PUBLIC_DEMO_EMAIL: "demo@restauraerp.com"
+          NEXT_PUBLIC_DEMO_PASSWORD: "demo"
         run: |
           if [ -n "${{ secrets.FRONT_ENV }}" ]; then
             cat << 'EOF' > .env.production
