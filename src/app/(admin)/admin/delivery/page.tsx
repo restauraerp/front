@@ -25,7 +25,27 @@ export default function DeliveryPage() {
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
 
+  const [locations, setLocations] = useState<any[]>([]);
+  const [activeLocationId, setActiveLocationId] = useState<number | null>(null);
+
   useEffect(() => {
+    fetchApi('/locations').then(res => {
+      const locs = res.data || res || [];
+      setLocations(locs);
+      let savedLoc = null;
+      if (typeof window !== 'undefined') {
+        savedLoc = localStorage.getItem('restora_active_location_id');
+      }
+      if (savedLoc) {
+        setActiveLocationId(Number(savedLoc));
+      } else if (locs.length > 0) {
+        setActiveLocationId(locs[0].id);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+        }
+      }
+    }).catch(console.error);
+
     loadData();
     loadOrders();
     loadRiders();
@@ -149,10 +169,40 @@ export default function DeliveryPage() {
     { key: 'status', label: 'Status' }
   ];
 
+  const filteredOrders = orders.filter(o => activeLocationId ? o.location_id === activeLocationId : true);
+  
+  const filteredDeliveries = deliveries.filter(d => {
+    if (!activeLocationId) return true;
+    const dOrder = orders.find(o => o.id === d.order_id);
+    if (dOrder) {
+      return dOrder.location_id === activeLocationId;
+    }
+    // If order is not loaded or missing, fallback to hiding it when a branch is selected
+    return false; 
+  });
+
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <h1>Delivery & Riders</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h1 style={{ margin: 0 }}>Delivery & Riders</h1>
+          {locations.length > 0 && (
+            <select
+              className="select select-bordered select-sm"
+              value={activeLocationId || ''}
+              onChange={(e) => {
+                const id = Number(e.target.value);
+                setActiveLocationId(id);
+                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+              }}
+            >
+              <option value="" disabled>Select Location</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          )}
+        </div>
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
@@ -174,16 +224,25 @@ export default function DeliveryPage() {
                 <option value="">-- Select Rider (Optional) --</option>
                 {riders
                   .filter((rider) => {
-                    if (!formData.order_id) return true;
-                    const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
-                    if (selectedOrder && selectedOrder.location_id) {
-                      return rider.location_id === selectedOrder.location_id;
+                    if (formData.order_id) {
+                      const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
+                      if (selectedOrder && selectedOrder.location_id) {
+                        return rider.location_id === selectedOrder.location_id;
+                      }
+                    } else if (activeLocationId) {
+                      return rider.location_id === activeLocationId;
                     }
                     return true;
                   })
-                  .map(rider => (
-                  <option key={rider.id} value={rider.id}>{rider.name} ({rider.location?.name || 'No Branch'})</option>
-                ))}
+                  .map(rider => {
+                    const activeCount = deliveries.filter((d: any) => d.rider_id === rider.id && !['Delivered', 'Failed', 'Cancelled'].includes(d.status)).length;
+                    const statusText = activeCount > 0 ? ` (On Delivery: ${activeCount} active)` : '';
+                    return (
+                      <option key={rider.id} value={rider.id}>
+                        {rider.name} - {rider.location?.name || 'No Branch'}{statusText}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
             <Input label="Delivery Charge" name="delivery_charge" type="number" step="0.01" value={formData.delivery_charge} onChange={handleInputChange} required />
@@ -235,10 +294,10 @@ export default function DeliveryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.length === 0 ? (
-                    <tr><td colSpan={6} className="text-center py-4">No deliverable orders found</td></tr>
+                  {filteredOrders.length === 0 ? (
+                    <tr><td colSpan={6} className="text-center py-4">No deliverable orders found in this branch</td></tr>
                   ) : (
-                    orders.map((order) => {
+                    filteredOrders.map((order) => {
                       const isAssigned = deliveries.some(d => d.order_id === order.id);
                       return (
                         <tr key={order.id}>
@@ -273,7 +332,7 @@ export default function DeliveryPage() {
         </Card>
 
         <Card title="Assigned Deliveries">
-          {loading ? <p>Loading deliveries...</p> : <Table columns={columns} data={deliveries} onEdit={handleEdit} onDelete={handleDelete} />}
+          {loading ? <p>Loading deliveries...</p> : <Table columns={columns} data={filteredDeliveries} onEdit={handleEdit} onDelete={handleDelete} />}
         </Card>
       </div>
     </div>
