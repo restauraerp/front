@@ -54,6 +54,11 @@ jobs:
           # startup) - it must be present here, not only in FRONT_ENV.
           API_INTERNAL_URL: http://127.0.0.1:8000
         run: |
+          if [ -n "${{ secrets.FRONT_ENV }}" ]; then
+            cat << 'EOF' > .env.production
+          ${{ secrets.FRONT_ENV }}
+          EOF
+          fi
           npm ci
           npm run build
 
