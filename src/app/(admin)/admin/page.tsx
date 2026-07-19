@@ -19,28 +19,54 @@ const quickLinks = [
 ];
 
 export default function Dashboard() {
-  const [stats, setStats] = useState({ orders: 0, products: 0, customers: 0, revenue: 0 });
+  const [stats, setStats] = useState({ 
+    todayRev: 0, todayOrders: 0, 
+    yesterdayRev: 0, yesterdayOrders: 0,
+    weekRev: 0, weekOrders: 0
+  });
 
   useEffect(() => {
-    Promise.allSettled([
-      fetchApi('/orders?nopaginate=1'),
-      fetchApi('/products'),
-      fetchApi('/customers'),
-    ]).then(([ordersRes, productsRes, customersRes]) => {
-      const ordersData = ordersRes.status === 'fulfilled' ? (ordersRes.value?.data || ordersRes.value || []) : [];
-      let totalRev = 0;
+    const d = new Date();
+    d.setDate(d.getDate() - 7);
+    d.setHours(0, 0, 0, 0);
+    const fromDate = d.toISOString();
+
+    fetchApi(`/orders?nopaginate=1&from=${fromDate}`).then(res => {
+      const ordersData = res.data || res || [];
+      
+      let todayRev = 0, todayOrders = 0;
+      let yesterdayRev = 0, yesterdayOrders = 0;
+      let weekRev = 0, weekOrders = 0;
+
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+
       ordersData.forEach((o: any) => {
         if (o.status !== 'Cancelled' && o.status !== 'Failed') {
-          totalRev += Number(o.total || 0);
+          const amount = Number(o.total || 0);
+          const orderDate = new Date(o.created_at);
+          
+          weekRev += amount;
+          weekOrders++;
+
+          if (orderDate >= today) {
+            todayRev += amount;
+            todayOrders++;
+          } else if (orderDate >= yesterday && orderDate < today) {
+            yesterdayRev += amount;
+            yesterdayOrders++;
+          }
         }
       });
+
       setStats({
-        orders: ordersData.length,
-        products: productsRes.status === 'fulfilled' ? (productsRes.value?.data || productsRes.value || []).length : 0,
-        customers: customersRes.status === 'fulfilled' ? (customersRes.value?.data || customersRes.value || []).length : 0,
-        revenue: totalRev,
+        todayRev, todayOrders,
+        yesterdayRev, yesterdayOrders,
+        weekRev, weekOrders
       });
-    });
+    }).catch(console.error);
   }, []);
 
   return (
@@ -58,24 +84,30 @@ export default function Dashboard() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
+          <div className="stat-figure text-primary"><TrendingUp size={28} /></div>
+          <div className="stat-title text-xs">Today's Revenue</div>
+          <div className="stat-value text-primary text-3xl">৳{stats.todayRev.toFixed(2)}</div>
+          <div className="stat-desc text-primary font-medium">{stats.todayOrders} orders today</div>
+        </div>
+        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
+          <div className="stat-figure text-info"><ShoppingCart size={28} /></div>
+          <div className="stat-title text-xs">Yesterday's Revenue</div>
+          <div className="stat-value text-info text-3xl">৳{stats.yesterdayRev.toFixed(2)}</div>
+          <div className="stat-desc text-info font-medium">{stats.yesterdayOrders} orders yesterday</div>
+        </div>
+        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-success"><TrendingUp size={28} /></div>
-          <div className="stat-title text-xs">Total Revenue</div>
-          <div className="stat-value text-success text-3xl">৳{stats.revenue.toFixed(2)}</div>
+          <div className="stat-title text-xs">This Week's Revenue</div>
+          <div className="stat-value text-success text-3xl">৳{stats.weekRev.toFixed(2)}</div>
+          <div className="stat-desc text-success font-medium">{stats.weekOrders} orders this week</div>
         </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-figure text-primary"><ShoppingCart size={28} /></div>
-          <div className="stat-title text-xs">Total Orders</div>
-          <div className="stat-value text-primary text-3xl">{stats.orders}</div>
-        </div>
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-figure text-info"><Package size={28} /></div>
-          <div className="stat-title text-xs">Products</div>
-          <div className="stat-value text-info text-3xl">{stats.products}</div>
-        </div>
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-figure text-secondary"><Users size={28} /></div>
-          <div className="stat-title text-xs">Customers</div>
-          <div className="stat-value text-secondary text-3xl">{stats.customers}</div>
+          <div className="stat-figure text-secondary"><ClipboardList size={28} /></div>
+          <div className="stat-title text-xs">Avg Order Value (Week)</div>
+          <div className="stat-value text-secondary text-3xl">
+            ৳{stats.weekOrders > 0 ? (stats.weekRev / stats.weekOrders).toFixed(2) : '0.00'}
+          </div>
+          <div className="stat-desc text-secondary font-medium">Based on recent week</div>
         </div>
       </div>
 
