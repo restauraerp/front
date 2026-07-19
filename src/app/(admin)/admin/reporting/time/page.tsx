@@ -46,7 +46,7 @@ export default function TimeReportPage() {
               <XAxis dataKey="time" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
               <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" yAxisId="left" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
               <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" yAxisId="right" orientation="right" />
-              <Tooltip formatter={(value: any, name: string) => [name === 'revenue' ? `৳${formatCurrency(value)}` : value, name === 'revenue' ? 'Revenue' : 'Orders']} labelStyle={{color: '#1f2937'}} />
+              <Tooltip formatter={(value: any, name: any) => [name === 'revenue' ? `৳${formatCurrency(value)}` : value, name === 'revenue' ? 'Revenue' : 'Orders']} labelStyle={{color: '#1f2937'}} />
               <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="revenue" />
               <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#8b5cf6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="orders" />
             </LineChart>
