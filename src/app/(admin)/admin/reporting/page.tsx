@@ -15,6 +15,14 @@ export default function ReportingPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [chartType, setChartType] = useState('bar');
+  const [locations, setLocations] = useState<any[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState('all');
+
+  useEffect(() => {
+    fetchApi('/locations?nopaginate=true').then(res => {
+      setLocations(res.data || res || []);
+    }).catch(console.error);
+  }, []);
 
   useEffect(() => {
     if (filterRange === 'custom' && (!customDateFrom || !customDateTo)) {
@@ -63,6 +71,9 @@ export default function ReportingPage() {
 
     if (fromDate) url += `&from=${fromDate}`;
     if (toDate) url += `&to=${toDate}`;
+    if (selectedBranch !== 'all') {
+      url += `&location_id=${selectedBranch}`;
+    }
 
     fetchApi(url).then(res => {
       setOrders(res.data || res || []);
@@ -72,7 +83,7 @@ export default function ReportingPage() {
       console.error(err);
       setLoading(false);
     });
-  }, [filterRange, customDateFrom, customDateTo]);
+  }, [filterRange, customDateFrom, customDateTo, selectedBranch]);
 
   const filteredOrders = useMemo(() => {
     return orders.filter(order => order.status !== 'Cancelled' && order.status !== 'Failed');
@@ -133,6 +144,17 @@ export default function ReportingPage() {
         </div>
         
         <div className="flex items-center gap-2">
+          <select 
+            className="select select-bordered" 
+            value={selectedBranch} 
+            onChange={(e) => setSelectedBranch(e.target.value)}
+          >
+            <option value="all">All Branches</option>
+            {locations.map((loc: any) => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
+            ))}
+          </select>
+
           {filterRange === 'custom' && (
             <div className="flex gap-2 items-center mr-2 bg-base-100 p-1 rounded-xl border border-base-200">
               <input type="date" className="input input-sm border-none focus:outline-none" value={customDateFrom} onChange={(e) => setCustomDateFrom(e.target.value)} />
