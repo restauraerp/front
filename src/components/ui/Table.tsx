@@ -16,10 +16,10 @@ const getStatusBadge = (status: any) => {
   return <span className="badge badge-ghost px-3 py-1 h-auto rounded-full">{status}</span>;
 };
 
-export const Table = ({ columns, data, onEdit, onDelete }: any) => {
+export const Table = ({ columns, data, onEdit, onDelete, rowClassName }: any) => {
   return (
     <div className="overflow-x-auto w-full">
-      <table className="table table-zebra w-full">
+      <table className={`table w-full ${rowClassName ? '' : 'table-zebra'}`}>
         <thead>
           <tr>
             {columns.map((col: any) => (
@@ -41,7 +41,7 @@ export const Table = ({ columns, data, onEdit, onDelete }: any) => {
             </tr>
           ) : (
             data.map((row: any) => (
-              <tr key={row.id} className="hover">
+              <tr key={row.id} className={`hover ${rowClassName ? rowClassName(row) : ''}`}>
                 {columns.map((col: any) => (
                   <td key={col.key} className="text-sm">
                     {col.render 
