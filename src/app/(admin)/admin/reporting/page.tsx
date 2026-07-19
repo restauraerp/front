@@ -6,6 +6,13 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
+const formatCurrency = (value: number | string) => {
+  return Number(value || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+
 export default function ReportingPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -132,7 +139,7 @@ export default function ReportingPage() {
   const columns = [
     { key: 'date', label: (filterRange === 'today' || filterRange === 'yesterday') ? 'Time' : (filterRange === '12_months' || filterRange === 'all_time' ? 'Month' : 'Date') },
     { key: 'orders', label: 'Total Orders' },
-    { key: 'revenue', label: 'Revenue (৳)', render: (row: any) => `৳${row.revenue.toFixed(2)}` }
+    { key: 'revenue', label: 'Revenue (৳)', render: (row: any) => `৳${formatCurrency(row.revenue)}` }
   ];
 
   return (
@@ -185,7 +192,7 @@ export default function ReportingPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
               <div className="stat-title text-xs">Total Revenue</div>
-              <div className="stat-value text-success text-3xl">৳{totalRevenue.toFixed(2)}</div>
+              <div className="stat-value text-success text-3xl">৳{formatCurrency(totalRevenue)}</div>
             </div>
             <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
               <div className="stat-title text-xs">Total Orders</div>
@@ -194,7 +201,7 @@ export default function ReportingPage() {
             <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
               <div className="stat-title text-xs">Avg Order Value</div>
               <div className="stat-value text-info text-3xl">
-                ৳{totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}
+                ৳{formatCurrency(totalOrders > 0 ? (totalRevenue / totalOrders) : 0)}
               </div>
             </div>
           </div>
@@ -213,16 +220,16 @@ export default function ReportingPage() {
                     <BarChart data={dailyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                       <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
-                      <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${v}`} />
-                      <Tooltip formatter={(value: any) => [`৳${Number(value || 0).toFixed(2)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} cursor={{fill: '#f3f4f6'}} />
+                      <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
+                      <Tooltip formatter={(value: any) => [`৳${formatCurrency(value)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} cursor={{fill: '#f3f4f6'}} />
                       <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   ) : (
                     <LineChart data={dailyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
                       <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
-                      <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${v}`} />
-                      <Tooltip formatter={(value: any) => [`৳${Number(value || 0).toFixed(2)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} />
+                      <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
+                      <Tooltip formatter={(value: any) => [`৳${formatCurrency(value)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} />
                       <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 6 }} />
                     </LineChart>
                   )}

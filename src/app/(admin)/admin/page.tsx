@@ -8,6 +8,13 @@ import {
   ClipboardList, HeartHandshake, BookOpen, TrendingUp
 } from 'lucide-react';
 
+const formatCurrency = (value: number | string) => {
+  return Number(value || 0).toLocaleString('en-IN', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+};
+
 const quickLinks = [
   { href: '/admin/pos', label: 'Point of Sale', icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
   { href: '/admin/catalog', label: 'Catalog', icon: Package, color: 'text-info', bg: 'bg-info/10' },
@@ -86,26 +93,26 @@ export default function Dashboard() {
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-primary"><TrendingUp size={28} /></div>
           <div className="stat-title text-xs">Today's Revenue</div>
-          <div className="stat-value text-primary text-3xl">৳{stats.todayRev.toFixed(2)}</div>
+          <div className="stat-value text-primary text-3xl">৳{formatCurrency(stats.todayRev)}</div>
           <div className="stat-desc text-primary font-medium">{stats.todayOrders} orders today</div>
         </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-info"><ShoppingCart size={28} /></div>
           <div className="stat-title text-xs">Yesterday's Revenue</div>
-          <div className="stat-value text-info text-3xl">৳{stats.yesterdayRev.toFixed(2)}</div>
+          <div className="stat-value text-info text-3xl">৳{formatCurrency(stats.yesterdayRev)}</div>
           <div className="stat-desc text-info font-medium">{stats.yesterdayOrders} orders yesterday</div>
         </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-success"><TrendingUp size={28} /></div>
           <div className="stat-title text-xs">This Week's Revenue</div>
-          <div className="stat-value text-success text-3xl">৳{stats.weekRev.toFixed(2)}</div>
+          <div className="stat-value text-success text-3xl">৳{formatCurrency(stats.weekRev)}</div>
           <div className="stat-desc text-success font-medium">{stats.weekOrders} orders this week</div>
         </div>
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-secondary"><ClipboardList size={28} /></div>
           <div className="stat-title text-xs">Avg Order Value (Week)</div>
           <div className="stat-value text-secondary text-3xl">
-            ৳{stats.weekOrders > 0 ? (stats.weekRev / stats.weekOrders).toFixed(2) : '0.00'}
+            ৳{formatCurrency(stats.weekOrders > 0 ? (stats.weekRev / stats.weekOrders) : 0)}
           </div>
           <div className="stat-desc text-secondary font-medium">Based on recent week</div>
         </div>
