@@ -3,6 +3,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import ReportFilterBar from '@/components/reporting/ReportFilterBar';
 
+import { Suspense } from 'react';
+
 const tabs = [
   { href: '/admin/reporting/sales', label: 'Sales Report' },
   { href: '/admin/reporting/products', label: 'Product Performance' },
@@ -10,7 +12,7 @@ const tabs = [
   { href: '/admin/reporting/inventory', label: 'Inventory Health' },
 ];
 
-export default function ReportingLayout({ children }: { children: React.ReactNode }) {
+function ReportingLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -40,5 +42,13 @@ export default function ReportingLayout({ children }: { children: React.ReactNod
         {children}
       </div>
     </div>
+  );
+}
+
+export default function ReportingLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><span className="loading loading-spinner text-primary"></span></div>}>
+      <ReportingLayoutInner>{children}</ReportingLayoutInner>
+    </Suspense>
   );
 }
