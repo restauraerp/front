@@ -33,10 +33,15 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 7);
-    d.setHours(0, 0, 0, 0);
-    const fromDate = d.toISOString();
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    const now = new Date();
+    
+    const d7 = new Date(now);
+    d7.setDate(d7.getDate() - 7);
+    const dhakaStr7 = d7.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
+    const dhakaDate7 = new Date(dhakaStr7);
+    dhakaDate7.setHours(0, 0, 0, 0);
+    const fromDate = `${dhakaDate7.getFullYear()}-${pad(dhakaDate7.getMonth()+1)}-${pad(dhakaDate7.getDate())} 00:00:00`;
 
     fetchApi(`/orders?nopaginate=1&from=${fromDate}`).then(res => {
       const ordersData = res.data || res || [];
@@ -45,23 +50,25 @@ export default function Dashboard() {
       let yesterdayRev = 0, yesterdayOrders = 0;
       let weekRev = 0, weekOrders = 0;
 
-      const now = new Date();
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const dhakaNow = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
+      const today = new Date(dhakaNow.getFullYear(), dhakaNow.getMonth(), dhakaNow.getDate());
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
 
       ordersData.forEach((o: any) => {
         if (o.status !== 'Cancelled' && o.status !== 'Failed') {
           const amount = Number(o.total || 0);
-          const orderDate = new Date(o.created_at);
+          
+          const rawDate = new Date(o.created_at);
+          const dhakaOrderDate = new Date(rawDate.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
           
           weekRev += amount;
           weekOrders++;
 
-          if (orderDate >= today) {
+          if (dhakaOrderDate >= today) {
             todayRev += amount;
             todayOrders++;
-          } else if (orderDate >= yesterday && orderDate < today) {
+          } else if (dhakaOrderDate >= yesterday && dhakaOrderDate < today) {
             yesterdayRev += amount;
             yesterdayOrders++;
           }
