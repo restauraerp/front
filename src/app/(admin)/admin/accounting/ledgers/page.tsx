@@ -52,8 +52,17 @@ export default function LedgersPage() {
 
   const getRowClassName = (row: any) => {
     const type = (row.transaction_type || '').toLowerCase();
-    if (type === 'credit') return 'bg-success/10 text-success-content';
-    if (type === 'debit') return 'bg-error/10 text-error-content';
+    
+    // Inflows (Credits)
+    if (['credit', 'income', 'sale'].includes(type)) {
+      return 'bg-success/10';
+    }
+    
+    // Outflows (Debits)
+    if (['debit', 'expense', 'salary', 'purchase'].includes(type)) {
+      return 'bg-error/10';
+    }
+    
     return '';
   };
 
