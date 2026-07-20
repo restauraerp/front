@@ -40,8 +40,8 @@ export const Table = ({ columns, data, onEdit, onDelete, rowClassName }: any) =>
               </td>
             </tr>
           ) : (
-            data.map((row: any) => (
-              <tr key={row.id} className={`hover ${rowClassName ? rowClassName(row) : ''}`}>
+            data.map((row: any, index: number) => (
+              <tr key={row.id || `row-${index}`} className={`hover ${rowClassName ? rowClassName(row) : ''}`}>
                 {columns.map((col: any) => (
                   <td key={col.key} className="text-sm">
                     {col.render 
