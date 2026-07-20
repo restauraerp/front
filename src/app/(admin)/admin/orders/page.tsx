@@ -94,7 +94,7 @@ export default function OrdersPage() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetchApi('/orders?nopaginate=1');
+      const res = await fetchApi('/orders?nopaginate=1&active_only=1');
       setOrders(res.data || res || []);
     } catch (err) {
       console.error(err);
