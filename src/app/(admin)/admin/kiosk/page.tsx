@@ -12,11 +12,8 @@ export default function KitchenKiosk() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetchApi(`/orders?nopaginate=1&_t=${Date.now()}`);
+      const res = await fetchApi(`/orders?nopaginate=1&statuses=pending,cooking&_t=${Date.now()}`);
       let data = res.data || res || [];
-      
-      // Filter only pending and cooking orders
-      data = data.filter((o: any) => o.status === 'pending' || o.status === 'cooking');
       
       // Sort: older orders first
       data.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
