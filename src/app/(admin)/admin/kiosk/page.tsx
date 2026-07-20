@@ -125,16 +125,16 @@ export default function KitchenKiosk() {
               <div className="flex justify-between items-start mb-4 pb-3 border-b border-base-200">
                 <div>
                   <h2 className="text-xl font-black text-base-content">
-                    {order.table?.name || order.order_type.replace('_', ' ').toUpperCase()}
+                    {order.table?.name || (order.order_type || '').replace('_', ' ').toUpperCase()}
                   </h2>
                   <p className="text-sm opacity-60">Order #{order.id}</p>
                 </div>
                 <div className="text-right">
                   <span className={`badge font-bold ${order.status === 'cooking' ? 'badge-info text-white' : 'badge-warning'}`}>
-                    {order.status.toUpperCase()}
+                    {(order.status || '').toUpperCase()}
                   </span>
                   <div className="text-xs opacity-60 mt-1 font-mono">
-                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                   </div>
                 </div>
               </div>
