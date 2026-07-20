@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
+import { PageHeader } from '@/components/ui/PageHeader';
 import AccountingFilterBar from '@/components/accounting/AccountingFilterBar';
 
 function LedgersPageContent() {
@@ -95,49 +96,76 @@ function LedgersPageContent() {
     }
   };
 
+  const isInflow = (type: string) => ['credit', 'income', 'sale'].includes(type);
+  const isOutflow = (type: string) => ['debit', 'expense', 'salary', 'purchase'].includes(type);
+
   const columns = [
     { key: 'id', label: 'ID' },
-    { key: 'transaction_type', label: 'Type' },
-    { key: 'amount', label: 'Amount (৳)' },
+    {
+      key: 'transaction_type',
+      label: 'Type',
+      render: (row: any) => {
+        const type = (row.transaction_type || '').toLowerCase();
+        const badgeClass = isInflow(type)
+          ? 'badge-success text-white'
+          : isOutflow(type)
+            ? 'badge-error text-white'
+            : 'badge-ghost';
+        return (
+          <span className={`badge ${badgeClass} font-medium px-3 py-1 h-auto rounded-full capitalize`}>
+            {row.transaction_type || '—'}
+          </span>
+        );
+      }
+    },
+    {
+      key: 'amount',
+      label: 'Amount (৳)',
+      render: (row: any) => {
+        const type = (row.transaction_type || '').toLowerCase();
+        const amountClass = isInflow(type)
+          ? 'text-success'
+          : isOutflow(type)
+            ? 'text-error'
+            : 'text-base-content';
+        const sign = isOutflow(type) ? '−' : isInflow(type) ? '+' : '';
+        return (
+          <span className={`font-semibold tabular-nums ${amountClass}`}>
+            {sign}৳{Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </span>
+        );
+      }
+    },
     { key: 'description', label: 'Description' },
-    { 
-      key: 'created_at', 
+    {
+      key: 'created_at',
       label: 'Date & Time',
-      render: (row: any) => new Date(row.created_at).toLocaleString('en-US', { 
-        year: 'numeric', month: 'short', day: 'numeric', 
-        hour: '2-digit', minute: '2-digit', hour12: true 
+      render: (row: any) => new Date(row.created_at).toLocaleString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
       })
     }
   ];
 
   const getRowClassName = (row: any) => {
     const type = (row.transaction_type || '').toLowerCase();
-    
-    // Inflows (Credits)
-    if (['credit', 'income', 'sale'].includes(type)) {
-      return 'bg-success/10';
-    }
-    
-    // Outflows (Debits)
-    if (['debit', 'expense', 'salary', 'purchase'].includes(type)) {
-      return 'bg-error/10';
-    }
-    
+    if (isInflow(type)) return 'bg-success/5';
+    if (isOutflow(type)) return 'bg-error/5';
     return '';
   };
 
   return (
     <div>
-      <div style={{ marginBottom: '1rem' }}>
-        <h1>Accounting Ledgers</h1>
-        <p style={{ color: 'var(--text-muted)' }}>View all automated financial transactions.</p>
-      </div>
+      <PageHeader
+        title="Accounting Ledgers"
+        subtitle="View all automated financial transactions."
+      />
 
       <AccountingFilterBar />
 
       <Card>
         {loading ? (
-          <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div>
+          <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary"></span></div>
         ) : (
           <>
             <Table columns={columns} data={ledgers} rowClassName={getRowClassName} />

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { fetchApi } from '@/lib/api';
 import { BookOpen, Receipt, Percent } from 'lucide-react';
 
@@ -40,7 +41,10 @@ export default function AccountingDashboard() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-8">Accounting & Finance</h1>
+      <PageHeader
+        title="Accounting & Finance"
+        subtitle="Manage ledgers, expenses, and tax rules across your branches."
+      />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card title={<div className="flex items-center gap-2"><BookOpen className="text-primary" size={20} /> Ledgers</div>}>
           <div className="mb-4">
