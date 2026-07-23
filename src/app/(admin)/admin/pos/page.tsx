@@ -256,12 +256,12 @@ export default function POS() {
           )}
 
           <div className="relative flex-1 min-w-[200px] max-w-[320px]">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40 z-10" />
             <input
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search products…"
-              className="w-full py-2 pl-9 pr-3 rounded-lg border border-gray-200 text-sm outline-none bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="input input-bordered input-sm w-full pl-9"
             />
           </div>
         </div>

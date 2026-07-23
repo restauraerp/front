@@ -43,16 +43,52 @@
 
   --color-info: #2F80ED;
   --color-info-content: #FFFFFF;
+
+  /* Corner radii — modern, consistent rounding for fields & buttons */
+  --radius-selector: 0.5rem;  /* checkbox, toggle, badge */
+  --radius-field: 0.625rem;   /* input, select, textarea, button, tab */
+  --radius-box: 1rem;         /* card, modal, alert */
 }
 
-@layer components {
-  .input, .select, .textarea {
-    border: 1px solid var(--color-base-300);
-  }
-  .input:focus, .select:focus, .textarea:focus {
-    outline: none;
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 1px var(--color-primary);
-  }
+/*
+ * Form-field styling — intentionally UNLAYERED.
+ * Unlayered rules win over every @layer (including daisyUI's own component
+ * layer), so these borders/focus states reliably override daisyUI defaults.
+ */
+.input, .select, .textarea {
+  /* Clearly visible border so fields stand out against the card background */
+  border: 1px solid color-mix(in srgb, var(--color-base-content) 25%, transparent);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
 
+/* Stronger hover cue so fields read as interactive before focus */
+.input:hover:not(:focus):not(:disabled),
+.select:hover:not(:focus):not(:disabled),
+.textarea:hover:not(:focus):not(:disabled) {
+  border-color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+}
+
+/* Soft focus ring in brand primary instead of a hard 1px line */
+.input:focus, .select:focus, .textarea:focus,
+.input:focus-within, .select:focus-within, .textarea:focus-within {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+/* Consistent disabled treatment across every field type */
+.input:disabled, .select:disabled, .textarea:disabled,
+.input[disabled], .select[disabled], .textarea[disabled] {
+  background-color: var(--color-base-200);
+  border-color: var(--color-base-300);
+  color: color-mix(in srgb, var(--color-base-content) 45%, transparent);
+  cursor: not-allowed;
+}
+
+/* Ghost fields (toolbars / filter bars) stay frameless until focused */
+.input-ghost, .select-ghost, .textarea-ghost {
+  border-color: transparent;
+}
+.input-ghost:focus, .select-ghost:focus, .textarea-ghost:focus {
+  border-color: var(--color-primary);
 }

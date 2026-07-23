@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Table } from '@/components/ui/Table';
+import { PageHeader } from '@/components/ui/PageHeader';
 import { Plus, X, Search } from 'lucide-react';
 
 interface CrudField {
@@ -19,6 +20,7 @@ interface CrudField {
 
 interface CrudPageProps {
   title: string;
+  subtitle?: string;
   endpoint: string;
   tableColumns: { key: string; label: string; render?: (row: any) => React.ReactNode }[];
   formFields: CrudField[];
@@ -27,7 +29,7 @@ interface CrudPageProps {
   initialFormOpen?: boolean;
 }
 
-export function CrudPage({ title, endpoint, tableColumns, formFields, defaultValues, addLabel = '+ Add New', initialFormOpen = false }: CrudPageProps) {
+export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, defaultValues, addLabel = '+ Add New', initialFormOpen = false }: CrudPageProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -121,32 +123,41 @@ export function CrudPage({ title, endpoint, tableColumns, formFields, defaultVal
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        
-        <div className="flex items-center gap-3 flex-1 max-w-sm ml-auto relative">
-          <Search size={16} className="absolute left-3 text-base-content/40" />
-          <input
-            type="text"
-            placeholder="Search..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="input input-bordered input-sm w-full pl-9"
-          />
-        </div>
+      <PageHeader
+        title={title}
+        subtitle={subtitle}
+        className=""
+        actions={
+          <>
+            <div className="relative flex items-center w-full sm:w-64">
+              <Search size={16} className="absolute left-3 text-base-content/40 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                className="input input-bordered input-sm w-full pl-9"
+              />
+            </div>
 
-        <Button
-          onClick={() => {
-            setIsFormOpen(!isFormOpen);
-            setEditingId(null);
-            setFormData({ ...defaultValues });
-          }}
-          variant={isFormOpen ? 'secondary' : 'primary'}
-          className="gap-2"
-        >
-          {isFormOpen ? <><X size={14} /> Close</> : <><Plus size={14} /> {addLabel}</>}
-        </Button>
-      </div>
+            <Button
+              onClick={() => {
+                setIsFormOpen(!isFormOpen);
+                setEditingId(null);
+                setFormData({ ...defaultValues });
+              }}
+              variant={isFormOpen ? 'ghost' : 'neutral'}
+              className={
+                isFormOpen
+                  ? 'gap-2 border border-base-300 text-base-content/70 hover:text-error hover:border-error/30 hover:bg-error/5'
+                  : 'gap-2 shadow-sm'
+              }
+            >
+              {isFormOpen ? <><X size={14} /> Close</> : <><Plus size={14} /> {addLabel}</>}
+            </Button>
+          </>
+        }
+      />
 
       {isFormOpen && (
         <Card title={editingId ? `Edit Record` : addLabel}>

@@ -1,10 +1,11 @@
 import React from 'react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost' | 'warning' | 'success';
+type ButtonVariant = 'primary' | 'secondary' | 'neutral' | 'danger' | 'ghost' | 'warning' | 'success';
 
 const variantMap: Record<ButtonVariant, string> = {
   primary: 'btn-primary',
   secondary: 'btn-neutral btn-outline',
+  neutral: 'btn-neutral',
   danger: 'btn-error',
   ghost: 'btn-ghost',
   warning: 'btn-warning',
