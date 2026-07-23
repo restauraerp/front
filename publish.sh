@@ -23,3 +23,5 @@ echo "Remote `master` branch updated"
 git checkout develop
 
 git push origin "v$VERSION"
+
+gh run watch

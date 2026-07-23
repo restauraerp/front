@@ -16,13 +16,13 @@ const formatCurrency = (value: number | string) => {
 };
 
 const quickLinks = [
-  { href: '/admin/pos', label: 'Point of Sale', icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10' },
-  { href: '/admin/catalog', label: 'Catalog', icon: Package, color: 'text-info', bg: 'bg-info/10' },
-  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, color: 'text-success', bg: 'bg-success/10' },
-  { href: '/admin/hr', label: 'HR', icon: Users, color: 'text-warning', bg: 'bg-warning/10' },
-  { href: '/admin/orders', label: 'Orders', icon: ClipboardList, color: 'text-error', bg: 'bg-error/10' },
-  { href: '/admin/crm', label: 'CRM', icon: HeartHandshake, color: 'text-secondary', bg: 'bg-secondary/10' },
-  { href: '/admin/accounting', label: 'Accounting', icon: BookOpen, color: 'text-accent', bg: 'bg-accent/10' },
+  { href: '/admin/pos', label: 'Point of Sale', icon: ShoppingCart, color: 'text-primary', bg: 'bg-primary/10', reqPerm: 'view_pos' },
+  { href: '/admin/catalog', label: 'Catalog', icon: Package, color: 'text-info', bg: 'bg-info/10', reqPerm: 'view_catalog' },
+  { href: '/admin/inventory', label: 'Inventory', icon: Boxes, color: 'text-success', bg: 'bg-success/10', reqPerm: 'view_inventory' },
+  { href: '/admin/hr', label: 'HR', icon: Users, color: 'text-warning', bg: 'bg-warning/10', reqPerm: 'view_hr' },
+  { href: '/admin/orders', label: 'Orders', icon: ClipboardList, color: 'text-error', bg: 'bg-error/10', reqPerm: 'view_orders' },
+  { href: '/admin/crm', label: 'CRM', icon: HeartHandshake, color: 'text-secondary', bg: 'bg-secondary/10', reqPerm: 'view_crm' },
+  { href: '/admin/accounting', label: 'Accounting', icon: BookOpen, color: 'text-accent', bg: 'bg-accent/10', reqPerm: 'view_accounting' },
 ];
 
 export default function Dashboard() {
@@ -32,7 +32,18 @@ export default function Dashboard() {
     weekRev: 0, weekOrders: 0
   });
 
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [authLoaded, setAuthLoaded] = useState(false);
+
   useEffect(() => {
+    fetchApi('/auth/me').then(res => {
+      setUserPermissions(res?.all_permissions || []);
+      const roles = res?.roles?.map((r: any) => r.name) || [];
+      if (roles.includes('super_admin')) setIsSuperAdmin(true);
+      setAuthLoaded(true);
+    }).catch(console.error);
+
     const pad = (n: number) => n.toString().padStart(2, '0');
     const now = new Date();
     
@@ -83,6 +94,13 @@ export default function Dashboard() {
     }).catch(console.error);
   }, []);
 
+  const hasAccess = (reqPerm: string) => {
+    if (isSuperAdmin) return true;
+    return userPermissions.includes(reqPerm);
+  };
+
+  const filteredLinks = quickLinks.filter(link => hasAccess(link.reqPerm));
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -127,20 +145,28 @@ export default function Dashboard() {
 
       {/* Quick Links */}
       <Card title="Quick Access">
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-          {quickLinks.map(({ href, label, icon: Icon, color, bg }) => (
-            <Link
-              key={href}
-              href={href}
-              className="flex flex-col items-center gap-2 p-4 rounded-xl border border-base-200 hover:border-primary hover:shadow-md transition-all group"
-            >
-              <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
-                <Icon className={`${color} group-hover:scale-110 transition-transform`} size={20} />
-              </div>
-              <span className="text-xs font-medium text-base-content/70">{label}</span>
-            </Link>
-          ))}
-        </div>
+        {authLoaded ? (
+          filteredLinks.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {filteredLinks.map(({ href, label, icon: Icon, color, bg }) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-base-200 hover:border-primary hover:shadow-md transition-all group"
+                >
+                  <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center`}>
+                    <Icon className={`${color} group-hover:scale-110 transition-transform`} size={20} />
+                  </div>
+                  <span className="text-xs font-medium text-base-content/70">{label}</span>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-sm opacity-50 py-4">No quick access modules available for your role.</div>
+          )
+        ) : (
+          <div className="flex justify-center py-4"><span className="loading loading-spinner text-primary"></span></div>
+        )}
       </Card>
     </div>
   );

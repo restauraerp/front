@@ -12,11 +12,8 @@ export default function KitchenKiosk() {
 
   const loadOrders = async () => {
     try {
-      const res = await fetchApi(`/orders?nopaginate=1&_t=${Date.now()}`);
+      const res = await fetchApi(`/orders?nopaginate=1&statuses=pending,cooking&_t=${Date.now()}`);
       let data = res.data || res || [];
-      
-      // Filter only pending and cooking orders
-      data = data.filter((o: any) => o.status === 'pending' || o.status === 'cooking');
       
       // Sort: older orders first
       data.sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
@@ -125,16 +122,16 @@ export default function KitchenKiosk() {
               <div className="flex justify-between items-start mb-4 pb-3 border-b border-base-200">
                 <div>
                   <h2 className="text-xl font-black text-base-content">
-                    {order.table?.name || order.order_type.replace('_', ' ').toUpperCase()}
+                    {order.table?.name || (order.order_type || '').replace('_', ' ').toUpperCase()}
                   </h2>
                   <p className="text-sm opacity-60">Order #{order.id}</p>
                 </div>
                 <div className="text-right">
                   <span className={`badge font-bold ${order.status === 'cooking' ? 'badge-info text-white' : 'badge-warning'}`}>
-                    {order.status.toUpperCase()}
+                    {(order.status || '').toUpperCase()}
                   </span>
                   <div className="text-xs opacity-60 mt-1 font-mono">
-                    {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
                   </div>
                 </div>
               </div>

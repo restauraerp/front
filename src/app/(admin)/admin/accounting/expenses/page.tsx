@@ -20,7 +20,8 @@ export default function ExpensesPage() {
 
   return (
     <CrudPage
-      title="Expenses Management"
+      title="Expenses"
+      subtitle="Log and track operational expenses across your branches."
       endpoint="/expenses"
       addLabel="+ Log Expense"
       tableColumns={[
