@@ -1,7 +1,13 @@
 'use client';
+import { useEffect } from 'react';
 import { CrudPage } from '@/components/ui/CrudPage';
+import { sendGTMEvent } from '@next/third-parties/google';
 
 export default function TaxesPage() {
+  useEffect(() => {
+    sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/taxes' });
+  }, []);
+
   return (
     <CrudPage
       title="Tax Rules"

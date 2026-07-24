@@ -2,11 +2,16 @@
 import { useEffect, useState } from 'react';
 import { CrudPage } from '@/components/ui/CrudPage';
 import { fetchApi } from '@/lib/api';
+import { sendGTMEvent } from '@next/third-parties/google';
 
 export default function ExpensesPage() {
   const [locations, setLocations] = useState<{value: string, label: string}[]>([
     { value: '', label: 'Generic (All Branches)' }
   ]);
+
+  useEffect(() => {
+    sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/expenses' });
+  }, []);
 
   useEffect(() => {
     fetchApi('/locations?nopaginate=1').then((res) => {

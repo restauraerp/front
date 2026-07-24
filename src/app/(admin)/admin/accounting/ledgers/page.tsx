@@ -2,6 +2,7 @@
 import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { sendGTMEvent } from '@next/third-parties/google';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -24,6 +25,11 @@ function LedgersPageContent() {
   useEffect(() => {
     setPage(parseInt(pageParam));
   }, [pageParam]);
+
+  // Send GTM Event for page view
+  useEffect(() => {
+    sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/ledgers' });
+  }, []);
 
   useEffect(() => {
     loadData();
