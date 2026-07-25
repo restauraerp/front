@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
+  // /admin/reporting has no page of its own - it lands on the Sales tab. Doing
+  // this as an HTTP redirect rather than a redirect() inside a page component
+  // avoids rendering (and erroring out of) a throwaway Server Component.
+  async redirects() {
+    return [
+      {
+        source: '/admin/reporting',
+        destination: '/admin/reporting/sales',
+        permanent: false,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {
