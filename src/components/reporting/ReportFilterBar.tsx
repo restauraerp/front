@@ -3,13 +3,19 @@ import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { MapPin, Calendar } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
+import { RANGE_OPTIONS } from '@/lib/reportRange';
+
+interface Branch {
+  id: number;
+  name: string;
+}
 
 export default function ReportFilterBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
   
-  const [locations, setLocations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<Branch[]>([]);
   
   const selectedBranch = searchParams.get('branch') || 'all';
   const filterRange = searchParams.get('range') || 'past_week';
@@ -41,7 +47,7 @@ export default function ReportFilterBar() {
           onChange={(e) => updateParams({ branch: e.target.value })}
         >
           <option value="all">All Branches</option>
-          {locations.map((loc: any) => (
+          {locations.map((loc) => (
             <option key={loc.id} value={loc.id}>{loc.name}</option>
           ))}
         </select>
@@ -54,13 +60,9 @@ export default function ReportFilterBar() {
           value={filterRange} 
           onChange={(e) => updateParams({ range: e.target.value, from: '', to: '' })}
         >
-          <option value="today">Today</option>
-          <option value="yesterday">Yesterday</option>
-          <option value="past_week">Past Week</option>
-          <option value="past_28_days">Past 28 Days</option>
-          <option value="12_months">Past 12 Months</option>
-          <option value="all_time">All Time</option>
-          <option value="custom">Custom Range</option>
+          {RANGE_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
         </select>
       </div>
 

@@ -1,61 +1,135 @@
 'use client';
-import React, { useMemo } from 'react';
+
+import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
-import { useReportOrders } from '@/hooks/useReportOrders';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useReport, useReportFilters } from '@/hooks/useReport';
+import { formatTaka, formatTakaCompact, formatCount } from '@/lib/format';
+import { CHART, axisProps, tooltipProps } from '@/components/reporting/chartTheme';
+import {
+  ReportLoading, ReportError, ReportEmpty, ReportNeedsDates, StatTile, MetricNote,
+} from '@/components/reporting/ReportStates';
 
-const formatCurrency = (value: number | string) => {
-  return Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+interface HourRow {
+  hour: number;
+  label: string;
+  orders: number;
+  revenue: number;
+}
 
 export default function TimeReportPage() {
-  const { orders, loading } = useReportOrders();
+  const { period, branch } = useReportFilters();
 
-  const hourlyData = useMemo(() => {
-    const map: Record<string, any> = {};
-    for (let i = 0; i < 24; i++) {
-      const hourStr = `${i.toString().padStart(2, '0')}:00`;
-      map[hourStr] = { time: hourStr, orders: 0, revenue: 0 };
-    }
-
-    orders.forEach(order => {
-      const d = new Date(order.created_at);
-      const hourStr = `${d.getHours().toString().padStart(2, '0')}:00`;
-      map[hourStr].orders++;
-      map[hourStr].revenue += Number(order.total || 0);
-    });
-    return Object.values(map);
-  }, [orders]);
+  const { data, loading, error, reload } = useReport<{ data: HourRow[] }>(
+    '/reports/hourly',
+    { from: period.from, to: period.to, location_id: branch },
+    { skip: period.incomplete },
+  );
 
   const columns = [
-    { key: 'time', label: 'Time of Day' },
-    { key: 'orders', label: 'Total Orders' },
-    { key: 'revenue', label: 'Revenue (৳)', render: (row: any) => `৳${formatCurrency(row.revenue)}` }
+    { key: 'label', label: 'Time of Day' },
+    { key: 'orders', label: 'Orders', render: (row: HourRow) => formatCount(row.orders) },
+    { key: 'revenue', label: 'Revenue (৳)', render: (row: HourRow) => formatTaka(row.revenue) },
   ];
 
-  if (loading) return <div className="flex justify-center py-20"><span className="loading loading-spinner text-primary"></span></div>;
+  if (period.incomplete) return <Card><ReportNeedsDates /></Card>;
+  if (error) return <ReportError message={error} onRetry={reload} />;
+  if (loading || !data) return <ReportLoading />;
+
+  const rows = data.data;
+  const totalOrders = rows.reduce((sum, r) => sum + r.orders, 0);
+  const busiest = rows.reduce<HourRow | null>(
+    (best, r) => (best === null || r.orders > best.orders ? r : best),
+    null,
+  );
+  const topEarning = rows.reduce<HourRow | null>(
+    (best, r) => (best === null || r.revenue > best.revenue ? r : best),
+    null,
+  );
+
+  if (totalOrders === 0) {
+    return (
+      <>
+        <p className="text-sm text-base-content/60 mb-4">
+          Showing <span className="font-semibold text-base-content">{period.label}</span>
+        </p>
+        <Card><ReportEmpty /></Card>
+      </>
+    );
+  }
 
   return (
     <>
+      <p className="text-sm text-base-content/60 mb-4">
+        Showing <span className="font-semibold text-base-content">{period.label}</span>
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatTile
+          label="Busiest Hour"
+          value={busiest ? busiest.label : '—'}
+          sub={busiest ? `${formatCount(busiest.orders)} orders` : undefined}
+          tone="primary"
+        />
+        <StatTile
+          label="Highest Earning Hour"
+          value={topEarning ? topEarning.label : '—'}
+          sub={topEarning ? formatTaka(topEarning.revenue) : undefined}
+          tone="success"
+        />
+        <StatTile label="Orders in Period" value={formatCount(totalOrders)} tone="info" />
+      </div>
+
       <Card title="Sales by Hour of Day" className="mb-6">
-        <div className="h-72 w-full mt-4">
+        <MetricNote>
+          Every order in the selected period, grouped by the hour of day it was placed
+          (restaurant local time).
+        </MetricNote>
+        <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={hourlyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-              <XAxis dataKey="time" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
-              <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" yAxisId="left" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
-              <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" yAxisId="right" orientation="right" />
-              <Tooltip formatter={(value: any, name: any) => [name === 'revenue' ? `৳${formatCurrency(value)}` : value, name === 'revenue' ? 'Revenue' : 'Orders']} labelStyle={{color: '#1f2937'}} />
-              <Line yAxisId="left" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="revenue" />
-              <Line yAxisId="right" type="monotone" dataKey="orders" stroke="#8b5cf6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} name="orders" />
+            <LineChart data={rows} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
+              <XAxis dataKey="label" interval={1} {...axisProps} />
+              <YAxis yAxisId="left" tickFormatter={formatTakaCompact} {...axisProps} />
+              <YAxis yAxisId="right" orientation="right" allowDecimals={false} {...axisProps} />
+              <Tooltip
+                formatter={(value, name) =>
+                  [
+                    name === 'Revenue' ? formatTaka(Number(value)) : formatCount(Number(value)),
+                    String(name),
+                  ] as [string, string]
+                }
+                {...tooltipProps}
+              />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
+              <Line
+                yAxisId="left"
+                type="monotone"
+                dataKey="revenue"
+                name="Revenue"
+                stroke={CHART.revenue}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6 }}
+              />
+              <Line
+                yAxisId="right"
+                type="monotone"
+                dataKey="orders"
+                name="Orders"
+                stroke={CHART.orders}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 6 }}
+              />
             </LineChart>
           </ResponsiveContainer>
         </div>
       </Card>
 
       <Card title="Hourly Sales Distribution">
-        <Table columns={columns} data={hourlyData} onEdit={undefined} onDelete={undefined} />
+        <Table columns={columns} data={rows} onEdit={undefined} onDelete={undefined} />
       </Card>
     </>
   );

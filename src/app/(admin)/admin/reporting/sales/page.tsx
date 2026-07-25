@@ -1,100 +1,183 @@
 'use client';
-import React, { useState, useMemo } from 'react';
+
+import React, { useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { useReportOrders } from '@/hooks/useReportOrders';
+import {
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from 'recharts';
+import { useReport, useReportFilters } from '@/hooks/useReport';
+import { useTablePagination } from '@/hooks/useTablePagination';
+import { formatBucket } from '@/lib/reportRange';
+import { formatTaka, formatTakaCompact, formatCount } from '@/lib/format';
+import { CHART, axisProps, tooltipProps } from '@/components/reporting/chartTheme';
+import { ReportPager } from '@/components/reporting/ReportPager';
+import {
+  ReportLoading, ReportError, ReportEmpty, ReportNeedsDates, StatTile, MetricNote,
+} from '@/components/reporting/ReportStates';
 
-const formatCurrency = (value: number | string) => {
-  return Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+interface SalesSeriesPoint {
+  bucket: string;
+  orders: number;
+  revenue: number;
+  item_revenue: number;
+  collected: number;
+}
+
+interface SalesReport {
+  bucket: 'hour' | 'day' | 'month';
+  summary: {
+    orders_count: number;
+    gross_revenue: number;
+    item_revenue: number;
+    tax_total: number;
+    discount_total: number;
+    delivery_total: number;
+    collected_revenue: number;
+    outstanding_revenue: number;
+    unpaid_orders: number;
+    avg_order_value: number;
+  };
+  series: SalesSeriesPoint[];
+}
 
 export default function SalesReportPage() {
-  const { orders, loading, filterRange } = useReportOrders();
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
-  const [chartType, setChartType] = useState('bar');
+  const { period, branch } = useReportFilters();
+  const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
 
-  const { totalRevenue, totalOrders, dailyData } = useMemo(() => {
-    let rev = 0; let count = 0;
-    const map: Record<string, any> = {};
+  const { data, loading, error, reload } = useReport<SalesReport>(
+    '/reports/sales',
+    { from: period.from, to: period.to, bucket: period.bucket, location_id: branch },
+    { skip: period.incomplete },
+  );
 
-    orders.forEach(order => {
-      count++;
-      const amount = Number(order.total || 0);
-      rev += amount;
-      const d = new Date(order.created_at);
-      let dateStr = '';
-      if (filterRange === 'today' || filterRange === 'yesterday') {
-        dateStr = `${d.getHours().toString().padStart(2, '0')}:00`;
-      } else if (filterRange === '12_months' || filterRange === 'all_time') {
-        dateStr = `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`;
-      } else {
-        dateStr = d.toISOString().split('T')[0];
-      }
-      if (!map[dateStr]) map[dateStr] = { date: dateStr, orders: 0, revenue: 0 };
-      map[dateStr].orders++;
-      map[dateStr].revenue += amount;
-    });
+  // Newest first in the table, oldest first in the chart.
+  const tableRows = React.useMemo(() => (data ? [...data.series].reverse() : []), [data]);
+  const pager = useTablePagination(tableRows, 10);
 
-    const data = Object.values(map).sort((a: any, b: any) => a.date.localeCompare(b.date));
-    return { totalRevenue: rev, totalOrders: count, dailyData: data };
-  }, [orders, filterRange]);
-
-  const reversedDailyData = [...dailyData].reverse();
-  const totalPages = Math.ceil(reversedDailyData.length / itemsPerPage);
-  const paginatedData = reversedDailyData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const granularity = data?.bucket ?? 'day';
+  const bucketLabel = granularity === 'hour' ? 'Hour' : granularity === 'month' ? 'Month' : 'Date';
 
   const columns = [
-    { key: 'date', label: (filterRange === 'today' || filterRange === 'yesterday') ? 'Time' : (filterRange === '12_months' || filterRange === 'all_time' ? 'Month' : 'Date') },
-    { key: 'orders', label: 'Total Orders' },
-    { key: 'revenue', label: 'Revenue (৳)', render: (row: any) => `৳${formatCurrency(row.revenue)}` }
+    {
+      key: 'bucket',
+      label: bucketLabel,
+      render: (row: SalesSeriesPoint) => formatBucket(row.bucket, granularity),
+    },
+    { key: 'orders', label: 'Orders', render: (row: SalesSeriesPoint) => formatCount(row.orders) },
+    { key: 'revenue', label: 'Revenue (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.revenue) },
+    { key: 'collected', label: 'Collected (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.collected) },
   ];
 
-  if (loading) return <div className="flex justify-center py-20"><span className="loading loading-spinner text-primary"></span></div>;
+  if (period.incomplete) return <Card><ReportNeedsDates /></Card>;
+  if (error) return <ReportError message={error} onRetry={reload} />;
+  if (loading || !data) return <ReportLoading />;
+
+  const { summary, series } = data;
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-title text-xs">Total Revenue</div>
-          <div className="stat-value text-success text-3xl">৳{formatCurrency(totalRevenue)}</div>
-        </div>
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-title text-xs">Total Orders</div>
-          <div className="stat-value text-primary text-3xl">{totalOrders}</div>
-        </div>
-        <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
-          <div className="stat-title text-xs">Avg Order Value</div>
-          <div className="stat-value text-info text-3xl">৳{formatCurrency(totalOrders > 0 ? (totalRevenue / totalOrders) : 0)}</div>
-        </div>
+      <p className="text-sm text-base-content/60 mb-4">
+        Showing <span className="font-semibold text-base-content">{period.label}</span>
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <StatTile
+          label="Total Revenue"
+          value={formatTaka(summary.gross_revenue)}
+          sub="All orders, incl. tax & delivery"
+          tone="primary"
+        />
+        <StatTile
+          label="Collected"
+          value={formatTaka(summary.collected_revenue)}
+          sub={
+            summary.outstanding_revenue > 0
+              ? `${formatTaka(summary.outstanding_revenue)} outstanding over ${formatCount(summary.unpaid_orders)} unpaid order${summary.unpaid_orders === 1 ? '' : 's'}`
+              : 'Every order in this period is paid'
+          }
+          tone="success"
+        />
+        <StatTile label="Total Orders" value={formatCount(summary.orders_count)} tone="info" />
+        <StatTile
+          label="Avg Order Value"
+          value={formatTaka(summary.avg_order_value)}
+          sub={summary.orders_count === 0 ? 'No orders in this period' : undefined}
+        />
       </div>
 
-      {dailyData.length > 0 && (
-        <Card title="Sales Trend">
+      <Card title="Revenue Breakdown" className="mb-6">
+        <MetricNote>
+          Total Revenue is the sum of order totals: item revenue plus tax plus delivery, less
+          discounts. The Product Performance tab counts line items only, so it reports the smaller
+          item-revenue figure.
+        </MetricNote>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Item revenue', value: summary.item_revenue },
+            { label: 'Tax', value: summary.tax_total },
+            { label: 'Delivery', value: summary.delivery_total },
+            { label: 'Discounts', value: -summary.discount_total },
+          ].map(({ label, value }) => (
+            <div key={label} className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">{label}</div>
+              <div className="text-lg font-semibold mt-0.5">{formatTaka(value)}</div>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {series.length > 0 && (
+        <Card title="Sales Trend" className="mb-6">
           <div className="flex justify-end mb-2">
             <div className="join">
-              <button className={`join-item btn btn-xs ${chartType === 'bar' ? 'btn-primary' : 'btn-outline border-base-300'}`} onClick={() => setChartType('bar')}>Bar</button>
-              <button className={`join-item btn btn-xs ${chartType === 'line' ? 'btn-primary' : 'btn-outline border-base-300'}`} onClick={() => setChartType('line')}>Line</button>
+              <button
+                className={`join-item btn btn-xs ${chartType === 'bar' ? 'btn-primary' : 'btn-outline border-base-300'}`}
+                onClick={() => setChartType('bar')}
+              >
+                Bar
+              </button>
+              <button
+                className={`join-item btn btn-xs ${chartType === 'line' ? 'btn-primary' : 'btn-outline border-base-300'}`}
+                onClick={() => setChartType('line')}
+              >
+                Line
+              </button>
             </div>
           </div>
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
               {chartType === 'bar' ? (
-                <BarChart data={dailyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
-                  <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
-                  <Tooltip formatter={(value: any) => [`৳${formatCurrency(value)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} cursor={{fill: '#f3f4f6'}} />
-                  <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
+                <BarChart data={series} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
+                  <XAxis dataKey="bucket" tickFormatter={(v) => formatBucket(v, granularity)} {...axisProps} />
+                  <YAxis tickFormatter={formatTakaCompact} {...axisProps} />
+                  <Tooltip
+                    formatter={(value) => [formatTaka(Number(value)), 'Revenue'] as [string, string]}
+                    labelFormatter={(label) => formatBucket(String(label), granularity)}
+                    cursor={{ fill: CHART.cursor }}
+                    {...tooltipProps}
+                  />
+                  <Bar dataKey="revenue" fill={CHART.revenue} radius={[4, 4, 0, 0]} />
                 </BarChart>
               ) : (
-                <LineChart data={dailyData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" />
-                  <YAxis tick={{fontSize: 12}} tickMargin={10} stroke="#9ca3af" tickFormatter={(v) => `৳${formatCurrency(v)}`} />
-                  <Tooltip formatter={(value: any) => [`৳${formatCurrency(value)}`, 'Revenue']} labelStyle={{color: '#1f2937'}} />
-                  <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: '#10b981' }} activeDot={{ r: 6 }} />
+                <LineChart data={series} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={CHART.grid} />
+                  <XAxis dataKey="bucket" tickFormatter={(v) => formatBucket(v, granularity)} {...axisProps} />
+                  <YAxis tickFormatter={formatTakaCompact} {...axisProps} />
+                  <Tooltip
+                    formatter={(value) => [formatTaka(Number(value)), 'Revenue'] as [string, string]}
+                    labelFormatter={(label) => formatBucket(String(label), granularity)}
+                    {...tooltipProps}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke={CHART.revenue}
+                    strokeWidth={3}
+                    dot={{ r: 3, fill: CHART.revenue }}
+                    activeDot={{ r: 6 }}
+                  />
                 </LineChart>
               )}
             </ResponsiveContainer>
@@ -103,16 +186,13 @@ export default function SalesReportPage() {
       )}
 
       <Card title="Sales Data Table">
-        <Table columns={columns} data={paginatedData} onEdit={undefined} onDelete={undefined} />
-        {totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-            <span className="text-sm">Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, reversedDailyData.length)} of {reversedDailyData.length} entries</span>
-            <div className="join">
-              <button className="join-item btn btn-sm btn-outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>«</button>
-              <button className="join-item btn btn-sm no-animation pointer-events-none">Page {currentPage} of {totalPages}</button>
-              <button className="join-item btn btn-sm btn-outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>»</button>
-            </div>
-          </div>
+        {tableRows.length === 0 ? (
+          <ReportEmpty />
+        ) : (
+          <>
+            <Table columns={columns} data={pager.pageRows} onEdit={undefined} onDelete={undefined} />
+            <ReportPager {...pager} noun="periods" onPrev={pager.prev} onNext={pager.next} />
+          </>
         )}
       </Card>
     </>

@@ -1,69 +1,114 @@
 'use client';
-import React, { useState, useEffect, useMemo } from 'react';
+
+import React from 'react';
+import { Info } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
-import { fetchApi } from '@/lib/api';
+import { useReport, useReportFilters } from '@/hooks/useReport';
+import { useTablePagination } from '@/hooks/useTablePagination';
+import { formatTaka, formatQuantity, formatCount } from '@/lib/format';
+import { ReportPager } from '@/components/reporting/ReportPager';
+import { ReportLoading, ReportError, ReportEmpty, StatTile } from '@/components/reporting/ReportStates';
 
-const formatCurrency = (value: number | string) => {
-  return Number(value || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-};
+interface InventoryRow {
+  id: number;
+  name: string;
+  sku: string | null;
+  unit: string | null;
+  cost_per_unit: number;
+  min_stock_level: number;
+  quantity: number;
+  total_value: number;
+  is_low: boolean;
+}
+
+interface InventoryReport {
+  scoped_to_location: boolean;
+  summary: { items_count: number; low_stock_count: number; total_value: number };
+  data: InventoryRow[];
+}
 
 export default function InventoryReportPage() {
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const { branch } = useReportFilters();
 
-  useEffect(() => {
-    fetchApi('/inventory-items?nopaginate=true')
-      .then(res => {
-        setItems(res.data || res || []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  // Stock is a point-in-time snapshot, so this report takes the branch filter
+  // but deliberately ignores the date range.
+  const { data, loading, error, reload } = useReport<InventoryReport>(
+    '/reports/inventory',
+    { location_id: branch },
+  );
 
-  const sortedItems = useMemo(() => {
-    return [...items].sort((a: any, b: any) => {
-      const aStock = Number(a.stock_quantity || 0);
-      const bStock = Number(b.stock_quantity || 0);
-      return aStock - bStock;
-    });
-  }, [items]);
-
-  const totalPages = Math.ceil(sortedItems.length / itemsPerPage);
-  const paginatedData = sortedItems.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const rows = React.useMemo(() => data?.data ?? [], [data]);
+  const pager = useTablePagination(rows, 10);
 
   const columns = [
     { key: 'name', label: 'Item Name' },
-    { key: 'category', label: 'Category' },
+    { key: 'sku', label: 'SKU' },
     { key: 'unit', label: 'Unit' },
-    { key: 'unit_price', label: 'Unit Price', render: (row: any) => `৳${formatCurrency(row.unit_price)}` },
-    { key: 'stock_quantity', label: 'Stock Quantity', render: (row: any) => {
-        const val = Number(row.stock_quantity || 0);
-        return <span className={val < 10 ? 'text-error font-bold' : ''}>{val.toFixed(2)}</span>;
-    }},
-    { key: 'total_value', label: 'Total Value', render: (row: any) => {
-        const val = Number(row.stock_quantity || 0) * Number(row.unit_price || 0);
-        return `৳${formatCurrency(val)}`;
-    }}
+    {
+      key: 'cost_per_unit',
+      label: 'Cost / Unit',
+      render: (row: InventoryRow) => formatTaka(row.cost_per_unit),
+    },
+    {
+      key: 'quantity',
+      label: 'Stock On Hand',
+      render: (row: InventoryRow) => (
+        <span className={row.is_low ? 'text-error font-bold' : ''}>
+          {formatQuantity(row.quantity)}
+          {row.is_low && <span className="badge badge-error badge-sm text-error-content ml-2">Low</span>}
+        </span>
+      ),
+    },
+    {
+      key: 'min_stock_level',
+      label: 'Reorder At',
+      render: (row: InventoryRow) => formatQuantity(row.min_stock_level),
+    },
+    {
+      key: 'total_value',
+      label: 'Stock Value',
+      render: (row: InventoryRow) => formatTaka(row.total_value),
+    },
   ];
 
-  if (loading) return <div className="flex justify-center py-20"><span className="loading loading-spinner text-primary"></span></div>;
+  if (error) return <ReportError message={error} onRetry={reload} />;
+  if (loading || !data) return <ReportLoading />;
 
   return (
-    <Card title="Inventory Stock Report (Low Stock First)">
-      <Table columns={columns} data={paginatedData} onEdit={undefined} onDelete={undefined} />
-      {totalPages > 1 && (
-        <div className="flex flex-col sm:flex-row justify-between items-center mt-4 gap-4">
-          <span className="text-sm">Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, sortedItems.length)} of {sortedItems.length} items</span>
-          <div className="join">
-            <button className="join-item btn btn-sm btn-outline" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>«</button>
-            <button className="join-item btn btn-sm no-animation pointer-events-none">Page {currentPage} of {totalPages}</button>
-            <button className="join-item btn btn-sm btn-outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}>»</button>
-          </div>
-        </div>
-      )}
-    </Card>
+    <>
+      <div className="flex items-start gap-2 text-sm text-base-content/60 mb-4">
+        <Info size={16} className="shrink-0 mt-0.5" />
+        <p>
+          Current stock on hand{data.scoped_to_location ? ' at the selected branch' : ' across all branches'}.
+          This is a live snapshot, so the date filter does not apply here.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <StatTile label="Items Tracked" value={formatCount(data.summary.items_count)} tone="info" />
+        <StatTile
+          label="At or Below Reorder Level"
+          value={formatCount(data.summary.low_stock_count)}
+          sub={data.summary.low_stock_count > 0 ? 'Needs restocking' : 'All items above reorder level'}
+          tone={data.summary.low_stock_count > 0 ? 'warning' : 'success'}
+        />
+        <StatTile label="Total Stock Value" value={formatTaka(data.summary.total_value)} tone="primary" />
+      </div>
+
+      <Card title="Inventory Stock Report (Low Stock First)">
+        {rows.length === 0 ? (
+          <ReportEmpty
+            title="No inventory items"
+            hint="Add items under Inventory to see stock levels here."
+          />
+        ) : (
+          <>
+            <Table columns={columns} data={pager.pageRows} onEdit={undefined} onDelete={undefined} />
+            <ReportPager {...pager} noun="items" onPrev={pager.prev} onNext={pager.next} />
+          </>
+        )}
+      </Card>
+    </>
   );
 }

@@ -24,6 +24,7 @@ import {
   Home,
   ArrowLeft,
   BarChart3,
+  X,
 } from 'lucide-react';
 
 const navItems = [
@@ -66,6 +67,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+
+  // Close the drawer whenever navigation happens, so links that don't manage
+  // the drawer themselves (profile, breadcrumbs, back button) can't leave it
+  // hanging over the new page.
+  const [renderedPath, setRenderedPath] = useState(pathname);
+  if (pathname !== renderedPath) {
+    setRenderedPath(pathname);
+    setDrawerOpen(false);
+  }
+
+  // The collapsed (icons-only) rail is a desktop affordance; the mobile drawer
+  // always shows the full labelled sidebar.
+  const collapsed = isCollapsed && !drawerOpen;
+
+  React.useEffect(() => {
+    if (!drawerOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') setDrawerOpen(false); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [drawerOpen]);
 
   const renderBreadcrumbs = () => {
     const segments = pathname.split('/').filter(Boolean);
@@ -130,19 +151,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return userPermissions.includes(reqPerm);
   };
 
-  const Sidebar = () => (
-    <aside className="flex flex-col h-full bg-base-200 min-h-screen w-full overflow-hidden">
+  const sidebar = (
+    <aside className="flex flex-col h-full bg-base-200 min-h-screen w-72 max-w-[85vw] lg:w-full lg:max-w-none overflow-hidden">
       {/* Brand */}
-      <div className={`relative flex items-center py-4 border-b border-base-300 h-[73px] transition-all duration-300 ${isCollapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
-        <div className={`flex items-center gap-2 overflow-hidden whitespace-nowrap transition-all duration-300 ${isCollapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
+      <div className={`relative flex items-center py-4 border-b border-base-300 h-[73px] transition-all duration-300 ${collapsed ? 'justify-center px-0' : 'justify-between px-4'}`}>
+        <div className={`flex items-center gap-2 overflow-hidden whitespace-nowrap transition-all duration-300 ${collapsed ? 'w-0 opacity-0' : 'w-auto opacity-100'}`}>
           <UtensilsCrossed className="text-primary shrink-0" size={24} />
           <span className="font-bold text-lg tracking-tight">RestoraERP</span>
         </div>
-        <button 
-          className={`hidden lg:flex btn btn-ghost btn-sm btn-square text-base-content transition-all duration-300 ${isCollapsed ? 'absolute' : ''}`} 
+        <button
+          className={`hidden lg:flex btn btn-ghost btn-sm btn-square text-base-content transition-all duration-300 ${collapsed ? 'absolute' : ''}`}
           onClick={() => setIsCollapsed(!isCollapsed)}
+          aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <Menu size={20} />
+        </button>
+        <button
+          className="lg:hidden btn btn-ghost btn-sm btn-square text-base-content"
+          onClick={() => setDrawerOpen(false)}
+          aria-label="Close menu"
+        >
+          <X size={20} />
         </button>
       </div>
 
@@ -157,18 +186,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   href={href}
                   onClick={() => setDrawerOpen(false)}
                   className={`flex items-center transition-all duration-300 ease-in-out ${
-                    isCollapsed 
-                      ? 'justify-center w-11 h-11 mx-auto rounded-full px-0' 
+                    collapsed
+                      ? 'justify-center w-11 h-11 mx-auto rounded-full px-0'
                       : 'px-3 py-2.5 rounded-lg w-full'
                   } ${
                     isActive
                       ? 'bg-primary text-primary-content shadow-sm'
                       : 'text-base-content hover:bg-base-300'
                   }`}
-                  title={isCollapsed ? label : undefined}
+                  title={collapsed ? label : undefined}
                 >
                   <Icon size={18} className="shrink-0" />
-                  <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
+                  <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
                     <span className="text-sm font-medium whitespace-nowrap flex-1">{label}</span>
                     {isActive && <ChevronRight size={16} className="shrink-0" />}
                   </div>
@@ -183,15 +212,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="border-t border-base-300 p-3">
         <Link
           href="/admin/profile"
+          onClick={() => setDrawerOpen(false)}
           className={`flex items-center transition-all duration-300 ease-in-out ${
-            isCollapsed 
-              ? 'justify-center w-11 h-11 mx-auto rounded-full px-0' 
+            collapsed
+              ? 'justify-center w-11 h-11 mx-auto rounded-full px-0'
               : 'px-3 py-2.5 rounded-lg w-full'
           } text-sm font-medium hover:bg-base-300`}
-          title={isCollapsed ? "My Profile" : undefined}
+          title={collapsed ? "My Profile" : undefined}
         >
           <UserCircle size={18} className="shrink-0" />
-          <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${isCollapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
+          <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
             <span className="whitespace-nowrap">My Profile</span>
           </div>
         </Link>
@@ -241,7 +271,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Sidebar */}
         <div className="drawer-side z-40">
           <label htmlFor="admin-drawer" className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
-          <Sidebar />
+          {sidebar}
         </div>
       </div>
     </>
