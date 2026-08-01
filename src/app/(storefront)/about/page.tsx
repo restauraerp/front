@@ -25,8 +25,8 @@ export default function AboutPage() {
       }).catch(console.error);
   }, []);
 
-  const siteName = settings.site_name || 'RestoraERP';
-  const tagline = settings.tagline || 'Premium Restaurant Management System';
+  const siteName = settings.site_name || 'Bangla Bistro';
+  const tagline = settings.tagline || 'Timeless Flavors, Crafted with Passion';
 
   return (
     <div className="max-w-5xl mx-auto py-16 px-6 space-y-20">

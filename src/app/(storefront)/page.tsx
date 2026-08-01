@@ -51,8 +51,8 @@ export default function Home() {
       }).catch(console.error);
   }, []);
 
-  const siteName = settings.site_name || 'La Bella Cucina';
-  const tagline = settings.tagline || 'Authentic Italian Flavors, Crafted with Passion';
+  const siteName = settings.site_name || 'Bangla Bistro';
+  const tagline = settings.tagline || 'Timeless Flavors, Crafted with Passion';
   const coverImage = settings.cover_image_url || 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1600';
   const address = settings.address || 'Road 27, Block J, Banani, Dhaka';
 

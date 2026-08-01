@@ -71,7 +71,7 @@ export function MobileMenu() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <UtensilsCrossed className="text-primary-content" size={16} />
             </div>
-            <span className="text-lg font-bold tracking-tight">RestoraERP</span>
+            <span className="text-lg font-bold tracking-tight">Bangla Bistro</span>
           </Link>
           <button
             type="button"
