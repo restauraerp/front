@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu, X, UtensilsCrossed, CalendarDays, ChevronRight } from 'lucide-react';
@@ -12,6 +13,11 @@ const rows = storefrontNavLinks.filter(link => link.href !== '/booking');
 export function MobileMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+
+  // The drawer is portalled to <body> (see below), which is only reachable once
+  // we're on the client.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Any navigation closes the menu — including the back button and links that
   // live outside this component.
@@ -36,18 +42,13 @@ export function MobileMenu() {
     };
   }, [open]);
 
-  return (
+  // The navbar carries `backdrop-blur-md`, and an element with a backdrop-filter
+  // becomes the containing block for its position:fixed descendants. Rendered in
+  // place, the overlay and panel resolve against the 64px navbar strip instead of
+  // the viewport. Portalling to <body> escapes that, the same way the cart drawer
+  // avoids it by rendering from CartProvider.
+  const drawer = (
     <>
-      <button
-        type="button"
-        className="btn btn-square btn-ghost md:hidden"
-        onClick={() => setOpen(true)}
-        aria-label="Open menu"
-        aria-expanded={open}
-      >
-        <Menu size={24} />
-      </button>
-
       {/* Overlay — sits below the cart drawer (z-100/101) but above the navbar (z-50) */}
       <div
         className={`fixed inset-0 z-[90] bg-black/50 transition-opacity duration-300 md:hidden ${
@@ -115,6 +116,22 @@ export function MobileMenu() {
           </Link>
         </div>
       </div>
+    </>
+  );
+
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-square btn-ghost md:hidden"
+        onClick={() => setOpen(true)}
+        aria-label="Open menu"
+        aria-expanded={open}
+      >
+        <Menu size={24} />
+      </button>
+
+      {mounted && createPortal(drawer, document.body)}
     </>
   );
 }
