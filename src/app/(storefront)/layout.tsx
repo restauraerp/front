@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { UtensilsCrossed } from 'lucide-react';
 import { CartProvider } from './CartProvider';
@@ -5,6 +6,12 @@ import { CartButton } from './CartButton';
 import { StorefrontNavLinks } from './StorefrontNavLinks';
 import { MobileMenu } from './MobileMenu';
 import { FooterSocialLinks } from './FooterSocialLinks';
+
+// Overrides the root layout's ERP-facing metadata for the public restaurant site.
+export const metadata: Metadata = {
+  title: 'Bangla Bistro | Restaurant & Fine Dining in Dhaka',
+  description: 'Seasonal plates cooked fresh every day in the heart of Dhaka. Dine in, reserve a table, or order delivery from Bangla Bistro.',
+};
 
 export default function StorefrontLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +26,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <UtensilsCrossed className="text-primary-content" size={16} />
               </div>
-              <span className="font-bold text-lg tracking-tight">RestoraERP</span>
+              <span className="font-bold text-lg tracking-tight">Bangla Bistro</span>
             </Link>
           </div>
           <StorefrontNavLinks />
@@ -35,11 +42,11 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
                 <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
                   <UtensilsCrossed className="text-primary-content" size={20} />
                 </div>
-                <span className="font-bold text-xl tracking-tight">RestoraERP</span>
+                <span className="font-bold text-xl tracking-tight">Bangla Bistro</span>
               </div>
               <p className="max-w-xs text-base-content/70">
-                Premium Restaurant Management System.<br/>
-                Delivering exceptional dining experiences and robust operational tools for modern restaurants.
+                Timeless Flavors, Crafted with Passion.<br/>
+                A warm table in the heart of Dhaka — seasonal plates cooked fresh every day.
               </p>
             </aside> 
             <nav className="flex flex-col gap-3">
@@ -67,7 +74,7 @@ export default function StorefrontLayout({ children }: { children: React.ReactNo
           <div className="footer footer-center p-6 border-t border-base-300/50 bg-base-200">
             <aside>
               <p className="text-sm text-base-content/60">
-                © {new Date().getFullYear()} RestoraERP. All rights reserved.
+                © {new Date().getFullYear()} Bangla Bistro. All rights reserved.
               </p>
               <FooterSocialLinks />
             </aside>
