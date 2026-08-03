@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { tenantKey } from '@/lib/tenant';
 
 export default function DeliveryPage() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
@@ -34,14 +35,14 @@ export default function DeliveryPage() {
       setLocations(locs);
       let savedLoc = null;
       if (typeof window !== 'undefined') {
-        savedLoc = localStorage.getItem('restora_active_location_id');
+        savedLoc = localStorage.getItem(tenantKey('restora_active_location_id'));
       }
       if (savedLoc) {
         setActiveLocationId(Number(savedLoc));
       } else if (locs.length > 0) {
         setActiveLocationId(locs[0].id);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+          localStorage.setItem(tenantKey('restora_active_location_id'), locs[0].id.toString());
         }
       }
     }).catch(console.error);
@@ -193,7 +194,7 @@ export default function DeliveryPage() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
-                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+                if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
             >
               <option value="" disabled>Select Location</option>

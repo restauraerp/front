@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
+import { clearTenant } from '@/lib/tenant';
 import { UserCircle, Mail, LogOut, ShieldCheck } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -18,6 +19,9 @@ export default function ProfilePage() {
       await fetchApi('/auth/logout', { method: 'POST' });
     } catch {}
     document.cookie = 'token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+    // Drop the tenant too, so the next login on this browser does not silently
+    // inherit the previous restaurant's code.
+    clearTenant();
     router.push('/login');
     router.refresh();
   };

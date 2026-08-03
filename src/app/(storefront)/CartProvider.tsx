@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { fetchApi } from '@/lib/api';
+import { tenantKey } from '@/lib/tenant';
 
 type CartItem = {
   product_id: number;
@@ -30,7 +31,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [isCartOpen, setIsCartOpen] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('restauraerp_cart');
+    const saved = localStorage.getItem(tenantKey('restauraerp_cart'));
     if (saved) {
       try {
         setItems(JSON.parse(saved));
@@ -39,7 +40,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('restauraerp_cart', JSON.stringify(items));
+    localStorage.setItem(tenantKey('restauraerp_cart'), JSON.stringify(items));
   }, [items]);
 
   const addToCart = (product: any, qty: number = 1) => {

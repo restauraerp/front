@@ -54,10 +54,22 @@ jobs:
           # startup) - it must be present here, not only in FRONT_ENV.
           API_INTERNAL_URL: http://127.0.0.1:8000
           
-          # Explicitly set Demo variables for the build
-          NEXT_PUBLIC_IS_DEMO: "true"
-          NEXT_PUBLIC_DEMO_EMAIL: "demo@restauraerp.com"
-          NEXT_PUBLIC_DEMO_PASSWORD: "demo"
+          # The restaurant this deployment's public storefront belongs to
+          # (tenants.slug). Storefront requests carry no auth token, so this is
+          # the only thing telling the API which restaurant to serve - without
+          # it every menu/booking call returns 400. Like the vars above it is
+          # inlined at BUILD time, so it must be set here and not only in
+          # FRONT_ENV. Must match DEMO_TENANT_SLUG in the core-api .env.
+          NEXT_PUBLIC_TENANT_ID: "bangla-bistro"
+
+          # No demo variables here any more. Demo mode is requested per visit
+          # (/login?demo=true) and answered by the API at request time
+          # (GET /api/v1/demo-config, gated by DEMO_MODE in the core-api .env),
+          # so the demo can be turned on, off, or re-credentialed without
+          # rebuilding this app. The old NEXT_PUBLIC_IS_DEMO/_DEMO_EMAIL/
+          # _DEMO_PASSWORD trio was inlined into the client bundle, which
+          # shipped the demo password to every visitor and made every change a
+          # redeploy.
           NEXT_PUBLIC_GTM_ID: "GTM-M8HZRXPH"
         run: |
           if [ -n "${{ secrets.FRONT_ENV }}" ]; then

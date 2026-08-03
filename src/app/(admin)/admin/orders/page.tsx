@@ -4,6 +4,7 @@ import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import DiscountInput from '../pos/components/DiscountInput';
 import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin } from 'lucide-react';
+import { tenantKey } from '@/lib/tenant';
 
 const statusConfig: Record<string, { badge: string; label: string }> = {
   pending: { badge: 'badge-warning', label: 'Pending' },
@@ -66,6 +67,22 @@ export default function OrdersPage() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
 
+  // Completed orders are fetched separately and paginated on the server. They
+  // cannot come from `orders` above: that request passes active_only=1, so the
+  // API never returns them - and they accumulate without limit (a demo tenant
+  // already holds ~50k), so pulling them all client-side to filter is not an
+  // option.
+  const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [completedTotalPages, setCompletedTotalPages] = useState(1);
+  const [completedTotal, setCompletedTotal] = useState(0);
+  // Starts true and is only ever cleared, mirroring `loading` above: the first
+  // open of the tab shows a spinner, while later page changes keep the current
+  // rows on screen instead of flashing an empty state.
+  const [completedLoading, setCompletedLoading] = useState(true);
+  // Bumped by the Refresh button to re-run the fetch effect below.
+  const [completedReloadKey, setCompletedReloadKey] = useState(0);
+
   useEffect(() => {
     loadOrders();
     fetchApi('/discounts').then(res => setDiscounts(res.data || res || [])).catch(console.error);
@@ -75,7 +92,7 @@ export default function OrdersPage() {
       
       let savedLoc = null;
       if (typeof window !== 'undefined') {
-        savedLoc = localStorage.getItem('restora_active_location_id');
+        savedLoc = localStorage.getItem(tenantKey('restora_active_location_id'));
       }
       
       if (savedLoc && locs.some((l: any) => l.id === Number(savedLoc))) {
@@ -83,7 +100,7 @@ export default function OrdersPage() {
       } else if (locs.length > 0) {
         setActiveLocationId(locs[0].id);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+          localStorage.setItem(tenantKey('restora_active_location_id'), locs[0].id.toString());
         }
       }
     }).catch(console.error);
@@ -102,6 +119,41 @@ export default function OrdersPage() {
       setLoading(false);
     }
   };
+
+  // Fetched only while the tab is open: it is the most expensive query on the
+  // page, and completed orders do not change, so it stays out of the 10s poll.
+  //
+  // The `cancelled` guard matters here rather than being ceremony - paging
+  // quickly through 3,000+ pages can land an earlier response after a later
+  // one, leaving the table showing a page the pager no longer points at.
+  useEffect(() => {
+    if (activeTab !== 'completed') return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
+        // Filtered server-side, unlike the other tabs: with paginated results,
+        // discarding rows in the browser would leave pages half empty (or
+        // empty) and the page count wrong.
+        if (activeLocationId) params.set('location_id', String(activeLocationId));
+
+        const res = await fetchApi(`/orders?${params.toString()}`);
+        if (cancelled) return;
+
+        setCompletedOrders(res.data || []);
+        setCompletedTotalPages(res.last_page || 1);
+        setCompletedTotal(res.total ?? 0);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setCompletedLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeTab, completedPage, activeLocationId, completedReloadKey]);
 
   const handleUpdateStatus = async (order: any, newStatus: string) => {
     if (newStatus === 'pay_modal') {
@@ -263,6 +315,9 @@ export default function OrdersPage() {
 
   // Filter & Sort Logic
   const filteredOrders = useMemo(() => {
+    // Already filtered, sorted (newest first) and paginated by the API.
+    if (activeTab === 'completed') return completedOrders;
+
     let current = orders.filter(o => {
       if (activeLocationId && o.location_id !== activeLocationId) return false;
       if (activeTab === 'all_orders') return true;
@@ -284,7 +339,7 @@ export default function OrdersPage() {
       });
     }
     return current;
-  }, [orders, activeTab, sortDineIn, sortOthers, activeLocationId]);
+  }, [orders, completedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
   return (
     <div className="space-y-6">
@@ -297,7 +352,11 @@ export default function OrdersPage() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
-                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+                // Another branch has a different number of completed pages, so
+                // holding the current page could land past the end - an empty
+                // table with no obvious way back.
+                setCompletedPage(1);
+                if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
               className="select select-sm select-bordered"
               style={{ fontWeight: 600, color: '#4b5563' }}
@@ -309,13 +368,16 @@ export default function OrdersPage() {
             </select>
           )}
         </div>
-        <button className="btn btn-ghost btn-sm gap-2 self-start md:self-auto" onClick={loadOrders}>
+        <button
+          className="btn btn-ghost btn-sm gap-2 self-start md:self-auto"
+          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : loadOrders())}
+        >
           <RefreshCw size={14} /> Refresh
         </button>
       </div>
 
       <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
-        {['all_orders', 'dine_in', 'takeaway', 'delivery', 'catering'].map(tab => (
+        {['all_orders', 'dine_in', 'takeaway', 'delivery', 'catering', 'completed'].map(tab => (
           <a key={tab} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap ${activeTab === tab ? 'tab-active' : ''} capitalize`} onClick={() => setActiveTab(tab)}>
             {tab.replace('_', '-')}
           </a>
@@ -324,8 +386,19 @@ export default function OrdersPage() {
 
       <Card>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
-          <h2 className="text-lg font-bold capitalize">{activeTab.replace('_', '-')} Orders</h2>
+          <h2 className="text-lg font-bold capitalize">
+            {activeTab.replace('_', '-')} Orders
+            {activeTab === 'completed' && completedTotal > 0 && (
+              <span className="ml-2 text-sm font-normal text-base-content/50">({completedTotal.toLocaleString()})</span>
+            )}
+          </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
+            {/* Completed is sorted and paginated by the API, so the client-side
+                sort selectors below do not apply to it. */}
+            {activeTab === 'completed' ? (
+              <span className="text-base-content/60">Newest first</span>
+            ) : (
+            <>
             <span className="text-base-content/60">Sort by:</span>
             {activeTab === 'dine_in' ? (
               <select className="select select-bordered select-sm" value={sortDineIn} onChange={e => setSortDineIn(e.target.value)}>
@@ -338,15 +411,21 @@ export default function OrdersPage() {
                 <option value="delivery_time">Delivery/Event Time</option>
               </select>
             )}
+            </>
+            )}
           </div>
         </div>
 
-        {loading ? (
+        {(activeTab === 'completed' ? completedLoading : loading) ? (
           <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-16 text-base-content/40 bg-base-200/50 rounded-xl border border-dashed border-base-300">
             <Package size={48} className="mx-auto mb-3 opacity-30" />
-            <p>No active {activeTab.replace('_', '-')} orders.</p>
+            <p>
+              {activeTab === 'completed'
+                ? 'No completed orders yet.'
+                : `No active ${activeTab.replace('_', '-')} orders.`}
+            </p>
           </div>
         ) : (
           activeTab === 'dine_in' ? (
@@ -365,7 +444,8 @@ export default function OrdersPage() {
                 <thead>
                   <tr>
                     <th>Order Info</th>
-                    {activeTab === 'all_orders' && <th>Type</th>}
+                    {/* Completed mixes every order type, so it needs the column too. */}
+                    {['all_orders', 'completed'].includes(activeTab) && <th>Type</th>}
                     {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
                     <th>Total</th>
                     <th>Status</th>
@@ -382,8 +462,8 @@ export default function OrdersPage() {
                           <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                           {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
                         </td>
-                        {activeTab === 'all_orders' && (
-                          <td className="capitalize font-medium text-base-content/80">{order.order_type.replace('_', '-')}</td>
+                        {['all_orders', 'completed'].includes(activeTab) && (
+                          <td className="capitalize font-medium text-base-content/80">{order.order_type?.replace('_', '-')}</td>
                         )}
                         {['delivery', 'catering'].includes(activeTab) && (
                           <td className="max-w-xs">
@@ -418,6 +498,26 @@ export default function OrdersPage() {
                 </tbody>
               </table>
               </div>
+
+              {activeTab === 'completed' && completedTotalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <div className="join">
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCompletedPage(p => Math.max(1, p - 1))}
+                      disabled={completedPage === 1 || completedLoading}
+                    >«</button>
+                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                      Page {completedPage} of {completedTotalPages}
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
+                      disabled={completedPage === completedTotalPages || completedLoading}
+                    >»</button>
+                  </div>
+                </div>
+              )}
             </>
           )
         )}
