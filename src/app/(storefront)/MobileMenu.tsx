@@ -10,7 +10,7 @@ import { storefrontNavLinks, isNavLinkActive } from './StorefrontNavLinks';
 // Reservations gets its own call-to-action at the bottom of the panel.
 const rows = storefrontNavLinks.filter(link => link.href !== '/booking');
 
-export function MobileMenu() {
+export function MobileMenu({ brand = 'Restaurant' }: { brand?: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -72,7 +72,7 @@ export function MobileMenu() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <UtensilsCrossed className="text-primary-content" size={16} />
             </div>
-            <span className="text-lg font-bold tracking-tight">Bangla Bistro</span>
+            <span className="text-lg font-bold tracking-tight">{brand}</span>
           </Link>
           <button
             type="button"

@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi } from '@/lib/api';
 import { ChefHat, CheckCircle } from 'lucide-react';
+import { tenantKey } from '@/lib/tenant';
 
 export default function KitchenKiosk() {
   const [allOrders, setAllOrders] = useState<any[]>([]);
@@ -33,7 +34,7 @@ export default function KitchenKiosk() {
       
       let savedLoc = null;
       if (typeof window !== 'undefined') {
-        savedLoc = localStorage.getItem('restora_active_location_id');
+        savedLoc = localStorage.getItem(tenantKey('restora_active_location_id'));
       }
       
       if (savedLoc && locs.some((l: any) => l.id === Number(savedLoc))) {
@@ -41,7 +42,7 @@ export default function KitchenKiosk() {
       } else if (locs.length > 0) {
         setActiveLocationId(locs[0].id);
         if (typeof window !== 'undefined') {
-          localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+          localStorage.setItem(tenantKey('restora_active_location_id'), locs[0].id.toString());
         }
       }
     }).catch(console.error);
@@ -83,7 +84,7 @@ export default function KitchenKiosk() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
-                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+                if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
               className="select select-sm select-bordered"
               style={{ fontWeight: 600, color: '#4b5563' }}

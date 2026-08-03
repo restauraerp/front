@@ -73,7 +73,7 @@ function BookingForm() {
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
           <h2 style={{ color: '#065f46', marginBottom: '1rem' }}>Reservation Confirmed!</h2>
           <p style={{ color: '#047857', marginBottom: '2rem' }}>
-            Thank you for choosing Bangla Bistro. We have received your booking request and will send a confirmation email shortly.
+            Thank you for choosing us. We have received your booking request and will send a confirmation email shortly.
           </p>
           <Button onClick={() => setStatus('idle')} variant="secondary">Make Another Booking</Button>
         </Card>

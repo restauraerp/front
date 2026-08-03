@@ -1,6 +1,13 @@
+import { getTenant } from './tenant';
+
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8029/api/v1';
 
-export async function fetchApi(endpoint: string, options: RequestInit = {}, serverToken?: string) {
+export async function fetchApi(
+  endpoint: string,
+  options: RequestInit = {},
+  serverToken?: string,
+  serverTenant?: string,
+) {
   let token = serverToken;
 
   if (!token && typeof document !== 'undefined') {
@@ -17,9 +24,18 @@ export async function fetchApi(endpoint: string, options: RequestInit = {}, serv
   if (!(options.body instanceof FormData) && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json';
   }
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  // Identifies the restaurant. Required on unauthenticated storefront calls,
+  // where there is no token for the API to derive the tenant from; on
+  // authenticated calls the API takes the tenant from the token and only checks
+  // this against it, so a wrong value is a 403 rather than a way in.
+  const tenant = getTenant(serverTenant);
+  if (tenant && !headers['X-Tenant-ID']) {
+    headers['X-Tenant-ID'] = tenant;
   }
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {

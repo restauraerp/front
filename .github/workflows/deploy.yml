@@ -54,6 +54,14 @@ jobs:
           # startup) - it must be present here, not only in FRONT_ENV.
           API_INTERNAL_URL: http://127.0.0.1:8000
           
+          # The restaurant this deployment's public storefront belongs to
+          # (tenants.slug). Storefront requests carry no auth token, so this is
+          # the only thing telling the API which restaurant to serve - without
+          # it every menu/booking call returns 400. Like the vars above it is
+          # inlined at BUILD time, so it must be set here and not only in
+          # FRONT_ENV. Must match DEMO_TENANT_SLUG in the core-api .env.
+          NEXT_PUBLIC_TENANT_ID: "bangla-bistro"
+
           # Explicitly set Demo variables for the build
           NEXT_PUBLIC_IS_DEMO: "true"
           NEXT_PUBLIC_DEMO_EMAIL: "demo@restauraerp.com"

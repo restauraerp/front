@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
+import { DEFAULT_TENANT, setTenant } from '@/lib/tenant';
 import { UtensilsCrossed, LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 export default function Login() {
@@ -13,6 +14,12 @@ export default function Login() {
 
   const [email, setEmail] = useState(isDemo ? demoEmail : '');
   const [password, setPassword] = useState(isDemo ? demoPassword : '');
+
+  // Email addresses are unique per restaurant, not across the platform, so the
+  // credentials alone do not identify a user - the restaurant code has to go
+  // with them. Prefilled from NEXT_PUBLIC_TENANT_ID so single-restaurant
+  // deployments (and the demo) stay a one-click login.
+  const [tenant, setTenantCode] = useState(DEFAULT_TENANT);
 
   // Force autofill on mount for incognito browsers that strip initial state
   React.useEffect(() => {
@@ -33,9 +40,19 @@ export default function Login() {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          // This request is unauthenticated by definition, so the header is the
+          // only thing telling the API which restaurant to look the email up in.
+          ...(tenant ? { 'X-Tenant-ID': tenant } : {}),
+        },
         body: JSON.stringify({ email, password })
       });
+
+      if (res.status === 400) {
+        throw new Error('Please enter your restaurant code.');
+      }
 
       if (!res.ok) {
         throw new Error('Invalid email or password. Please try again.');
@@ -43,6 +60,11 @@ export default function Login() {
 
       const data = await res.json();
       document.cookie = `token=${data.token}; path=/; max-age=86400; SameSite=Lax`;
+
+      // Persist the tenant the API actually resolved (it may differ in case or
+      // have been given as a numeric id) so every later request agrees with it.
+      setTenant(data.tenant?.slug || tenant);
+
       router.push('/admin');
       router.refresh();
     } catch (err: any) {
@@ -74,6 +96,24 @@ export default function Login() {
           )}
 
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
+            <div className="form-control" suppressHydrationWarning>
+              <label className="label">
+                <span className="label-text font-medium">Restaurant Code</span>
+              </label>
+              <input
+                className="input input-bordered w-full"
+                type="text"
+                placeholder="your-restaurant"
+                value={tenant}
+                onChange={(e) => setTenantCode(e.target.value.trim())}
+                required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                suppressHydrationWarning
+              />
+            </div>
+
             <div className="form-control" suppressHydrationWarning>
               <label className="label">
                 <span className="label-text font-medium">Email Address</span>

@@ -11,6 +11,7 @@ import TableSelector from './components/TableSelector';
 import CustomerPicker from './components/CustomerPicker';
 import DiscountInput from './components/DiscountInput';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
+import { tenantKey } from '@/lib/tenant';
 
 interface CartItem {
   id: number; name: string; price: string; qty: number; notes: string;
@@ -73,7 +74,7 @@ export default function POS() {
 
         let savedLoc = null;
         if (typeof window !== 'undefined') {
-          savedLoc = localStorage.getItem('restora_active_location_id');
+          savedLoc = localStorage.getItem(tenantKey('restora_active_location_id'));
         }
 
         if (savedLoc && locs.some((l: any) => l.id === Number(savedLoc))) {
@@ -81,7 +82,7 @@ export default function POS() {
         } else if (locs.length > 0 && !activeLocationId) {
           setActiveLocationId(locs[0].id);
           if (typeof window !== 'undefined') {
-            localStorage.setItem('restora_active_location_id', locs[0].id.toString());
+            localStorage.setItem(tenantKey('restora_active_location_id'), locs[0].id.toString());
           }
         }
       })
@@ -244,7 +245,7 @@ export default function POS() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
-                if (typeof window !== 'undefined') localStorage.setItem('restora_active_location_id', id.toString());
+                if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
               className="select select-sm select-bordered"
               style={{ fontWeight: 600, color: '#4b5563' }}
