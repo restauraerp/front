@@ -1,22 +1,43 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { DEMO_COOKIE, DEMO_PARAM } from '@/lib/demo';
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
   const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register');
+  // This is the only layer that can both see the query parameter and write a
+  // cookie, so it is where a demo visit gets marked for the rest of the session.
+  const demoRequested = request.nextUrl.searchParams.get(DEMO_PARAM) === 'true';
 
-  // Protect Admin Routes
-  if (isAdminRoute && !token) {
-    return NextResponse.redirect(new URL('/login', request.url));
+  const response = (() => {
+    // Protect Admin Routes
+    if (isAdminRoute && !token) {
+      const login = new URL('/login', request.url);
+      // Carry the query through, so a bookmarked /admin?demo=true still
+      // reaches the login form as a demo request.
+      login.search = request.nextUrl.search;
+
+      return NextResponse.redirect(login);
+    }
+
+    // Redirect authenticated users away from auth pages
+    if (isAuthRoute && token) {
+      return NextResponse.redirect(new URL('/admin', request.url));
+    }
+
+    return NextResponse.next();
+  })();
+
+  if (demoRequested) {
+    response.cookies.set(DEMO_COOKIE, '1', {
+      path: '/',
+      maxAge: 86400,
+      sameSite: 'lax',
+    });
   }
 
-  // Redirect authenticated users away from auth pages
-  if (isAuthRoute && token) {
-    return NextResponse.redirect(new URL('/admin', request.url));
-  }
-
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

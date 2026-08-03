@@ -34,6 +34,19 @@ export function getTenant(serverTenant?: string): string | null {
   return serverTenant || readCookie(TENANT_COOKIE) || DEFAULT_TENANT || null;
 }
 
+/**
+ * The restaurant this browser last signed into, if any.
+ *
+ * Deliberately does NOT fall back to DEFAULT_TENANT the way getTenant() does.
+ * This is for prefilling the login form, where the storefront's build-time
+ * tenant is the wrong answer: it would show every visitor a restaurant code
+ * they have no account with (and, on the demo box, hand out the demo
+ * restaurant's code to people who never asked for the demo).
+ */
+export function getSavedTenant(): string | null {
+  return readCookie(TENANT_COOKIE);
+}
+
 export function setTenant(slug: string): void {
   if (typeof document === 'undefined') return;
   document.cookie = `${TENANT_COOKIE}=${encodeURIComponent(slug)}; path=/; max-age=86400; SameSite=Lax`;

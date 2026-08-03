@@ -14,14 +14,15 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
-  const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === 'true' || process.env.NEXT_PUBLIC_IS_DEMO === '"true"';
-  
   return (
     <html lang="en" data-theme="restoraerp">
-      {isDemo && process.env.NEXT_PUBLIC_GTM_ID && <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID} />}
+      {/* A configured GTM id is the whole condition now. DemoAnalytics decides
+          for itself whether this visit is a demo one (a cookie, not a build
+          flag), so nothing here has to know. */}
+      {process.env.NEXT_PUBLIC_GTM_ID && <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID} />}
       <body className={`${inter.variable} ${poppins.variable} ${hindSiliguri.variable} font-sans antialiased`}>
         {children}
-        {isDemo && <DemoAnalytics />}
+        <DemoAnalytics />
       </body>
     </html>
   );
