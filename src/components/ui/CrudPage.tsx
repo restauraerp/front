@@ -106,7 +106,13 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
     setEditingId(row.id);
     const populated: Record<string, any> = {};
     for (const key of Object.keys(defaultValues)) {
-      populated[key] = row[key] ?? defaultValues[key];
+      const value = row[key] ?? defaultValues[key];
+
+      // A boolean from the API matches none of a <select>'s string option
+      // values, so the control silently falls back to showing its FIRST option
+      // - an inactive record opened as "Active", and the form lied about what
+      // was stored. Normalise to the '1'/'0' the options are declared with.
+      populated[key] = typeof value === 'boolean' ? (value ? '1' : '0') : value;
     }
     setFormData(populated);
     setIsFormOpen(true);
