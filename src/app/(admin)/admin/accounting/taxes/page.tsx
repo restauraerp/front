@@ -18,17 +18,13 @@ export default function TaxesPage() {
         { key: 'id', label: 'ID' },
         { key: 'name', label: 'Tax Name' },
         {
-          key: 'rate',
+          // `percentage` is the column on tax_rules. This used to read `rate`
+          // and `type`, neither of which exists in the schema, so the column
+          // rendered "৳0.00" for every row regardless of the stored value.
+          key: 'percentage',
           label: 'Rate',
-          render: (row: any) => {
-            const isPercentage = String(row.type).toLowerCase() === 'percentage';
-            const rate = Number(row.rate || 0);
-            return isPercentage
-              ? `${rate}%`
-              : `৳${rate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-          }
+          render: (row: any) => `${Number(row.percentage || 0)}%`,
         },
-        { key: 'type', label: 'Type' },
         {
           key: 'is_active',
           label: 'Status',
@@ -44,17 +40,17 @@ export default function TaxesPage() {
       ]}
       formFields={[
         { key: 'name', label: 'Tax Name' },
-        { key: 'rate', label: 'Rate', type: 'number', step: '0.01' },
-        { key: 'type', label: 'Type', options: [
-          { value: 'Percentage', label: 'Percentage (%)' },
-          { value: 'Fixed', label: 'Fixed Amount (৳)' },
-        ]},
+        { key: 'percentage', label: 'Rate (%)', type: 'number', step: '0.01' },
         { key: 'is_active', label: 'Status', options: [
           { value: '1', label: 'Active' },
           { value: '0', label: 'Inactive' },
         ]},
       ]}
-      defaultValues={{ name: '', rate: '', type: 'Percentage', is_active: '1' }}
+      // The "Type" selector (Percentage / Fixed Amount) is gone: tax_rules has
+      // no `type` column, so the choice was posted, silently discarded, and
+      // every rule behaved as a percentage anyway. Supporting fixed-amount tax
+      // needs a schema change rather than a form field.
+      defaultValues={{ name: '', percentage: '', is_active: '1' }}
     />
   );
 }

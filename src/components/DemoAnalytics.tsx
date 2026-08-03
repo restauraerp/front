@@ -1,13 +1,14 @@
 'use client';
 
 import { useEffect } from 'react';
+import { isDemoSession } from '@/lib/demo';
 
 export default function DemoAnalytics() {
   useEffect(() => {
-    // Check if we are in demo mode
-    const isDemo = process.env.NEXT_PUBLIC_IS_DEMO === 'true' || process.env.NEXT_PUBLIC_IS_DEMO === '"true"';
-    
-    if (!isDemo) return;
+    // Gating on the demo-session cookie rather than a build-time env flag keeps
+    // this event tied to actual demo visitors, on any deployment, with no
+    // rebuild to toggle.
+    if (!isDemoSession()) return;
 
     // Trigger the GTM event after 60 seconds
     const timer = setTimeout(() => {
