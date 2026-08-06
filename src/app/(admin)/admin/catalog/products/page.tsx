@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import styles from '@/components/ui/ui.module.css';
 
 export default function ProductsPage() {
@@ -74,12 +75,6 @@ export default function ProductsPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setImageFile(e.target.files[0]);
-    }
   };
 
   const handleLocationToggle = (locationId: number) => {
@@ -232,7 +227,7 @@ export default function ProductsPage() {
 
       {isFormOpen && (
         <Card title={editingId ? 'Edit Product' : 'New Product'} style={{ marginBottom: '2rem' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />
             
@@ -266,24 +261,14 @@ export default function ProductsPage() {
               />
             </div>
 
-            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
-              <label className="label">Image Upload</label>
-              <input 
-                className="input input-bordered w-full"
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <ImageUpload
+                label="Product Image"
+                currentUrl={formData.image_url ? `/storage/${formData.image_url}` : ''}
+                file={imageFile}
+                onFileChange={setImageFile}
+                disabled={submitting}
               />
-              {formData.image_url && !imageFile && (
-                <div style={{ marginTop: '10px' }}>
-                  <p style={{ fontSize: '0.8rem', color: 'gray', marginBottom: '4px' }}>Current image:</p>
-                  <img 
-                    src={`/storage/${formData.image_url}`} 
-                    alt="Current product" 
-                    style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb' }} 
-                  />
-                </div>
-              )}
             </div>
 
             <div className="form-control w-full">

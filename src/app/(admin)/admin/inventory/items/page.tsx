@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import styles from '@/components/ui/ui.module.css';
 
 export default function InventoryItemsPage() {
@@ -52,10 +53,6 @@ export default function InventoryItemsPage() {
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) setImageFile(e.target.files[0]);
   };
 
   const handleLocationChange = (locationId: number, field: string, value: any) => {
@@ -152,14 +149,14 @@ export default function InventoryItemsPage() {
             <Input label="Cost Per Unit" name="cost_per_unit" type="number" step="0.01" value={formData.cost_per_unit} onChange={handleInputChange} />
             <Input label="Min Stock Level" name="min_stock_level" type="number" step="0.01" value={formData.min_stock_level} onChange={handleInputChange} />
             
-            <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
-              <label className="label">Image Upload</label>
-              <input className="input input-bordered w-full" type="file" accept="image/*" onChange={handleFileChange} />
-              {formData.image && !imageFile && (
-                <div style={{ marginTop: '10px' }}>
-                  <img src={`/storage/${formData.image}`} alt="Current" style={{ width: '120px', height: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e5e7eb' }} />
-                </div>
-              )}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <ImageUpload
+                label="Item Image"
+                currentUrl={formData.image ? `/storage/${formData.image}` : ''}
+                file={imageFile}
+                onFileChange={setImageFile}
+                disabled={submitting}
+              />
             </div>
 
             <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
