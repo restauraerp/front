@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -67,6 +68,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
 
   // Close the drawer whenever navigation happens, so links that don't manage
   // the drawer themselves (profile, breadcrumbs, back button) can't leave it
@@ -140,6 +142,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setUserPermissions(perms);
         const roles = res?.roles?.map((r: any) => r.name) || [];
         if (roles.includes('super_admin')) setIsSuperAdmin(true);
+        // Billing state, so an expired subscription is announced on load
+        // instead of discovered when a save fails.
+        setSubscription(res?.subscription ?? null);
       }).catch(console.error);
     });
   }, []);
@@ -264,6 +269,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {/* Main */}
           <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
             {renderBreadcrumbs()}
+            <SubscriptionBanner status={subscription} />
             {children}
           </main>
         </div>

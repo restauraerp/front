@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, fetchOptional, apiErrorMessage } from '@/lib/api';
 import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
   Search, MessageSquare, Pause, Play, ChevronDown, ChevronUp,
@@ -38,6 +38,7 @@ export default function POS() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
+  const [taxRate, setTaxRate] = useState(0);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
   const [deliveryCharge, setDeliveryCharge] = useState<number>(0);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -57,11 +58,15 @@ export default function POS() {
       fetchApi('/products?nopaginate=1'),
       fetchApi('/website-settings'),
       fetchApi('/product-categories?nopaginate=1'),
-      fetchApi('/customers?nopaginate=1'),
+      // CRM is a paid module. On a tier without it this resolves to an
+      // empty list instead of rejecting, so the till still opens - a
+      // 403 here used to take the product catalog down with it.
+      fetchOptional<any>('/customers?nopaginate=1', []),
       fetchApi('/discounts'),
+      fetchApi('/tax-rules'),
       fetchApi('/locations'),
     ])
-      .then(([prodRes, setRes, catRes, custRes, discRes, locRes]) => {
+      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes]) => {
         setProducts(prodRes.data || prodRes || []);
         const map: Record<string, string> = {};
         (setRes.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -69,6 +74,12 @@ export default function POS() {
         setCategories(catRes.data || catRes || []);
         setCustomers(custRes.data || custRes || []);
         setDiscounts(discRes.data || discRes || []);
+        // Tax comes from the restaurant's own rules. No active rule means
+        // no tax - this used to be a hardcoded 10% that matched nothing in
+        // the system. The server recomputes it on submit either way; this
+        // is so the cart shows the same number the bill will.
+        const rules = taxRes?.data || taxRes || [];
+        setTaxRate(rules.filter((r: any) => r.is_active).reduce((sum: number, r: any) => sum + Number(r.percentage || 0), 0));
         const locs = locRes.data || locRes || [];
         setLocations(locs);
 
@@ -153,7 +164,7 @@ export default function POS() {
       : parseFloat(appliedDiscount.value || '0'))
     : 0;
   const afterDiscount = subtotal - discountAmount;
-  const tax = afterDiscount * 0.1;
+  const tax = Number((afterDiscount * (taxRate / 100)).toFixed(2));
   const finalDeliveryCharge = orderType === 'delivery' ? deliveryCharge : 0;
   const total = afterDiscount + tax + finalDeliveryCharge;
 
@@ -180,13 +191,20 @@ export default function POS() {
   };
 
   const handleAddCustomer = async (name: string, phone: string, email: string, address: string, orgName: string, googleMapLoc: string) => {
-    const res = await fetchApi('/customers', {
-      method: 'POST',
-      body: JSON.stringify({ name, phone, email, address, organization_name: orgName, google_map_location: googleMapLoc }),
-    });
-    const newCustomer = res.data || res;
-    setCustomers(prev => [...prev, newCustomer]);
-    setSelectedCustomer(newCustomer.id);
+    try {
+      const res = await fetchApi('/customers', {
+        method: 'POST',
+        body: JSON.stringify({ name, phone, email, address, organization_name: orgName, google_map_location: googleMapLoc }),
+      });
+      const newCustomer = res.data || res;
+      setCustomers(prev => [...prev, newCustomer]);
+      setSelectedCustomer(newCustomer.id);
+    } catch (error) {
+      // Refused because the plan has no CRM, or because billing is behind.
+      // Either way the API explains it and says who to contact - show that
+      // rather than letting the dialog fail silently.
+      alert(apiErrorMessage(error, 'Could not save this customer. Please try again.'));
+    }
   };
 
   const handleCheckout = async () => {
@@ -505,7 +523,7 @@ export default function POS() {
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#6b7280' }}>
-                <span>Tax (10%)</span><span>{currency}{tax.toFixed(2)}</span>
+                <span>Tax ({taxRate}%)</span><span>{currency}{tax.toFixed(2)}</span>
               </div>
               {orderType === 'delivery' && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#6b7280' }}>

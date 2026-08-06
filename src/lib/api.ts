@@ -2,6 +2,121 @@ import { getTenant } from './tenant';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8029/api/v1';
 
+/**
+ * The JSON the API sends with a refusal.
+ *
+ * `error` is a stable machine-readable code and is safe to branch on; `message`
+ * is prose written for a restaurant manager and is not.
+ */
+export type ApiErrorBody = {
+  error?: string;
+  message?: string;
+  // Subscription refusals (trial_expired, subscription_expired,
+  // account_suspended, subscription_cancelled).
+  read_only?: boolean;
+  reads_allowed?: boolean;
+  writes_allowed?: boolean;
+  expired_at?: string | null;
+  // Plan refusals (module_not_in_plan, outlet_limit_reached).
+  module?: string;
+  plan?: string;
+  plan_name?: string;
+  upgrade_to?: string | null;
+  outlet_limit?: number | null;
+  outlets_used?: number;
+  contact?: { email?: string; phone?: string; whatsapp?: string; url?: string };
+  // Laravel validation.
+  errors?: Record<string, string[]>;
+};
+
+/**
+ * Thrown by fetchApi for any non-2xx, carrying the parsed body so callers can
+ * show the API's own explanation rather than a status code.
+ */
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly body: ApiErrorBody | null,
+  ) {
+    super(body?.message || `API Request Failed: ${status}`);
+    this.name = 'ApiError';
+  }
+
+  /** The API refused this because of the tenant's subscription. */
+  get isBillingBlock(): boolean {
+    return [
+      'trial_expired',
+      'subscription_expired',
+      'account_suspended',
+      'subscription_cancelled',
+    ].includes(this.body?.error ?? '');
+  }
+
+  /** The API refused this because the tenant's plan does not include it. */
+  get isPlanBlock(): boolean {
+    return ['module_not_in_plan', 'outlet_limit_reached'].includes(this.body?.error ?? '');
+  }
+
+  /** Reads still work; only writing is refused. */
+  get isReadOnly(): boolean {
+    return this.body?.read_only === true;
+  }
+}
+
+/**
+ * A message worth showing a user, for any thrown error.
+ *
+ * Prefers the API's own prose - it already explains that existing data is safe
+ * and how to get writing again - and falls back to something honest rather than
+ * a stack trace.
+ */
+export function apiErrorMessage(error: unknown, fallback = 'Something went wrong. Please try again.'): string {
+  if (error instanceof ApiError) {
+    if (error.status === 422 && error.body?.errors) {
+      return Object.values(error.body.errors).flat().join(' ');
+    }
+
+    if (error.body?.message) return error.body.message;
+    if (error.status === 401) return 'Your session has expired. Please log in again.';
+  }
+
+  return fallback;
+}
+
+/** Contact details the API attaches to a billing or plan refusal. */
+export function apiErrorContact(error: unknown): ApiErrorBody['contact'] | undefined {
+  return error instanceof ApiError ? error.body?.contact : undefined;
+}
+
+/**
+ * For data a screen can live without.
+ *
+ * Returns the fallback when the API refuses because the tenant's plan does not
+ * include that module, and rethrows anything else.
+ *
+ * This exists because a core screen must not die over an optional one. POS
+ * loads its products, settings and customers together; customers are CRM, which
+ * Starter does not include, and a single 403 inside Promise.all rejected the
+ * whole batch - so the till showed no products at all because the tenant had
+ * not bought the customer directory. A missing module should cost you that
+ * feature, not the page.
+ */
+export async function fetchOptional<T>(
+  endpoint: string,
+  fallback: T,
+  options: RequestInit = {},
+): Promise<T> {
+  try {
+    return (await fetchApi(endpoint, options)) ?? fallback;
+  } catch (error) {
+    if (error instanceof ApiError && (error.isPlanBlock || error.isBillingBlock)) {
+      return fallback;
+    }
+
+    throw error;
+  }
+}
+
 export async function fetchApi(
   endpoint: string,
   options: RequestInit = {},
@@ -45,13 +160,20 @@ export async function fetchApi(
   });
 
   if (!response.ok) {
+    let body: ApiErrorBody | null = null;
+
     try {
-      const errorData = await response.json();
-      console.error('API Error Response:', errorData);
-    } catch (e) {
-      console.error('API Error Response could not be parsed as JSON');
+      body = await response.json();
+    } catch {
+      // Non-JSON error (a proxy timeout, an HTML error page). Leave body null;
+      // the message below still says what happened.
     }
-    throw new Error(`API Request Failed: ${response.status} ${response.statusText}`);
+
+    // The body used to be logged and thrown away, so a caller only ever saw
+    // "API Request Failed: 403 Forbidden". The API answers a refused write with
+    // the reason, whether reads still work and who to contact about paying -
+    // none of which could reach the UI. Carry it on the error instead.
+    throw new ApiError(response.status, body);
   }
 
   if (response.status === 204) return null;
