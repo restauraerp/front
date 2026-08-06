@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, fetchOptional, apiErrorMessage } from '@/lib/api';
 import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
   Search, MessageSquare, Pause, Play, ChevronDown, ChevronUp,
@@ -57,7 +57,10 @@ export default function POS() {
       fetchApi('/products?nopaginate=1'),
       fetchApi('/website-settings'),
       fetchApi('/product-categories?nopaginate=1'),
-      fetchApi('/customers?nopaginate=1'),
+      // CRM is a paid module. On a tier without it this resolves to an
+      // empty list instead of rejecting, so the till still opens - a
+      // 403 here used to take the product catalog down with it.
+      fetchOptional<any>('/customers?nopaginate=1', []),
       fetchApi('/discounts'),
       fetchApi('/locations'),
     ])
@@ -180,13 +183,20 @@ export default function POS() {
   };
 
   const handleAddCustomer = async (name: string, phone: string, email: string, address: string, orgName: string, googleMapLoc: string) => {
-    const res = await fetchApi('/customers', {
-      method: 'POST',
-      body: JSON.stringify({ name, phone, email, address, organization_name: orgName, google_map_location: googleMapLoc }),
-    });
-    const newCustomer = res.data || res;
-    setCustomers(prev => [...prev, newCustomer]);
-    setSelectedCustomer(newCustomer.id);
+    try {
+      const res = await fetchApi('/customers', {
+        method: 'POST',
+        body: JSON.stringify({ name, phone, email, address, organization_name: orgName, google_map_location: googleMapLoc }),
+      });
+      const newCustomer = res.data || res;
+      setCustomers(prev => [...prev, newCustomer]);
+      setSelectedCustomer(newCustomer.id);
+    } catch (error) {
+      // Refused because the plan has no CRM, or because billing is behind.
+      // Either way the API explains it and says who to contact - show that
+      // rather than letting the dialog fail silently.
+      alert(apiErrorMessage(error, 'Could not save this customer. Please try again.'));
+    }
   };
 
   const handleCheckout = async () => {
