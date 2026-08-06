@@ -64,6 +64,7 @@ export default function OrdersPage() {
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [processing, setProcessing] = useState(false);
+  const [taxRate, setTaxRate] = useState(0);
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
 
@@ -86,6 +87,10 @@ export default function OrdersPage() {
   useEffect(() => {
     loadOrders();
     fetchApi('/discounts').then(res => setDiscounts(res.data || res || [])).catch(console.error);
+    fetchApi('/tax-rules').then(res => {
+      const rules = res?.data || res || [];
+      setTaxRate(rules.filter((r: any) => r.is_active).reduce((sum: number, r: any) => sum + Number(r.percentage || 0), 0));
+    }).catch(console.error);
     fetchApi('/locations').then(res => {
       const locs = res.data || res || [];
       setLocations(locs);
@@ -185,7 +190,9 @@ export default function OrdersPage() {
     ? (appliedDiscount.discount_type === 'percentage' ? modalSubtotal * (parseFloat(appliedDiscount.value || '0') / 100) : parseFloat(appliedDiscount.value || '0'))
     : 0;
   const modalAfterDiscount = modalSubtotal - modalDiscountAmt;
-  const modalTax = modalAfterDiscount * 0.1;
+  // Same rules the API applies on save; a hardcoded rate here would only
+  // disagree with the figure that actually gets stored.
+  const modalTax = Number((modalAfterDiscount * (taxRate / 100)).toFixed(2));
   const modalDelivery = paymentOrder ? parseFloat(paymentOrder.delivery_charge || '0') : 0;
   const modalTotal = modalAfterDiscount + modalTax + modalDelivery;
 
