@@ -81,7 +81,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const payload = {
       location_id: 1,
       order_type: 'delivery',
-      status: 'pending',
       subtotal: total,
       tax_amount: 0,
       discount_amount: 0,
