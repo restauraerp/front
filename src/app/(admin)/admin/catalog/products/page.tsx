@@ -308,7 +308,7 @@ export default function ProductsPage() {
                 {productRecipes.length > 0 ? (
                   <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
                     {productRecipes.map(r => (
-                      <li key={r.id}>{r.inventory_item?.name} - {r.quantity_required} {r.inventory_item?.unit}</li>
+                      <li key={r.id}>{r.inventory_item?.title} - {r.quantity_required} {r.inventory_item?.unit}</li>
                     ))}
                   </ul>
                 ) : (

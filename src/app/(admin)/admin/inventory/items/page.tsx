@@ -17,12 +17,14 @@ export default function InventoryItemsPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     title: '',
-    name: '',
+    description: '',
     sku: '',
     unit: '',
     min_stock_level: '',
     current_stock: '',
     cost_per_unit: '',
+    is_sellable: false,
+    selling_price: '',
     image: '',
     locations: [] as { location_id: number, quantity: number, is_active: boolean }[]
   });
@@ -50,7 +52,7 @@ export default function InventoryItemsPage() {
     } catch (err) { console.error(err); } finally { setLoading(false); }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -74,13 +76,18 @@ export default function InventoryItemsPage() {
     try {
       const formDataToSend = new FormData();
       Object.keys(formData).forEach(key => {
-        if (key === 'locations' || key === 'image') return;
+        // current_stock is read-only: it is the sum of what purchase orders
+        // have delivered, and the API recomputes it rather than reading it.
+        if (key === 'locations' || key === 'image' || key === 'current_stock' || key === 'cost_per_unit') return;
+        if (key === 'is_sellable') {
+          formDataToSend.append('is_sellable', formData.is_sellable ? '1' : '0');
+          return;
+        }
         const val = formData[key as keyof typeof formData];
         if (val !== null && val !== undefined && val !== '') formDataToSend.append(key, String(val));
       });
       formData.locations.forEach((loc, index) => {
         formDataToSend.append(`locations[${index}][location_id]`, loc.location_id.toString());
-        formDataToSend.append(`locations[${index}][quantity]`, loc.quantity.toString());
         formDataToSend.append(`locations[${index}][is_active]`, loc.is_active ? '1' : '0');
       });
       if (imageFile) formDataToSend.append('image', imageFile);
@@ -99,8 +106,9 @@ export default function InventoryItemsPage() {
   const handleEdit = (row: any) => {
     setEditingId(row.id);
     setFormData({
-      title: row.title || '', name: row.name || '', sku: row.sku || '', unit: row.unit || '',
+      title: row.title || '', description: row.description || '', sku: row.sku || '', unit: row.unit || '',
       min_stock_level: row.min_stock_level || '', current_stock: row.current_stock || '', cost_per_unit: row.cost_per_unit || '',
+      is_sellable: Boolean(row.is_sellable), selling_price: row.selling_price ?? '',
       image: row.image || '',
       locations: (row.locations || []).map((loc: any) => ({
         location_id: loc.id, quantity: loc.pivot?.quantity || 0, is_active: loc.pivot ? (loc.pivot.is_active === 1 || loc.pivot.is_active === true) : false
@@ -110,7 +118,7 @@ export default function InventoryItemsPage() {
   };
 
   const handleDelete = async (row: any) => {
-    if (confirm(`Delete ${row.title || row.name}?`)) {
+    if (confirm(`Delete ${row.title}?`)) {
       try { await fetchApi(`/inventory-items/${row.id}`, { method: 'DELETE' }); loadData(); } catch (err) { console.error(err); alert('Failed to delete'); }
     }
   };
@@ -121,10 +129,17 @@ export default function InventoryItemsPage() {
         <div style={{ width: '40px', height: '40px', borderRadius: '4px', overflow: 'hidden' }}><img src={`/storage/${row.image}`} alt={row.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>
       ) : <div style={{ width: '40px', height: '40px', backgroundColor: '#e5e7eb', borderRadius: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px' }}>No Img</div>
     },
-    { key: 'title', label: 'Title / Name', render: (row: any) => row.title || row.name },
+    { key: 'title', label: 'Title', render: (row: any) => row.title },
     { key: 'sku', label: 'SKU' },
     { key: 'unit', label: 'Unit' },
     { key: 'current_stock', label: 'Global Stock' },
+    {
+      key: 'is_sellable',
+      label: 'On till',
+      render: (row: any) => row.is_sellable
+        ? <span className="badge badge-success text-white px-3 py-1 h-auto rounded-full">Sellable</span>
+        : <span className="text-base-content/30">—</span>
+    },
   ];
 
   return (
@@ -133,7 +148,7 @@ export default function InventoryItemsPage() {
         <h1 className="text-2xl font-bold">Inventory Items</h1>
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen); setEditingId(null); setImageFile(null);
-          setFormData({ title: '', name: '', sku: '', unit: '', min_stock_level: '', current_stock: '', cost_per_unit: '', image: '', locations: locations.map(l => ({ location_id: l.id, quantity: 0, is_active: true })) });
+          setFormData({ title: '', description: '', sku: '', unit: '', min_stock_level: '', current_stock: '', cost_per_unit: '', is_sellable: false, selling_price: '', image: '', locations: locations.map(l => ({ location_id: l.id, quantity: 0, is_active: true })) });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Item'}
         </Button>
@@ -141,12 +156,32 @@ export default function InventoryItemsPage() {
 
       {isFormOpen && (
         <Card title={editingId ? 'Edit Item' : 'New Item'} style={{ marginBottom: '2rem' }}>
-          <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Title" name="title" value={formData.title} onChange={handleInputChange} required />
-            <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} />
+            <div className="form-control w-full sm:col-span-2">
+              <label className="label"><span className="label-text font-medium">Description</span></label>
+              <textarea
+                className="textarea textarea-bordered w-full"
+                name="description"
+                rows={2}
+                value={formData.description}
+                onChange={handleInputChange}
+                placeholder="What this is, grade, pack size — anything that tells two similar items apart"
+              />
+            </div>
             <Input label="SKU" name="sku" value={formData.sku} onChange={handleInputChange} required />
             <Input label="Unit (e.g. kg, L)" name="unit" value={formData.unit} onChange={handleInputChange} required />
-            <Input label="Cost Per Unit" name="cost_per_unit" type="number" step="0.01" value={formData.cost_per_unit} onChange={handleInputChange} />
+            <div className="form-control w-full">
+              <label className="label"><span className="label-text font-medium">Cost per unit</span></label>
+              <div className="input input-bordered flex items-center justify-between bg-base-200/50">
+                <span className="font-medium">
+                  {formData.cost_per_unit !== '' && formData.cost_per_unit !== null
+                    ? Number(formData.cost_per_unit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : <span className="text-content-muted">Not purchased yet</span>}
+                </span>
+                <span className="text-xs text-content-muted">from last delivery</span>
+              </div>
+            </div>
             <Input label="Min Stock Level" name="min_stock_level" type="number" step="0.01" value={formData.min_stock_level} onChange={handleInputChange} />
             
             <div style={{ gridColumn: '1 / -1' }}>
@@ -159,25 +194,74 @@ export default function InventoryItemsPage() {
               />
             </div>
 
+            <div className="rounded-[var(--radius-field)] border border-base-300 p-4 sm:col-span-2">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary mt-0.5"
+                  checked={formData.is_sellable}
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_sellable: e.target.checked }))}
+                  disabled={submitting}
+                />
+                <span>
+                  <span className="font-medium">Sell this item at the till</span>
+                  <span className="block text-sm text-content-muted">
+                    For stock sold exactly as it was bought — a bottle, a packet, a can. It appears in POS and in
+                    the product catalog, and selling one takes it off this outlet&apos;s shelf.
+                  </span>
+                </span>
+              </label>
+
+              {formData.is_sellable && (
+                <div className="mt-4 max-w-xs">
+                  <Input
+                    label="Selling price"
+                    name="selling_price"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={formData.selling_price}
+                    onChange={handleInputChange}
+                  />
+                  {formData.cost_per_unit !== '' && formData.selling_price !== '' && (
+                    <p className="mt-1 text-xs text-content-muted">
+                      Cost {Number(formData.cost_per_unit).toFixed(2)} · margin{' '}
+                      {(Number(formData.selling_price) - Number(formData.cost_per_unit)).toFixed(2)} per {formData.unit || 'unit'}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-              <label className="label" style={{ marginBottom: '0.75rem', display: 'block', fontWeight: 600 }}>Location Stock & Availability</label>
-              <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', flexDirection: 'column' }}>
+              <label className="label" style={{ marginBottom: '0.25rem', display: 'block', fontWeight: 600 }}>Outlets & stock on hand</label>
+              <p className="mb-3 text-sm text-content-muted">
+                Tick the outlets that carry this item. Stock levels are not typed in here — they come from
+                the purchase orders that delivered the goods.
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flexDirection: 'column' }}>
                 {locations.map(loc => {
                   const locData = formData.locations.find(l => l.location_id === loc.id) || { quantity: 0, is_active: false };
                   return (
-                    <div key={loc.id} style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: '#f9fafb', padding: '0.5rem 1rem', borderRadius: '6px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: '150px' }}>
+                    <div key={loc.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-base-200/50 px-4 py-2">
+                      <label className="flex min-w-40 cursor-pointer items-center gap-2">
                         <input type="checkbox" checked={locData.is_active} onChange={(e) => handleLocationChange(loc.id, 'is_active', e.target.checked)} className="checkbox checkbox-sm checkbox-primary" />
                         <span className="font-medium">{loc.name}</span>
                       </label>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label className="text-sm">Quantity:</label>
-                        <input type="number" step="0.01" value={locData.quantity} onChange={(e) => handleLocationChange(loc.id, 'quantity', e.target.value)} className="input input-bordered input-sm w-32" disabled={!locData.is_active} />
-                      </div>
+                      <span className="text-sm">
+                        <span className="text-content-muted">On hand</span>
+                        <span className="ml-2 font-semibold text-base-content">
+                          {Number(locData.quantity || 0).toLocaleString()} {formData.unit}
+                        </span>
+                      </span>
                     </div>
                   );
                 })}
               </div>
+              <a href="/admin/inventory/purchase-orders" className="mt-3 text-sm font-medium text-primary">
+                Record a delivery in Purchase Orders &rarr;
+              </a>
             </div>
 
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>

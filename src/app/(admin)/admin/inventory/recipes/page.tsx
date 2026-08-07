@@ -25,7 +25,7 @@ function RecipesPageContent() {
     fetchApi('/inventory-items?per_page=1000').then((res) => {
       const items = (res.data || res.data?.data || []).map((i: any) => ({
         value: i.id.toString(),
-        label: `${i.name} (${i.unit})`
+        label: `${i.title} (${i.unit})`
       }));
       setInventoryItems([{ value: '', label: 'Select an Item' }, ...items]);
     }).catch(console.error);
@@ -46,7 +46,7 @@ function RecipesPageContent() {
         { 
           key: 'inventory_item_id', 
           label: 'Ingredient',
-          render: (row) => row.inventory_item?.name || `Item #${row.inventory_item_id}`
+          render: (row) => row.inventory_item?.title || `Item #${row.inventory_item_id}`
         },
         { 
           key: 'quantity_required', 
