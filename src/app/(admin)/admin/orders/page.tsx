@@ -9,30 +9,39 @@ import { tenantKey } from '@/lib/tenant';
 const statusConfig: Record<string, { badge: string; label: string }> = {
   pending: { badge: 'badge-warning', label: 'Pending' },
   cooking: { badge: 'badge-info', label: 'Cooking' },
-  cooked: { badge: 'badge-success', label: 'Cooked' },
+  ready_to_serve: { badge: 'badge-success', label: 'Ready to Serve' },
   served: { badge: 'badge-primary', label: 'Served' },
   packed: { badge: 'badge-primary', label: 'Packed' },
-  picked: { badge: 'badge-secondary', label: 'Picked Up' },
+  picked_up: { badge: 'badge-secondary', label: 'Picked Up By Delivery' },
   delivered: { badge: 'badge-accent', label: 'Delivered' },
+  cancelled: { badge: 'badge-error', label: 'Cancelled' },
   paid: { badge: 'badge-neutral', label: 'Paid' },
 };
 
-const getNextActions = (type: string, status: string) => {
-  if (status === 'pending') return [{ label: 'Cook', status: 'cooking', icon: ChefHat, color: 'btn-info' }];
-  if (status === 'cooking') return [{ label: 'Cooked', status: 'cooked', icon: CheckCircle, color: 'btn-success' }];
-  
-  if (type === 'dine_in') {
-    if (status === 'cooked') return [{ label: 'Serve', status: 'served', icon: CheckCircle, color: 'btn-primary' }];
-  } else if (type === 'takeaway') {
-    if (status === 'cooked') return [{ label: 'Pack', status: 'packed', icon: Package, color: 'btn-primary' }];
-  } else if (type === 'delivery' || type === 'catering') {
-    if (status === 'cooked') return [{ label: 'Pack', status: 'packed', icon: Package, color: 'btn-primary' }];
-    if (status === 'packed') return [{ label: 'Pick Up', status: 'picked', icon: Truck, color: 'btn-secondary' }];
-    if (status === 'picked') return [{ label: 'Deliver', status: 'delivered', icon: CheckCircle, color: 'btn-accent' }];
-  }
-
-  return [];
+/**
+ * How to draw the button for a stage. Which stage comes next is not decided
+ * here - the API sends `next_statuses` with every order, so the till, the
+ * kitchen display and this screen cannot drift apart about what "ready" means.
+ */
+const stageButton: Record<string, { label: string; icon: any; color: string }> = {
+  cooking: { label: 'Start Cooking', icon: ChefHat, color: 'btn-info' },
+  ready_to_serve: { label: 'Ready to Serve', icon: CheckCircle, color: 'btn-success' },
+  served: { label: 'Serve', icon: CheckCircle, color: 'btn-primary' },
+  packed: { label: 'Pack', icon: Package, color: 'btn-primary' },
+  picked_up: { label: 'Picked Up', icon: Truck, color: 'btn-secondary' },
+  delivered: { label: 'Deliver', icon: CheckCircle, color: 'btn-accent' },
 };
+
+const getNextActions = (order: any) =>
+  (order.next_statuses || []).map((status: string) => ({
+    status,
+    ...(stageButton[status] ?? { label: status, icon: CheckCircle, color: 'btn-primary' }),
+  }));
+
+const FINISHED = ['served', 'delivered'];
+
+const isFinished = (order: any) =>
+  FINISHED.includes(order.status) || (order.status === 'packed' && order.order_type === 'takeaway');
 
 // Component for the ticking timer
 const LiveTimer = ({ placedAt }: { placedAt: string }) => {
@@ -217,10 +226,10 @@ export default function OrdersPage() {
   };
 
   const renderActions = (order: any) => {
-    const actions = getNextActions(order.order_type, order.status);
+    const actions = getNextActions(order);
     return (
       <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-        {actions.map(action => {
+        {actions.map((action: any) => {
           const Icon = action.icon;
           return (
             <button key={action.status} className={`btn btn-xs gap-1 ${action.color}`} onClick={() => handleUpdateStatus(order, action.status)}>
@@ -233,7 +242,7 @@ export default function OrdersPage() {
             <DollarSign size={12} /> Pay
           </button>
         )}
-        {(order.status === 'pending' || order.status === 'cooking') && (
+        {['pending', 'cooking'].includes(order.status) && (
           <button className="btn btn-xs btn-error btn-outline gap-1" onClick={() => handleDelete(order.id)}>
             <XCircle size={12} /> Cancel
           </button>
@@ -328,7 +337,7 @@ export default function OrdersPage() {
     let current = orders.filter(o => {
       if (activeLocationId && o.location_id !== activeLocationId) return false;
       if (activeTab === 'all_orders') return true;
-      const isCompleted = (o.status === 'served' || o.status === 'delivered' || (o.status === 'packed' && o.order_type === 'takeaway')) && o.payment_status === 'paid';
+      const isCompleted = isFinished(o) && o.payment_status === 'paid';
       return o.order_type === activeTab && !isCompleted;
     });
     

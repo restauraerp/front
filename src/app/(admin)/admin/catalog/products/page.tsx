@@ -25,6 +25,7 @@ export default function ProductsPage() {
     price: '',
     category_id: '',
     type: 'food',
+    needs_cooking: false,
     is_active: 1,
     image_url: '',
     locations: [] as { location_id: number, is_available: boolean }[]
@@ -97,7 +98,10 @@ export default function ProductsPage() {
       const payload = {
         ...formData,
         category_id: formData.category_id ? parseInt(formData.category_id as string) : null,
-        is_active: parseInt(formData.is_active as unknown as string)
+        is_active: parseInt(formData.is_active as unknown as string),
+        // Multipart carries strings, and Laravel's boolean rule does not accept
+        // the word "false".
+        needs_cooking: formData.needs_cooking ? 1 : 0,
       };
 
       const formDataToSend = new FormData();
@@ -133,7 +137,7 @@ export default function ProductsPage() {
       setIsFormOpen(false);
       setEditingId(null);
       setImageFile(null);
-      setFormData({ name: '', description: '', price: '', category_id: '', type: 'food', is_active: 1, image_url: '', locations: [] });
+      setFormData({ name: '', description: '', price: '', category_id: '', type: 'food', needs_cooking: false, is_active: 1, image_url: '', locations: [] });
       loadData();
     } catch (err) {
       console.error(err);
@@ -151,6 +155,7 @@ export default function ProductsPage() {
       price: row.price || '',
       category_id: row.category_id || '',
       type: row.type || 'food',
+      needs_cooking: Boolean(row.needs_cooking),
       is_active: row.is_active !== undefined ? row.is_active : 1,
       image_url: row.images && row.images.length > 0 ? row.images[0].url : '',
       locations: (row.locations || []).map((loc: any) => ({
@@ -217,7 +222,7 @@ export default function ProductsPage() {
           setEditingId(null);
           setImageFile(null);
           setFormData({ 
-            name: '', description: '', price: '', category_id: '', type: 'food', is_active: 1, image_url: '',
+            name: '', description: '', price: '', category_id: '', type: 'food', needs_cooking: false, is_active: 1, image_url: '',
             locations: locations.map(l => ({ location_id: l.id, is_available: true }))
           });
         }}>
@@ -269,6 +274,26 @@ export default function ProductsPage() {
                 onFileChange={setImageFile}
                 disabled={submitting}
               />
+            </div>
+
+            <div className="rounded-[var(--radius-field)] border border-base-300 p-4 sm:col-span-2">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  className="checkbox checkbox-primary mt-0.5"
+                  checked={formData.needs_cooking}
+                  onChange={(e) => setFormData(prev => ({ ...prev, needs_cooking: e.target.checked }))}
+                  disabled={submitting}
+                />
+                <span>
+                  <span className="font-medium">Needs to cook</span>
+                  <span className="block text-sm text-content-muted">
+                    Dishes prepared to order go to the kitchen display and start at Cooking. Leave this unticked for
+                    anything handed over as it is — bottled drinks, packaged snacks — and orders made only of those
+                    skip the kitchen and open at Ready to Serve.
+                  </span>
+                </span>
+              </label>
             </div>
 
             <div className="form-control w-full">

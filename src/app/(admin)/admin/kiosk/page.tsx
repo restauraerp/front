@@ -129,7 +129,7 @@ export default function KitchenKiosk() {
                 </div>
                 <div className="text-right">
                   <span className={`badge font-bold ${order.status === 'cooking' ? 'badge-info text-white' : 'badge-warning'}`}>
-                    {(order.status || '').toUpperCase()}
+                    {order.status === 'cooking' ? 'COOKING' : 'SCHEDULED'}
                   </span>
                   <div className="text-xs opacity-60 mt-1 font-mono">
                     {order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
@@ -137,6 +137,20 @@ export default function KitchenKiosk() {
                 </div>
               </div>
               
+              {order.status === 'pending' && (
+                <div className="mb-3 rounded-lg bg-warning/15 px-3 py-2 text-sm">
+                  {order.delivery_time ? (
+                    <>
+                      <span className="font-semibold">Due </span>
+                      {new Date(order.delivery_time).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' })}
+                    </>
+                  ) : (
+                    <span className="font-semibold">Waiting to start</span>
+                  )}
+                  <span className="block text-xs opacity-70">Not started yet — press Start Cooking when you want it made.</span>
+                </div>
+              )}
+
               <div className="flex-1 overflow-y-auto mb-4 space-y-2">
                 {order.items?.map((item: any, idx: number) => {
                   const imgUrl = item.product?.images?.[0]?.url;
@@ -171,10 +185,10 @@ export default function KitchenKiosk() {
                 ) : (
                   <button 
                     className="btn btn-success w-full text-white text-lg font-bold h-12" 
-                    onClick={() => handleUpdateStatus(order.id, 'cooked')}
+                    onClick={() => handleUpdateStatus(order.id, 'ready_to_serve')}
                     disabled={processing === order.id}
                   >
-                    {processing === order.id ? <span className="loading loading-spinner"></span> : 'Mark as Cooked'}
+                    {processing === order.id ? <span className="loading loading-spinner"></span> : 'Ready to Serve'}
                   </button>
                 )}
               </div>

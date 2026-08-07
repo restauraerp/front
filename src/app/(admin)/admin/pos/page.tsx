@@ -216,7 +216,8 @@ export default function POS() {
         body: JSON.stringify({
           location_id: activeLocationId,
           order_type: orderType,
-          status: 'pending',
+          // No status: where an order opens depends on what is on it and when
+          // it is due, which the API decides.
           subtotal: subtotal.toFixed(2),
           tax_amount: tax.toFixed(2),
           discount_amount: discountAmount.toFixed(2),
