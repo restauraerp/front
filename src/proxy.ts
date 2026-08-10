@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DEMO_COOKIE, DEMO_PARAM, FBC_COOKIE, FBP_COOKIE } from '@/lib/demo';
+import { DEMO_COOKIE, DEMO_PARAM, FBC_COOKIE, FBP_COOKIE, LEAD_COOKIE } from '@/lib/demo';
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
@@ -42,6 +42,8 @@ export function proxy(request: NextRequest) {
     for (const [param, cookie] of [
       ['fbp', FBP_COOKIE],
       ['fbc', FBC_COOKIE],
+      // Who this demo visitor is, when they came through verification.
+      ['ref', LEAD_COOKIE],
     ] as const) {
       const value = request.nextUrl.searchParams.get(param);
 

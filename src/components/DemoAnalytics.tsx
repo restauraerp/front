@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react';
 import { API_BASE_URL } from '@/lib/api';
-import { FBC_COOKIE, FBP_COOKIE, isDemoSession, readCookie } from '@/lib/demo';
+import { FBC_COOKIE, FBP_COOKIE, LEAD_COOKIE, isDemoSession, readCookie } from '@/lib/demo';
 
 /**
  * Marks a demo visitor as a Lead once they have stayed 60 seconds.
@@ -85,6 +85,9 @@ export default function DemoAnalytics() {
           event_id: eventId,
           fbp: readCookie(FBP_COOKIE),
           fbc: readCookie(FBC_COOKIE),
+          // Who verified to get in here, when they did. Opaque to this app -
+          // the website issued it and the website reads it.
+          lead_ref: readCookie(LEAD_COOKIE),
           source_url: window.location.href,
         }),
       }).catch(() => {});
