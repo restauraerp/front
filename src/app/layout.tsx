@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Poppins, Hind_Siliguri } from 'next/font/google';
 import { GoogleTagManager } from '@next/third-parties/google';
 import './globals.css';
+import FacebookPixel from '@/components/FacebookPixel';
 import DemoAnalytics from '@/components/DemoAnalytics';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       {process.env.NEXT_PUBLIC_GTM_ID && <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID} />}
       <body className={`${inter.variable} ${poppins.variable} ${hindSiliguri.variable} font-sans antialiased`}>
         {children}
+        <FacebookPixel />
         <DemoAnalytics />
       </body>
     </html>

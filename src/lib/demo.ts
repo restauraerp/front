@@ -15,6 +15,28 @@ export const DEMO_PARAM = 'demo';
  */
 export const DEMO_COOKIE = 'demo_session';
 
+/**
+ * Facebook's identifiers, handed over by the marketing site in the demo link.
+ *
+ * `_fbp` and `_fbc` are per-domain cookies, so the ones set on the marketing
+ * site are invisible here. Without them a demo Lead reaches Meta with nothing
+ * to match against the ad click that produced it, so they are carried across
+ * in the query string and kept for the rest of the visit.
+ */
+export const FBP_COOKIE = 'demo_fbp';
+export const FBC_COOKIE = 'demo_fbc';
+
+/** Reads a cookie by name. Client-side only. */
+export function readCookie(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const match = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${name}=`));
+
+  return match ? decodeURIComponent(match.slice(name.length + 1)) : null;
+}
+
 /** Whether this browser is in a demo session. Client-side only. */
 export function isDemoSession(): boolean {
   if (typeof document === 'undefined') return false;
@@ -22,4 +44,20 @@ export function isDemoSession(): boolean {
   return document.cookie
     .split('; ')
     .some((entry) => entry.startsWith(`${DEMO_COOKIE}=`));
+}
+
+/**
+ * Drops every trace of a demo visit.
+ *
+ * Called once the API confirms this is not the demo restaurant. Without it the
+ * cookie lingers for a day after someone leaves the demo and signs up, which
+ * both nags a paying customer to "get your own" and reports them to Facebook as
+ * a fresh demo Lead.
+ */
+export function clearDemoSession(): void {
+  if (typeof document === 'undefined') return;
+
+  for (const name of [DEMO_COOKIE, FBP_COOKIE, FBC_COOKIE]) {
+    document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
+  }
 }

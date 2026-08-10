@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DEMO_COOKIE, DEMO_PARAM } from '@/lib/demo';
+import { DEMO_COOKIE, DEMO_PARAM, FBC_COOKIE, FBP_COOKIE } from '@/lib/demo';
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
@@ -35,6 +35,20 @@ export function proxy(request: NextRequest) {
       maxAge: 86400,
       sameSite: 'lax',
     });
+
+    // Facebook's identifiers, handed over by the marketing site. Same reason
+    // the demo flag is stored here: the query string is gone by the time the
+    // 60-second event fires, and these are what make that Lead attributable.
+    for (const [param, cookie] of [
+      ['fbp', FBP_COOKIE],
+      ['fbc', FBC_COOKIE],
+    ] as const) {
+      const value = request.nextUrl.searchParams.get(param);
+
+      if (value) {
+        response.cookies.set(cookie, value, { path: '/', maxAge: 86400, sameSite: 'lax' });
+      }
+    }
   }
 
   return response;

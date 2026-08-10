@@ -17,6 +17,15 @@ export type SubscriptionStatus = {
   read_only?: boolean;
   days_remaining?: number;
   contact?: { email?: string; phone?: string; whatsapp?: string; url?: string };
+  /** Raw tenant status. A running trial reports state `full`, so this is the
+   *  only field that distinguishes a trial from a paid subscription. */
+  tenant_status?: 'trialing' | 'active' | 'suspended' | 'cancelled';
+  /** Whether this really is the demo restaurant. The `demo_session` cookie
+   *  cannot answer this: it outlives the demo visit and follows the visitor
+   *  into their own account. */
+  is_demo?: boolean;
+  trial_ends_at?: string | null;
+  trial_days_remaining?: number | null;
 };
 
 /**
@@ -35,41 +44,79 @@ export default function SubscriptionBanner({ status }: { status: SubscriptionSta
   return (
     <div
       role="alert"
-      className={`alert rounded-none border-x-0 border-t-0 ${readOnly ? 'alert-error' : 'alert-warning'}`}
+      className={[
+        'alert',
+        // daisyUI 5 lays .alert out as a grid with grid-auto-flow: column, so
+        // three children become three columns at every width and crush on a
+        // phone. Stacked below sm, columns above - the documented pattern.
+        'alert-vertical sm:alert-horizontal',
+        // Full-bleed strip rather than a floating card: it sits flush under the
+        // topbar and should read as part of the chrome.
+        'rounded-none border-x-0 border-t-0',
+        readOnly ? 'alert-error' : 'alert-warning',
+      ].join(' ')}
     >
       {readOnly ? <AlertTriangle size={20} className="shrink-0" /> : <Clock size={20} className="shrink-0" />}
 
-      <div className="flex-1 min-w-0">
-        <p className="font-semibold">
+      <div className="min-w-0 text-center sm:text-start">
+        <p className="font-semibold leading-tight">
           {readOnly ? 'Saving is paused' : 'Action needed to keep saving'}
         </p>
-        <p className="text-sm opacity-90">{status.message}</p>
+        <p className="text-sm opacity-90 leading-snug mt-0.5">{status.message}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
         {contact.url && (
-          <a href={contact.url} target="_blank" rel="noopener noreferrer" className="btn btn-sm">
-            <ExternalLink size={14} /> View plans
+          <a
+            href={contact.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            // Explicit colours, not btn-neutral: inside a coloured alert the
+            // neutral background is overridden while the alert's white text
+            // colour still inherits, leaving white-on-white. Stating both ends
+            // of the pair keeps it readable on error and warning alike.
+            className="btn btn-sm gap-1.5 bg-base-100 text-base-content border-base-100 hover:bg-base-200 hover:border-base-200"
+          >
+            View plans
+            <ExternalLink size={14} />
           </a>
         )}
+
+        {/* Icon-only, with the address or number in the tooltip. Spelling out a
+            long email inside a button is what made this row sprawl on desktop
+            and wrap onto three lines on a phone. */}
         {contact.whatsapp && (
           <a
             href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="btn btn-sm btn-ghost"
+            className="btn btn-sm btn-square btn-ghost"
+            aria-label={`WhatsApp ${contact.whatsapp}`}
+            title={`WhatsApp ${contact.whatsapp}`}
           >
-            <MessageCircle size={14} /> WhatsApp
+            <MessageCircle size={16} />
           </a>
         )}
+
         {contact.phone && (
-          <a href={`tel:${contact.phone}`} className="btn btn-sm btn-ghost">
-            <Phone size={14} /> {contact.phone}
+          <a
+            href={`tel:${contact.phone}`}
+            className="btn btn-sm btn-square btn-ghost"
+            aria-label={`Call ${contact.phone}`}
+            title={`Call ${contact.phone}`}
+          >
+            <Phone size={16} />
           </a>
         )}
+
         {contact.email && (
-          <a href={`mailto:${contact.email}`} className="btn btn-sm btn-ghost">
-            <Mail size={14} /> {contact.email}
+          <a
+            href={`mailto:${contact.email}`}
+            className="btn btn-sm btn-square btn-ghost"
+            aria-label={`Email ${contact.email}`}
+            title={`Email ${contact.email}`}
+          >
+            <Mail size={16} />
           </a>
         )}
       </div>
