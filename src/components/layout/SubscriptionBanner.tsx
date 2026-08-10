@@ -26,6 +26,20 @@ export type SubscriptionStatus = {
   is_demo?: boolean;
   trial_ends_at?: string | null;
   trial_days_remaining?: number | null;
+  /** The package itself. Sent for a healthy subscription too, not only a
+   *  failing one, so the profile screen can always name it. */
+  plan?: string | null;
+  plan_name?: string | null;
+  billing_cycle?: 'monthly' | 'yearly' | null;
+  /** The day the paid period ends, which is also when the next payment is
+   *  due. `expired_at` carries the same value under an older name. */
+  expires_at?: string | null;
+  expired_at?: string | null;
+  /** When saving actually stops - the due date plus the grace period. */
+  grace_ends_at?: string | null;
+  grace_days?: number | null;
+  /** Whole days until the paid period ends; negative once it has passed. */
+  days_until_expiry?: number | null;
 };
 
 /**
