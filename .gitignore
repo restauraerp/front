@@ -32,6 +32,10 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env
+# Written by the deploy workflow from the host's shared/.env, and by anyone
+# reproducing a production build locally. Carries real keys - never commit it.
+.env.production
+.env*.local
 
 # vercel
 .vercel
