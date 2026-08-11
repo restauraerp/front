@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import { API_BASE_URL } from '@/lib/api';
 import { getSavedTenant, setTenant } from '@/lib/tenant';
 import { DEMO_PARAM } from '@/lib/demo';
@@ -205,6 +206,15 @@ export default function LoginForm() {
                 </>
               )}
             </button>
+
+            {/* Hidden for a demo visit: the demo credentials are filled in
+                above and published on the marketing site, so a reset link is
+                both pointless and refused by the API. */}
+            {!demoRequested && (
+              <Link href="/forgot-password" className="link link-hover text-sm text-center text-base-content/60">
+                Forgot your password?
+              </Link>
+            )}
           </form>
         </div>
       </div>
