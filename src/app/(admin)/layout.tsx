@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import ConversionBanner from '@/components/layout/ConversionBanner';
 import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import {
   LayoutDashboard,
@@ -145,9 +146,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         // Billing state, so an expired subscription is announced on load
         // instead of discovered when a save fails.
         setSubscription(res?.subscription ?? null);
+
+        // Signed into a real restaurant: shed any leftover demo marks, so the
+        // buy-now banner stays away and no demo Lead is reported for someone
+        // who is already a customer.
+        if (res?.subscription?.is_demo === false) {
+          import('@/lib/demo').then(({ clearDemoSession }) => clearDemoSession());
+        }
+
+        // An owner who came in through a one-time link has no password of
+        // their own yet. Nothing else in here matters until they pick one.
+        if (res?.must_set_password && window.location.pathname !== '/admin/set-password') {
+          router.replace('/admin/set-password');
+        }
       }).catch(console.error);
     });
-  }, []);
+  }, [router]);
 
   const hasAccess = (href: string) => {
     if (isSuperAdmin) return true;
@@ -265,6 +279,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <span className="font-bold text-base">RestoraERP</span>
             </div>
           </div>
+
+          {/* Standing prompt to buy. Outside <main> on purpose: <main> is the
+              scroll container, so sitting above it keeps the banner in view
+              without ever overlaying a control. */}
+          <ConversionBanner status={subscription} />
 
           {/* Main */}
           <main className="flex-1 p-6 bg-base-100 overflow-y-auto">

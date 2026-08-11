@@ -2,13 +2,23 @@
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
+import SubscriptionCard from '@/components/billing/SubscriptionCard';
+import type { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import { fetchApi } from '@/lib/api';
 import { clearTenant } from '@/lib/tenant';
 import { UserCircle, Mail, LogOut, ShieldCheck } from 'lucide-react';
 
+/** The parts of GET /auth/me this screen reads. */
+type Me = {
+  name?: string;
+  email?: string;
+  email_verified_at?: string | null;
+  subscription?: SubscriptionStatus | null;
+};
+
 export default function ProfilePage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<Me | null>(null);
 
   useEffect(() => {
     fetchApi('/auth/me').then(setUser).catch(console.error);
@@ -74,6 +84,10 @@ export default function ProfilePage() {
           </div>
         </div>
       </Card>
+
+      {/* /auth/me carries the billing block alongside the user, so this needs
+          no second request. */}
+      <SubscriptionCard status={user?.subscription ?? null} />
     </div>
   );
 }
