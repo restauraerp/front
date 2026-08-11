@@ -3,13 +3,37 @@ name: front-deploy
 # Deploys this Next.js app to the production EC2 box on every tag that
 # starts with "v" (e.g. v1.0.0, v2025.06.18).
 #
+# Where configuration lives
+# -------------------------
+# One place: /var/www/front/shared/.env on the deploy host. This workflow
+# PULLS that file down and builds against it; it never writes it.
+#
+# It has to be pulled rather than merely mounted at runtime because Next
+# replaces every `process.env.NEXT_PUBLIC_*` with a literal string during
+# `next build`. A variable that is absent while building is not late - it is
+# gone, compiled into the bundle as an empty string.
+#
+# This used to be split between a FRONT_ENV repo secret and a hardcoded `env:`
+# block below. The secret was never set, the fallback was a `touch` that left
+# the host file untouched and the build env empty, and so three months of
+# green deploys shipped a bundle with no NEXT_PUBLIC_WEBSITE_URL: the trial
+# and demo upgrade banner rendered nothing, Google Maps autocomplete had no
+# key, and the Meta pixel never fired. Nothing failed, because nothing checked.
+#
+# Two things stop that recurring:
+#   - the build fetches the real env file, or fails
+#   - `npm run build` runs scripts/check-public-env.mjs first, which fails on
+#     a missing required NEXT_PUBLIC_* rather than compiling it away
+#
+# To change configuration: edit /var/www/front/shared/.env on the host, then
+# re-run this workflow (or cut a tag). A restart alone will not do it.
+#
 # Required repo secrets:
 #   PUBLIC_DEPLOY_SSH_KEY  - publicdeploy's private key (terraform output -raw
 #                            publicdeploy_ssh_private_key, from infra/)
 #   DEPLOY_HOST            - instance public IP or domain (terraform output -raw
 #                            public_ip)
 #   DEPLOY_USER            - optional; defaults to "publicdeploy"
-#   FRONT_ENV              - The .env contents for the Next.js frontend
 
 on:
   push:
@@ -41,45 +65,7 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Install dependencies and build
-        env:
-          # Relative path, not an absolute cross-origin URL: the browser
-          # calls same-origin /api/v1/..., and next.config.ts's rewrites()
-          # proxies it server-side to API_INTERNAL_URL. Avoids CORS/mixed-
-          # content entirely, matches the app's local .env convention.
-          NEXT_PUBLIC_API_URL: /api/v1
-          # next.config.ts reads this at module load to build rewrites(),
-          # and rewrites() is compiled into routes-manifest.json at build
-          # time (Next does NOT re-read it from shared/.env at server
-          # startup) - it must be present here, not only in FRONT_ENV.
-          API_INTERNAL_URL: http://127.0.0.1:8000
-          
-          # The restaurant this deployment's public storefront belongs to
-          # (tenants.slug). Storefront requests carry no auth token, so this is
-          # the only thing telling the API which restaurant to serve - without
-          # it every menu/booking call returns 400. Like the vars above it is
-          # inlined at BUILD time, so it must be set here and not only in
-          # FRONT_ENV. Must match DEMO_TENANT_SLUG in the core-api .env.
-          NEXT_PUBLIC_TENANT_ID: "bangla-bistro"
-
-          # No demo variables here any more. Demo mode is requested per visit
-          # (/login?demo=true) and answered by the API at request time
-          # (GET /api/v1/demo-config, gated by DEMO_MODE in the core-api .env),
-          # so the demo can be turned on, off, or re-credentialed without
-          # rebuilding this app. The old NEXT_PUBLIC_IS_DEMO/_DEMO_EMAIL/
-          # _DEMO_PASSWORD trio was inlined into the client bundle, which
-          # shipped the demo password to every visitor and made every change a
-          # redeploy.
-          NEXT_PUBLIC_GTM_ID: "GTM-M8HZRXPH"
-        run: |
-          if [ -n "${{ secrets.FRONT_ENV }}" ]; then
-            cat << 'EOF' > .env.production
-          ${{ secrets.FRONT_ENV }}
-          EOF
-          fi
-          npm ci
-          npm run build
-
+      # Before the build, not after: the build needs the host's env file.
       - name: Configure SSH
         run: |
           mkdir -p ~/.ssh
@@ -87,13 +73,42 @@ jobs:
           chmod 600 ~/.ssh/id_deploy
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
 
+      - name: Fetch build environment from the deploy host
+        run: |
+          set -euo pipefail
+
+          # `cat` on a missing file exits non-zero, which -o pipefail turns
+          # into a failed step. That is the point: an empty build env must
+          # stop the deploy, never quietly produce a bundle without one.
+          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" \
+            "cat /var/www/front/shared/.env" > .env.production
+
+          if [ ! -s .env.production ]; then
+            echo "::error::/var/www/front/shared/.env on $DEPLOY_HOST is empty."
+            echo "::error::It is the only source of build-time configuration - populate it from .env.example."
+            exit 1
+          fi
+
+          # Names only. The values are about to be compiled into a public
+          # bundle, but the log is a worse place for them than the bundle.
+          echo "Building with:"
+          grep -oE '^[A-Z_]+' .env.production | sed 's/^/  /'
+
+      - name: Install dependencies and build
+        # No NEXT_PUBLIC_* here on purpose. Anything exported into the job
+        # environment silently outranks .env.production, which is how the two
+        # drifted apart in the first place.
+        run: |
+          npm ci
+          npm run build
+
       - name: Upload release
         run: |
           ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p /var/www/front/releases/$RELEASE"
           rsync -az --delete \
             -e "ssh -i ~/.ssh/id_deploy" \
             --exclude='.git' --exclude='.github' --exclude='node_modules' \
-            --exclude='.env' --exclude='tests' \
+            --exclude='.env' --exclude='.env.production' --exclude='tests' \
             --exclude='.idea' --exclude='.claude' \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/front/releases/$RELEASE/"
 
@@ -104,28 +119,13 @@ jobs:
           APP=/var/www/front
           REL="$APP/releases/$RELEASE"
 
-          mkdir -p "$APP/shared"
-          DEPLOY
-
-          # Copy env to shared/.env if secret exists
-          if [ -n "${{ secrets.FRONT_ENV }}" ]; then
-            ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "cat > /var/www/front/shared/.env" << 'EOF'
-          ${{ secrets.FRONT_ENV }}
-          EOF
-          else
-            ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "touch /var/www/front/shared/.env"
-          fi
-
-          ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
-          set -euo pipefail
-          APP=/var/www/front
-          REL="$APP/releases/$RELEASE"
-
-          # Wire persistent state from shared/ into this release.
+          # Wire persistent state from shared/ into this release. Serves the
+          # server side only - the client bundle was fixed at build time - but
+          # keeps `next start` reading the same file the build read.
           ln -sfn "$APP/shared/.env" "$REL/.env"
 
           cd "$REL"
-          
+
           # Next.js requires production dependencies to start
           npm ci --omit=dev
 
