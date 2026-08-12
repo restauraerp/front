@@ -68,7 +68,11 @@ export function isDemoSession(): boolean {
 export function clearDemoSession(): void {
   if (typeof document === 'undefined') return;
 
-  for (const name of [DEMO_COOKIE, FBP_COOKIE, FBC_COOKIE, LEAD_COOKIE]) {
+  // `demo_lead_reported` goes with them. It is the guard that says this visit
+  // has already been counted, and it is scoped to the visit - leaving it behind
+  // after the visit has been declared not-a-demo would suppress the next
+  // genuine demo visit from this browser.
+  for (const name of [DEMO_COOKIE, FBP_COOKIE, FBC_COOKIE, LEAD_COOKIE, 'demo_lead_reported']) {
     document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
   }
 }

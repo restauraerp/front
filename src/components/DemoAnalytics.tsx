@@ -13,11 +13,29 @@ import { FBC_COOKIE, FBP_COOKIE, LEAD_COOKIE, isDemoSession, readCookie } from '
  * half is fast and the server half survives ad blockers.
  *
  * The dataLayer push is kept so the existing GTM triggers and GA4 tags carry on
- * working untouched.
+ * working untouched. GTM's side is a Custom Event trigger matching
+ * `demo_checked_over_60_seconds` exactly, firing one GA4 Event tag - it reports
+ * once per push and multiplies nothing, so anything arriving in GA4 more than
+ * once was pushed more than once from here.
  */
 
-/** Marks a browser as already counted, so a reload does not report twice. */
-const REPORTED_KEY = 'demo_lead_reported';
+/**
+ * Marks this demo visit as already counted.
+ *
+ * A cookie rather than localStorage, and that is the fix rather than a detail:
+ *
+ * - **Shared across tabs.** localStorage is too, but see the race below; what
+ *   matters more is that a cookie can expire.
+ * - **Scoped to the demo visit.** It expires with `demo_session` (24 hours), so
+ *   the event means "once per demo visit". The old localStorage key never
+ *   expired, so once a browser had reported it could never report again - a
+ *   genuine second demo visit months later went uncounted. That version managed
+ *   to both over-report and under-report at the same time.
+ */
+const REPORTED_COOKIE = 'demo_lead_reported';
+
+/** Same 24 hours as DEMO_COOKIE, so the guard cannot outlive the visit. */
+const REPORTED_MAX_AGE = 86400;
 
 const SIXTY_SECONDS = 60_000;
 
@@ -37,14 +55,9 @@ export default function DemoAnalytics() {
     // rebuild to toggle.
     if (!isDemoSession()) return;
 
-    // One Lead per visitor, not one per page load. The old timer restarted on
-    // every mount, so a demo visitor who looked at four screens was four leads.
-    try {
-      if (window.localStorage.getItem(REPORTED_KEY)) return;
-    } catch {
-      // Private browsing can refuse localStorage; better to risk a duplicate
-      // than to never report at all.
-    }
+    // Cheap early exit: this visit has already been counted, so do not even
+    // start a timer. Not a guarantee on its own - see the re-check below.
+    if (readCookie(REPORTED_COOKIE)) return;
 
     const timer = setTimeout(() => {
       // Sixty seconds of a tab sitting in the background is not sixty seconds
@@ -56,11 +69,17 @@ export default function DemoAnalytics() {
       // answer usually arrives well inside the minute.
       if (!isDemoSession()) return;
 
-      try {
-        window.localStorage.setItem(REPORTED_KEY, '1');
-      } catch {
-        /* see above */
-      }
+      // THE duplicate fix. The guard used to be tested only at mount and set
+      // only here, leaving sixty seconds in which it was not yet set - so a
+      // second tab opened inside that window passed the mount check too, and
+      // both timers reported. Every other condition in this callback was
+      // re-evaluated; the one the guard depended on was not.
+      if (readCookie(REPORTED_COOKIE)) return;
+
+      // Claimed before any of the reporting below, so two timers that somehow
+      // arrive together cannot both get past the line above. Everything after
+      // this point runs at most once per demo visit.
+      document.cookie = `${REPORTED_COOKIE}=1; path=/; max-age=${REPORTED_MAX_AGE}; SameSite=Lax`;
 
       // Shared by both halves. crypto.randomUUID needs a secure context, which
       // a local http:// deployment is not.

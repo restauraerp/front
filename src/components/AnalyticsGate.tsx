@@ -2,13 +2,26 @@
 
 import { useEffect, useSyncExternalStore } from 'react';
 import { isDevTraffic } from '@/lib/devTraffic';
+import { isDemoSession } from '@/lib/demo';
 
 /**
  * Renders its children only when this browser is allowed to be tracked.
  *
- * Wraps GTM, the Meta pixel and the demo Lead reporter, so our own visits stay
- * out of the numbers. See lib/devTraffic for why the switch is a header turned
- * into a cookie.
+ * Wraps GTM, the Meta pixel and the demo Lead reporter. Two conditions, and a
+ * visit has to pass both:
+ *
+ * 1. **It must be a demo session.** This app is a restaurant's own ERP. Staff
+ *    ringing up orders on the till are not an audience, their working day is
+ *    not ad measurement, and a paying customer's storefront traffic is not ours
+ *    to report. Only the demo is marketing, so only the demo is measured.
+ * 2. **It must not be our own browsing.** See lib/devTraffic.
+ *
+ * Condition 1 used to be a comment rather than code. FacebookPixel's docblock
+ * has always said "for the demo app only... not loaded for real restaurants",
+ * while the component only ever checked that a pixel id was configured - and
+ * GTM was loaded from the root layout on the sole condition that an id existed.
+ * Every real restaurant was therefore reported to GA4 and Meta. The claim is
+ * now enforced here, in one place, instead of being repeated as intent in three.
  *
  * ## Why this is a client component
  *
@@ -33,19 +46,37 @@ import { isDevTraffic } from '@/lib/devTraffic';
  */
 
 /**
- * The cookie is written by the proxy on a document request and cannot change
- * again while this page is alive, so there is nothing to subscribe to.
+ * Both cookies are written on a document request and neither changes again
+ * while this page is alive, so there is nothing to subscribe to.
  * useSyncExternalStore still requires a subscribe function.
+ *
+ * (`demo_session` can be *cleared* mid-page, when the API confirms this is a
+ * real restaurant. That only ever removes tracking, and DemoAnalytics re-checks
+ * it before reporting, so there is nothing here that needs to react to it.)
  */
 function subscribe(): () => void {
   return () => {};
 }
 
+/**
+ * The layout mounts two gates - one for GTM in <head>, one for the pixel and
+ * the Lead reporter in <body> - and both reach the same verdict. Announcing it
+ * from each printed the line twice, which reads exactly like the double-firing
+ * this component exists to prevent. Module scope, so it resets on a real page
+ * load and the line appears once per page.
+ */
+let announced = false;
+
+/** Tracking is allowed only for a demo visit that is not our own browsing. */
+function trackingIsSuppressed(): boolean {
+  return isDevTraffic() || !isDemoSession();
+}
+
 export default function AnalyticsGate({ children }: { children: React.ReactNode }) {
   const suppressed = useSyncExternalStore(
     subscribe,
-    // In the browser: whatever the cookie actually says.
-    isDevTraffic,
+    // In the browser: whatever the cookies actually say.
+    trackingIsSuppressed,
     // On the server and during hydration: assume suppressed. See above.
     () => true,
   );
@@ -55,10 +86,23 @@ export default function AnalyticsGate({ children }: { children: React.ReactNode 
     // matching the attribute the website sets server-side. Without a signal, a
     // working exclusion and a broken tag look exactly the same.
     if (suppressed) {
-      document.documentElement.setAttribute('data-analytics', 'suppressed');
-      console.info(
-        '[analytics] Suppressed for this browser via the isdev cookie - no GTM, GA or Meta pixel will load. Send "isdev: false" to resume.',
-      );
+      // Naming the reason matters here in a way it did not when there was only
+      // one: "no analytics" on a real restaurant is correct and expected, while
+      // the same silence on a demo visit is a bug. Without this you cannot tell
+      // the two apart from the console.
+      const reason = isDevTraffic() ? 'dev-traffic' : 'not-a-demo-session';
+
+      document.documentElement.setAttribute('data-analytics', reason);
+
+      if (!announced) {
+        announced = true;
+        console.info(
+          `[analytics] Suppressed (${reason}) - no GTM, GA or Meta pixel will load.`,
+          reason === 'dev-traffic'
+            ? 'Send "isdev: false" to resume.'
+            : 'This app only reports demo visits; a real restaurant is never tracked.',
+        );
+      }
 
       return;
     }
