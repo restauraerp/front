@@ -4,6 +4,7 @@ import { GoogleTagManager } from '@next/third-parties/google';
 import './globals.css';
 import FacebookPixel from '@/components/FacebookPixel';
 import DemoAnalytics from '@/components/DemoAnalytics';
+import AnalyticsGate from '@/components/AnalyticsGate';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' });
 const poppins = Poppins({ subsets: ['latin'], weight: ['500', '600'], variable: '--font-poppins' });
@@ -29,11 +30,25 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           tag has been removed from the container; the pixel is owned here, in
           code, where it sits next to the Lead event that depends on it. If the
           warning ever returns, something re-added it to GTM. */}
-      {process.env.NEXT_PUBLIC_GTM_ID && <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID} />}
+      {/* AnalyticsGate keeps our own visits out of the numbers: a developer's
+          browser sends an `isdev` header, the proxy turns it into a cookie, and
+          nothing inside the gate renders while that cookie says so. It wraps
+          every tag rather than each one checking for itself, so a tag added
+          later inherits the exclusion instead of having to remember it. */}
+      <AnalyticsGate>
+        {process.env.NEXT_PUBLIC_GTM_ID && <GoogleTagManager gtmId={process.env.NEXT_PUBLIC_GTM_ID} />}
+      </AnalyticsGate>
       <body className={`${inter.variable} ${poppins.variable} ${hindSiliguri.variable} font-sans antialiased`}>
         {children}
-        <FacebookPixel />
-        <DemoAnalytics />
+        <AnalyticsGate>
+          <FacebookPixel />
+          {/* Inside the gate as well, and not only because it pushes to the
+              dataLayer: DemoAnalytics is what reports the 60-second Lead to
+              core-api, which relays it to the website's Conversions API. Not
+              calling it here is what stops the *server* half of that event too,
+              at source, with nothing to thread through core-api. */}
+          <DemoAnalytics />
+        </AnalyticsGate>
       </body>
     </html>
   );
