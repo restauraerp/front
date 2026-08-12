@@ -9,6 +9,16 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
+  // Dev only, and ignored entirely in a production build. Next blocks requests
+  // for its dev resources (/_next/webpack-hmr and friends) from any origin
+  // other than the one it was opened on, and a blocked HMR request leaves the
+  // page loaded but never hydrated - React starts, effects never run, and
+  // nothing in the console says why.
+  //
+  // 127.0.0.1 is the same server as localhost but a separate origin, with its
+  // own cookie jar - which makes it the way to exercise a second, independent
+  // browser identity against the same dev server.
+  allowedDevOrigins: ['127.0.0.1'],
   // /admin/reporting has no page of its own - it lands on the Sales tab. Doing
   // this as an HTTP redirect rather than a redirect() inside a page component
   // avoids rendering (and erroring out of) a throwaway Server Component.
