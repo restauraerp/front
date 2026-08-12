@@ -12,6 +12,7 @@ import CustomerPicker from './components/CustomerPicker';
 import DiscountInput from './components/DiscountInput';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { tenantKey } from '@/lib/tenant';
+import { isSellable } from '@/lib/product';
 
 interface CartItem {
   id: number; name: string; price: string; qty: number; notes: string;
@@ -114,9 +115,14 @@ export default function POS() {
     }
   }, [orderType, activeLocationId]);
 
+  // Only what may actually be sold. The catalog keeps withdrawn products so
+  // they can be brought back, and /products returns them all, so the till has
+  // to leave them out itself - it was ringing up items taken off the menu.
+  const sellableProducts = useMemo(() => products.filter(isSellable), [products]);
+
   // Filtered products
   const filteredProducts = useMemo(() => {
-    let list = products;
+    let list = sellableProducts;
 
     // Filter by location availability
     if (activeLocationId) {
@@ -133,13 +139,15 @@ export default function POS() {
       list = list.filter(p => p.name?.toLowerCase().includes(q));
     }
     return list;
-  }, [products, selectedCategory, searchQuery, activeLocationId]);
+  }, [sellableProducts, selectedCategory, searchQuery, activeLocationId]);
 
+  // Counted off the sellable list too, so a category whose every product was
+  // withdrawn stops offering a tab that opens onto nothing.
   const categoriesWithProducts = useMemo(() => {
     return categories
-      .map(cat => ({ ...cat, productCount: products.filter(p => p.category_id === cat.id).length }))
+      .map(cat => ({ ...cat, productCount: sellableProducts.filter(p => p.category_id === cat.id).length }))
       .filter(cat => cat.productCount > 0);
-  }, [categories, products]);
+  }, [categories, sellableProducts]);
 
   const addToCart = (product: any) => {
     setCart(prev => {

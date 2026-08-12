@@ -249,56 +249,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 
   return (
-    <>
-      <style>{`
-        @media (min-width: 1024px) {
-          .drawer.lg\\:drawer-open {
-            grid-template-columns: ${isCollapsed ? '5rem' : '16rem'} 1fr !important;
-            transition: grid-template-columns 0.3s ease-in-out;
-          }
-        }
-      `}</style>
-      <div className="drawer lg:drawer-open min-h-screen">
-        <input
-          id="admin-drawer"
-          type="checkbox"
-          className="drawer-toggle"
-          checked={drawerOpen}
-          onChange={(e) => setDrawerOpen(e.target.checked)}
-        />
+    // The rail width travels as a custom property, not as a <style> element
+    // rendered from here. The rule that consumes it is in globals.css; see the
+    // note there for why a client-rendered stylesheet had to go.
+    <div
+      className="drawer lg:drawer-open min-h-screen"
+      style={{ '--admin-rail': isCollapsed ? '5rem' : '16rem' } as React.CSSProperties}
+    >
+      <input
+        id="admin-drawer"
+        type="checkbox"
+        className="drawer-toggle"
+        checked={drawerOpen}
+        onChange={(e) => setDrawerOpen(e.target.checked)}
+      />
 
-        {/* Page content */}
-        <div className="drawer-content flex flex-col min-w-0">
-          {/* Mobile topbar */}
-          <div className="navbar bg-base-100 border-b border-base-200 lg:hidden px-4">
-            <label htmlFor="admin-drawer" className="btn btn-ghost btn-sm btn-square">
-              <Menu size={20} />
-            </label>
-            <div className="flex items-center gap-2 ml-2">
-              <UtensilsCrossed className="text-primary" size={18} />
-              <span className="font-bold text-base">RestoraERP</span>
-            </div>
+      {/* Page content */}
+      <div className="drawer-content flex flex-col min-w-0">
+        {/* Mobile topbar */}
+        <div className="navbar bg-base-100 border-b border-base-200 lg:hidden px-4">
+          <label htmlFor="admin-drawer" className="btn btn-ghost btn-sm btn-square">
+            <Menu size={20} />
+          </label>
+          <div className="flex items-center gap-2 ml-2">
+            <UtensilsCrossed className="text-primary" size={18} />
+            <span className="font-bold text-base">RestoraERP</span>
           </div>
-
-          {/* Standing prompt to buy. Outside <main> on purpose: <main> is the
-              scroll container, so sitting above it keeps the banner in view
-              without ever overlaying a control. */}
-          <ConversionBanner status={subscription} />
-
-          {/* Main */}
-          <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
-            {renderBreadcrumbs()}
-            <SubscriptionBanner status={subscription} />
-            {children}
-          </main>
         </div>
 
-        {/* Sidebar */}
-        <div className="drawer-side z-40">
-          <label htmlFor="admin-drawer" className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
-          {sidebar}
-        </div>
+        {/* Standing prompt to buy. Outside <main> on purpose: <main> is the
+            scroll container, so sitting above it keeps the banner in view
+            without ever overlaying a control. */}
+        <ConversionBanner status={subscription} />
+
+        {/* Main */}
+        <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
+          {renderBreadcrumbs()}
+          <SubscriptionBanner status={subscription} />
+          {children}
+        </main>
       </div>
-    </>
+
+      {/* Sidebar */}
+      <div className="drawer-side z-40">
+        <label htmlFor="admin-drawer" className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
+        {sidebar}
+      </div>
+    </div>
   );
 }

@@ -15,8 +15,40 @@
   --color-content-muted: #9CA3A6;
 }
 
-/* Custom restoraerp Theme */
+/*
+ * Custom restoraerp Theme
+ *
+ * "restoraerp" is not one of daisyUI's built-in themes, so naming it above
+ * emits no theme block of its own - every variable daisyUI's components read
+ * has to be declared here. Colours and radii were; the structural ones below
+ * were not, and a component that reads a variable nobody defined does not fall
+ * back, it drops the whole declaration.
+ *
+ * --border is the one that hurt. daisyUI writes `border: var(--border) solid
+ * <colour>`, and an undefined custom property makes that shorthand invalid at
+ * computed-value time - so `border-style` lands on its initial `none` and the
+ * frame vanishes. It took out checkbox, radio, toggle, card, badge, input,
+ * select, textarea, kbd, otp, fileinput, calendar, megamenu and timeline at
+ * once: fourteen components with no visible outline. The "Needs to cook"
+ * checkbox on catalog/products was a clickable square of nothing.
+ *
+ * Five more components (button, alert, tab, calendar, fileinput) read it as
+ * `border-width: var(--border)` instead. That one degrades to the initial
+ * `medium` - roughly 3px - so those have been drawing borders three times
+ * heavier than intended rather than none at all.
+ */
 [data-theme="restoraerp"] {
+  /* Structural. daisyUI's own themes set these; ours has to. */
+  --border: 1px;
+  /* Flat by choice: 0 keeps the current look while making the shadow and
+     texture declarations that reference them valid instead of discarded. */
+  --depth: 0;
+  --noise: 0;
+  /* daisyUI's defaults, which the components already fall back to inline.
+     Stated anyway so the theme is complete rather than accidentally correct. */
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+
   /* Brand Primary */
   --color-primary: #0F6E5C;
   --color-primary-content: #FFFFFF;
@@ -24,6 +56,15 @@
   /* Brand Secondary */
   --color-secondary: #F4A825;
   --color-secondary-content: #1A1D1F;
+
+  /* Neutral and accent. Used by btn-neutral, badge-neutral, btn-accent and
+     bg-accent in this app, all of which had no colour to resolve to - which
+     is why SubscriptionBanner spells out both ends of its button colours by
+     hand rather than trusting btn-neutral. */
+  --color-neutral: #1A1D1F;
+  --color-neutral-content: #FAFAF8;
+  --color-accent: #4FA895;
+  --color-accent-content: #0A4E42;
 
   /* Backgrounds */
   --color-base-100: #FAFAF8;
@@ -54,6 +95,10 @@
  * Form-field styling — intentionally UNLAYERED.
  * Unlayered rules win over every @layer (including daisyUI's own component
  * layer), so these borders/focus states reliably override daisyUI defaults.
+ *
+ * With --border defined these no longer decide whether a field has a frame at
+ * all; they decide how strong it is. Kept because 25% reads better on our
+ * off-white cards than daisyUI's 20%.
  */
 .input, .select, .textarea {
   /* Clearly visible border so fields stand out against the card background */
@@ -91,4 +136,33 @@
 }
 .input-ghost:focus, .select-ghost:focus, .textarea-ghost:focus {
   border-color: var(--color-primary);
+}
+
+/* Tick boxes get the same frame weight as the fields they sit beside. An
+   unchecked box is the one control whose entire affordance IS its outline, so
+   daisyUI's 20% is the difference between "empty" and "not there". */
+.checkbox:not(:checked):not(:indeterminate),
+.radio:not(:checked) {
+  border-color: color-mix(in srgb, var(--color-base-content) 25%, transparent);
+}
+
+/*
+ * Admin sidebar rail width.
+ *
+ * The width itself is client state (the collapse toggle), fed in as
+ * --admin-rail on the drawer element. The rule lives here rather than in a
+ * <style> tag rendered by AdminLayout, which is what it used to be: a
+ * client-rendered <style> element is a hydration liability, and a dark-mode
+ * browser extension rewriting it before React hydrated was enough to throw
+ * "a tree hydrated but some attributes ... didn't match" on every hard reload
+ * of /admin.
+ *
+ * Unlayered, so no !important is needed - daisyUI's .drawer sets
+ * grid-auto-columns from inside @layer daisyui, and unlayered wins.
+ */
+@media (min-width: 1024px) {
+  .drawer.lg\:drawer-open {
+    grid-template-columns: var(--admin-rail, 16rem) 1fr;
+    transition: grid-template-columns 0.3s ease-in-out;
+  }
 }
