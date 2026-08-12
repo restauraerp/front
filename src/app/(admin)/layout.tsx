@@ -46,6 +46,11 @@ const navItems = [
   { href: '/admin/settings', label: 'Settings', icon: Settings },
 ];
 
+// One entry per navItem, no exceptions. A route missing from here used to fall
+// through hasAccess() as "allowed", which is how Reporting stayed on the
+// sidebar for a pos_manager who has no view_reporting - the gate silently
+// failing open is the same bug class as showing a module the plan never
+// included.
 const routePermissions: Record<string, string> = {
   '/admin': 'view_dashboard',
   '/admin/pos': 'view_pos',
@@ -59,6 +64,7 @@ const routePermissions: Record<string, string> = {
   '/admin/locations': 'view_locations',
   '/admin/accounting': 'view_accounting',
   '/admin/website': 'view_website',
+  '/admin/reporting': 'view_reporting',
   '/admin/settings': 'view_settings',
 };
 
@@ -163,10 +169,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     });
   }, [router]);
 
+  // isSuperAdmin is the platform role (tenant_id NULL), held by RestoraERP
+  // staff rather than by any restaurant - a restaurant owner is
+  // restaurant_admin and is capped by their tier like everyone else.
   const hasAccess = (href: string) => {
     if (isSuperAdmin) return true;
     const reqPerm = routePermissions[href];
-    if (!reqPerm) return true;
+    // Unmapped means unknown, and an unknown route is not an entitlement to
+    // show one. Every navItem is mapped above, so this denies nothing today.
+    if (!reqPerm) return false;
     return userPermissions.includes(reqPerm);
   };
 
