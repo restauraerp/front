@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
+import { isSellable } from '@/lib/product';
 import { 
   ArrowRight, 
   Star, 
@@ -37,11 +38,13 @@ export default function Home() {
         setReviews(data.filter((r: any) => r.is_displayed));
       }).catch(console.error);
 
-    // Load featured products
+    // Load featured products. Withdrawn ones are filtered out first: this is
+    // the shop window, and /products hands back the whole catalog including
+    // items the kitchen has stopped making.
     fetchApi('/products')
       .then(res => {
         const data = res?.data || res || [];
-        setProducts(data.filter((p: any) => p.images && p.images.length > 0).slice(0, 3));
+        setProducts(data.filter((p: any) => isSellable(p) && p.images && p.images.length > 0).slice(0, 3));
       }).catch(console.error);
 
     // Load locations

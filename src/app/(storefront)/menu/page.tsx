@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
+import { isSellable } from '@/lib/product';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useCart } from '../CartProvider';
@@ -38,14 +39,19 @@ export default function MenuPage() {
     }
   };
 
+  // /products returns withdrawn items too, because the catalog screen needs
+  // them. A public menu must not: an inactive dish is one the kitchen has
+  // stopped making, and listing it invites an order nobody can fill.
+  const sellableProducts = products.filter(isSellable);
+
   const validCategories = categories.map(cat => ({
     ...cat,
-    count: products.filter(p => p.category_id === cat.id).length
+    count: sellableProducts.filter(p => p.category_id === cat.id).length
   })).filter(cat => cat.count > 0);
 
-  const filteredProducts = activeCategory === 'all' 
-    ? products 
-    : products.filter(p => p.category_id === activeCategory);
+  const filteredProducts = activeCategory === 'all'
+    ? sellableProducts
+    : sellableProducts.filter(p => p.category_id === activeCategory);
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '2rem' }}>
