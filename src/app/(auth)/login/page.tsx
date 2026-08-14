@@ -1,15 +1,13 @@
 import { Suspense } from 'react';
-import LoginForm from './LoginForm';
+import LoginFormWrapper from './LoginFormWrapper';
 
-/**
- * The form reads ?demo=true with useSearchParams(), which the App Router
- * requires a Suspense boundary around - without one the whole route opts out of
- * static prerendering. Hence this thin server wrapper.
- */
+// LoginFormWrapper uses dynamic() with ssr:false (Client Component) to avoid
+// hydration mismatches from browser extension DOM injections.
+// Suspense is still required by the App Router for useSearchParams() usage inside.
 export default function Login() {
   return (
     <Suspense>
-      <LoginForm />
+      <LoginFormWrapper />
     </Suspense>
   );
 }
