@@ -3,7 +3,8 @@
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
-import { setTenant } from '@/lib/tenant';
+import { setTenant, clearTenant } from '@/lib/tenant';
+import { clearDemoSession } from '@/lib/demo';
 import { UtensilsCrossed, AlertCircle } from 'lucide-react';
 
 /**
@@ -35,6 +36,13 @@ export default function OneTimeLoginForm() {
     let cancelled = false;
 
     (async () => {
+      // A demo visitor coming from the trial ready page still has the demo's
+      // token and tenant cookies. Clear them before the API call so they cannot
+      // bleed into subsequent authenticated requests (a stale X-Tenant-ID from
+      // the demo tenant would cause a 403 on /auth/me after the new token lands).
+      clearTenant();
+      clearDemoSession();
+
       try {
         const res = await fetch(`${API_BASE_URL}/auth/one-time-login`, {
           method: 'POST',

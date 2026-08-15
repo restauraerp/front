@@ -11,7 +11,14 @@ import {
 export function proxy(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/register');
+  // /login/one-time must run even when the user already has a token: it is the
+  // credential exchange for a new trial account, and a demo visitor still holds
+  // the demo token. Treating it as a generic auth page and bouncing them to
+  // /admin skips the redemption entirely, leaving demo cookies in place.
+  const isAuthRoute =
+    !request.nextUrl.pathname.startsWith('/login/one-time') &&
+    (request.nextUrl.pathname.startsWith('/login') ||
+      request.nextUrl.pathname.startsWith('/register'));
   // This is the only layer that can both see the query parameter and write a
   // cookie, so it is where a demo visit gets marked for the rest of the session.
   const demoRequested = request.nextUrl.searchParams.get(DEMO_PARAM) === 'true';
