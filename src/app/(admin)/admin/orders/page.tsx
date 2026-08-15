@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import DiscountInput from '../pos/components/DiscountInput';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 
 const statusConfig: Record<string, { badge: string; label: string }> = {
@@ -18,11 +18,6 @@ const statusConfig: Record<string, { badge: string; label: string }> = {
   paid: { badge: 'badge-neutral', label: 'Paid' },
 };
 
-/**
- * How to draw the button for a stage. Which stage comes next is not decided
- * here - the API sends `next_statuses` with every order, so the till, the
- * kitchen display and this screen cannot drift apart about what "ready" means.
- */
 const stageButton: Record<string, { label: string; icon: any; color: string }> = {
   cooking: { label: 'Start Cooking', icon: ChefHat, color: 'btn-info' },
   ready_to_serve: { label: 'Ready to Serve', icon: CheckCircle, color: 'btn-success' },
@@ -39,11 +34,9 @@ const getNextActions = (order: any) =>
   }));
 
 const FINISHED = ['served', 'delivered'];
-
 const isFinished = (order: any) =>
   FINISHED.includes(order.status) || (order.status === 'packed' && order.order_type === 'takeaway');
 
-// Component for the ticking timer
 const LiveTimer = ({ placedAt }: { placedAt: string }) => {
   const [elapsed, setElapsed] = useState('');
   useEffect(() => {
@@ -65,11 +58,11 @@ export default function OrdersPage() {
   const [locations, setLocations] = useState<any[]>([]);
   const [activeLocationId, setActiveLocationId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
-  
+
   const [activeTab, setActiveTab] = useState('dine_in');
-  const [sortDineIn, setSortDineIn] = useState('time'); // 'time' | 'table'
-  const [sortOthers, setSortOthers] = useState('time'); // 'time' | 'delivery_time'
-  
+  const [sortDineIn, setSortDineIn] = useState('time');
+  const [sortOthers, setSortOthers] = useState('time');
+
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   const [processing, setProcessing] = useState(false);
@@ -77,21 +70,20 @@ export default function OrdersPage() {
   const [discounts, setDiscounts] = useState<any[]>([]);
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
 
-  // Completed orders are fetched separately and paginated on the server. They
-  // cannot come from `orders` above: that request passes active_only=1, so the
-  // API never returns them - and they accumulate without limit (a demo tenant
-  // already holds ~50k), so pulling them all client-side to filter is not an
-  // option.
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
   const [completedPage, setCompletedPage] = useState(1);
   const [completedTotalPages, setCompletedTotalPages] = useState(1);
   const [completedTotal, setCompletedTotal] = useState(0);
-  // Starts true and is only ever cleared, mirroring `loading` above: the first
-  // open of the tab shows a spinner, while later page changes keep the current
-  // rows on screen instead of flashing an empty state.
   const [completedLoading, setCompletedLoading] = useState(true);
-  // Bumped by the Refresh button to re-run the fetch effect below.
   const [completedReloadKey, setCompletedReloadKey] = useState(0);
+
+  // Edit mode state: tracks which order is being edited and its item quantities
+  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+  const [editedItems, setEditedItems] = useState<{ id: number; quantity: number; product?: any }[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
+
+  // Detail modal state
+  const [detailOrder, setDetailOrder] = useState<any>(null);
 
   useEffect(() => {
     loadOrders();
@@ -103,12 +95,12 @@ export default function OrdersPage() {
     fetchApi('/locations').then(res => {
       const locs = res.data || res || [];
       setLocations(locs);
-      
+
       let savedLoc = null;
       if (typeof window !== 'undefined') {
         savedLoc = localStorage.getItem(tenantKey('restora_active_location_id'));
       }
-      
+
       if (savedLoc && locs.some((l: any) => l.id === Number(savedLoc))) {
         setActiveLocationId(Number(savedLoc));
       } else if (locs.length > 0) {
@@ -118,7 +110,7 @@ export default function OrdersPage() {
         }
       }
     }).catch(console.error);
-    
+
     const interval = setInterval(loadOrders, 10000);
     return () => clearInterval(interval);
   }, []);
@@ -134,12 +126,6 @@ export default function OrdersPage() {
     }
   };
 
-  // Fetched only while the tab is open: it is the most expensive query on the
-  // page, and completed orders do not change, so it stays out of the 10s poll.
-  //
-  // The `cancelled` guard matters here rather than being ceremony - paging
-  // quickly through 3,000+ pages can land an earlier response after a later
-  // one, leaving the table showing a page the pager no longer points at.
   useEffect(() => {
     if (activeTab !== 'completed') return;
 
@@ -148,9 +134,6 @@ export default function OrdersPage() {
     (async () => {
       try {
         const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
-        // Filtered server-side, unlike the other tabs: with paginated results,
-        // discarding rows in the browser would leave pages half empty (or
-        // empty) and the page count wrong.
         if (activeLocationId) params.set('location_id', String(activeLocationId));
 
         const res = await fetchApi(`/orders?${params.toString()}`);
@@ -193,14 +176,44 @@ export default function OrdersPage() {
     }
   };
 
-  // Payment Recalculations
+  const startEdit = (order: any) => {
+    setEditingOrderId(order.id);
+    setEditedItems((order.items || []).map((item: any) => ({
+      id: item.id,
+      quantity: item.quantity ?? item.qty ?? 1,
+      product: item.product,
+    })));
+  };
+
+  const cancelEdit = () => {
+    setEditingOrderId(null);
+    setEditedItems([]);
+  };
+
+  const saveEdit = async (orderId: number) => {
+    setEditSaving(true);
+    try {
+      await Promise.all(
+        editedItems.map(item =>
+          item.quantity > 0
+            ? fetchApi(`/order-items/${item.id}`, { method: 'PUT', body: JSON.stringify({ quantity: item.quantity }) })
+            : fetchApi(`/order-items/${item.id}`, { method: 'DELETE' })
+        )
+      );
+      cancelEdit();
+      loadOrders();
+    } catch {
+      alert('Failed to save changes');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
   const modalSubtotal = paymentOrder ? parseFloat(paymentOrder.subtotal) : 0;
-  const modalDiscountAmt = appliedDiscount 
+  const modalDiscountAmt = appliedDiscount
     ? (appliedDiscount.discount_type === 'percentage' ? modalSubtotal * (parseFloat(appliedDiscount.value || '0') / 100) : parseFloat(appliedDiscount.value || '0'))
     : 0;
   const modalAfterDiscount = modalSubtotal - modalDiscountAmt;
-  // Same rules the API applies on save; a hardcoded rate here would only
-  // disagree with the figure that actually gets stored.
   const modalTax = Number((modalAfterDiscount * (taxRate / 100)).toFixed(2));
   const modalDelivery = paymentOrder ? parseFloat(paymentOrder.delivery_charge || '0') : 0;
   const modalTotal = modalAfterDiscount + modalTax + modalDelivery;
@@ -209,27 +222,29 @@ export default function OrdersPage() {
     if (!paymentOrder) return;
     setProcessing(true);
     try {
-      await fetchApi(`/orders/${paymentOrder.id}`, { 
-        method: 'PUT', 
-        body: JSON.stringify({ 
+      await fetchApi(`/orders/${paymentOrder.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
           payment_method: paymentMethod, discount_id: appliedDiscount?.id || null,
           discount_amount: modalDiscountAmt.toFixed(2), delivery_charge: modalDelivery.toFixed(2),
           tax_amount: modalTax.toFixed(2), total: modalTotal.toFixed(2)
-        }) 
+        })
       });
       (document.getElementById('payment_modal') as HTMLDialogElement)?.close();
       setPaymentOrder(null);
       loadOrders();
-    } catch { 
-      alert('Failed to process payment'); 
+    } catch {
+      alert('Failed to process payment');
     } finally { setProcessing(false); }
   };
 
   const renderActions = (order: any) => {
     const actions = getNextActions(order);
+    const isEditing = editingOrderId === order.id;
+
     return (
       <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-        {actions.map((action: any) => {
+        {!isEditing && actions.map((action: any) => {
           const Icon = action.icon;
           return (
             <button key={action.status} className={`btn btn-xs gap-1 ${action.color}`} onClick={() => handleUpdateStatus(order, action.status)}>
@@ -237,24 +252,41 @@ export default function OrdersPage() {
             </button>
           );
         })}
-        {order.payment_status !== 'paid' && (
+        {!isEditing && order.payment_status !== 'paid' && (
           <button className="btn btn-xs btn-success gap-1" onClick={() => handleUpdateStatus(order, 'pay_modal')}>
             <DollarSign size={12} /> Pay
           </button>
         )}
-        {['pending', 'cooking'].includes(order.status) && (
+        {!isEditing && order.payment_status !== 'paid' && (
+          <button className="btn btn-xs btn-outline gap-1" onClick={() => startEdit(order)}>
+            <Pencil size={12} /> Edit Items
+          </button>
+        )}
+        {!isEditing && ['pending', 'cooking'].includes(order.status) && (
           <button className="btn btn-xs btn-error btn-outline gap-1" onClick={() => handleDelete(order.id)}>
             <XCircle size={12} /> Cancel
           </button>
         )}
-        <div className="ml-auto flex gap-1">
-          <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Print Kitchen Ticket">
-            <ChefHat size={12} />
-          </button>
-          <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Print Receipt">
-            <Printer size={12} />
-          </button>
-        </div>
+        {!isEditing && (
+          <div className="ml-auto flex gap-1">
+            <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
+              <ChefHat size={12} />
+            </button>
+            <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
+              <Printer size={12} />
+            </button>
+          </div>
+        )}
+        {isEditing && (
+          <>
+            <button className="btn btn-xs btn-primary gap-1" onClick={() => saveEdit(order.id)} disabled={editSaving}>
+              {editSaving ? <span className="loading loading-spinner loading-xs" /> : null} Save
+            </button>
+            <button className="btn btn-xs btn-ghost gap-1" onClick={cancelEdit}>
+              Cancel
+            </button>
+          </>
+        )}
       </div>
     );
   };
@@ -262,7 +294,9 @@ export default function OrdersPage() {
   const renderOrderCard = (order: any) => {
     const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
     const showLogistics = ['delivery', 'catering'].includes(order.order_type);
-    
+    const isEditing = editingOrderId === order.id;
+    const displayItems = isEditing ? editedItems : (order.items || []);
+
     return (
       <div key={order.id} className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
         <div className="flex justify-between items-start mb-2">
@@ -279,11 +313,11 @@ export default function OrdersPage() {
             </span>
           </div>
         </div>
-        
+
         {showLogistics && (
           <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
             <div className="text-xs font-semibold mb-1 flex items-center gap-1">
-              <Clock size={12} className="text-primary"/> 
+              <Clock size={12} className="text-primary"/>
               {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP'}
             </div>
             <div className="text-[10px] opacity-80 flex items-start gap-1">
@@ -303,22 +337,48 @@ export default function OrdersPage() {
           <span className="font-bold text-sm">৳{order.total}</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto mb-1 pr-1 text-sm space-y-2" style={{ maxHeight: '120px' }}>
-          {order.items?.map((item: any) => {
-            const imgUrl = item.product?.images?.[0]?.url;
+        {/* Items list — tall enough to show ≥3 rows before scrolling */}
+        <div className="flex-1 overflow-y-auto mb-1 pr-1 text-sm space-y-1" style={{ maxHeight: '192px' }}>
+          {displayItems.map((item: any) => {
+            const product = item.product ?? {};
+            const imgUrl = product.images?.[0]?.url;
+            const needsCooking = product.needs_cooking;
+            const qty = isEditing ? item.quantity : (item.quantity ?? item.qty ?? '?');
+
             return (
               <div key={item.id} className="flex items-center gap-2 text-base-content/80 bg-base-100 p-1 rounded-md border border-base-200 shadow-sm">
                 <div className="w-8 h-8 rounded overflow-hidden bg-base-200 flex-shrink-0 flex items-center justify-center">
                   {imgUrl ? (
-                    <img src={`/storage/${imgUrl}`} alt={item.product?.name} className="w-full h-full object-cover" />
+                    <img src={`/storage/${imgUrl}`} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
-                    <ChefHat size={14} className="text-base-content/40" />
+                    <span className="text-[10px] font-bold text-base-content/30">{(product.name || '?').substring(0, 2).toUpperCase()}</span>
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="truncate text-xs font-semibold">{order.order_type === 'delivery' && !item.product?.name ? `Item ${item.product_id}` : (item.product?.name || `Item ${item.product_id}`)}</div>
-                  <div className="text-[10px] opacity-70">Qty: {item.qty}</div>
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="truncate text-xs font-semibold">{product.name || `Item #${item.product_id}`}</span>
+                    {needsCooking && <span title="Needs cooking"><ChefHat size={11} className="text-amber-500 flex-shrink-0" /></span>}
+                  </div>
                 </div>
+                {isEditing ? (
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => setEditedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: Math.max(0, i.quantity - 1) } : i))}
+                      className="btn btn-xs btn-ghost px-1"
+                    ><Minus size={10} /></button>
+                    <span className="text-xs font-bold w-5 text-center">{item.quantity}</span>
+                    <button
+                      onClick={() => setEditedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i))}
+                      className="btn btn-xs btn-ghost px-1"
+                    ><Plus size={10} /></button>
+                    <button
+                      onClick={() => setEditedItems(prev => prev.filter(i => i.id !== item.id))}
+                      className="btn btn-xs btn-ghost text-error px-1"
+                    ><X size={10} /></button>
+                  </div>
+                ) : (
+                  <span className="badge badge-ghost badge-sm font-bold flex-shrink-0">×{qty}</span>
+                )}
               </div>
             );
           })}
@@ -329,18 +389,16 @@ export default function OrdersPage() {
     );
   };
 
-  // Filter & Sort Logic
   const filteredOrders = useMemo(() => {
-    // Already filtered, sorted (newest first) and paginated by the API.
     if (activeTab === 'completed') return completedOrders;
 
     let current = orders.filter(o => {
       if (activeLocationId && o.location_id !== activeLocationId) return false;
-      if (activeTab === 'all_orders') return true;
+      if (activeTab === 'active_orders') return true;
       const isCompleted = isFinished(o) && o.payment_status === 'paid';
       return o.order_type === activeTab && !isCompleted;
     });
-    
+
     if (activeTab === 'dine_in') {
       current.sort((a, b) => {
         if (sortDineIn === 'table') return (a.table?.name || '').localeCompare(b.table?.name || '');
@@ -357,20 +415,38 @@ export default function OrdersPage() {
     return current;
   }, [orders, completedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
+  const tabLabels: Record<string, string> = {
+    active_orders: 'Active Orders',
+    dine_in: 'Dine In',
+    takeaway: 'Takeaway',
+    delivery: 'Delivery',
+    catering: 'Catering',
+    completed: 'Completed',
+  };
+
+  const tabCounts = useMemo(() => {
+    const active = orders.filter(o => activeLocationId ? o.location_id === activeLocationId : true);
+    const notComplete = active.filter(o => !(isFinished(o) && o.payment_status === 'paid'));
+    return {
+      active_orders: notComplete.length,
+      dine_in: notComplete.filter(o => o.order_type === 'dine_in').length,
+      takeaway: notComplete.filter(o => o.order_type === 'takeaway').length,
+      delivery: notComplete.filter(o => o.order_type === 'delivery').length,
+      catering: notComplete.filter(o => o.order_type === 'catering').length,
+    };
+  }, [orders, activeLocationId]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <h1 className="text-2xl font-bold">Order Management</h1>
           {locations.length > 0 && (
-            <select 
+            <select
               value={activeLocationId || ''}
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
-                // Another branch has a different number of completed pages, so
-                // holding the current page could land past the end - an empty
-                // table with no obvious way back.
                 setCompletedPage(1);
                 if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
@@ -393,41 +469,45 @@ export default function OrdersPage() {
       </div>
 
       <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
-        {['all_orders', 'dine_in', 'takeaway', 'delivery', 'catering', 'completed'].map(tab => (
-          <a key={tab} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap ${activeTab === tab ? 'tab-active' : ''} capitalize`} onClick={() => setActiveTab(tab)}>
-            {tab.replace('_', '-')}
-          </a>
-        ))}
+        {Object.entries(tabLabels).map(([key, label]) => {
+          const count = key !== 'completed' ? (tabCounts as any)[key] : null;
+          return (
+            <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => setActiveTab(key)}>
+              {label}
+              {count !== null && count > 0 && (
+                <span className={`badge badge-xs font-bold ${activeTab === key ? 'badge-primary-content bg-white/30 text-white' : 'badge-neutral'}`}>{count}</span>
+              )}
+            </a>
+          );
+        })}
       </div>
 
       <Card>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
-          <h2 className="text-lg font-bold capitalize">
-            {activeTab.replace('_', '-')} Orders
+          <h2 className="text-lg font-bold">
+            {tabLabels[activeTab] || activeTab} Orders
             {activeTab === 'completed' && completedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({completedTotal.toLocaleString()})</span>
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {/* Completed is sorted and paginated by the API, so the client-side
-                sort selectors below do not apply to it. */}
             {activeTab === 'completed' ? (
               <span className="text-base-content/60">Newest first</span>
             ) : (
-            <>
-            <span className="text-base-content/60">Sort by:</span>
-            {activeTab === 'dine_in' ? (
-              <select className="select select-bordered select-sm" value={sortDineIn} onChange={e => setSortDineIn(e.target.value)}>
-                <option value="time">Placement Time</option>
-                <option value="table">Table Number</option>
-              </select>
-            ) : (
-              <select className="select select-bordered select-sm" value={sortOthers} onChange={e => setSortOthers(e.target.value)}>
-                <option value="time">Placement Time</option>
-                <option value="delivery_time">Delivery/Event Time</option>
-              </select>
-            )}
-            </>
+              <>
+                <span className="text-base-content/60">Sort by:</span>
+                {activeTab === 'dine_in' ? (
+                  <select className="select select-bordered select-sm" value={sortDineIn} onChange={e => setSortDineIn(e.target.value)}>
+                    <option value="time">Placement Time</option>
+                    <option value="table">Table Number</option>
+                  </select>
+                ) : (
+                  <select className="select select-bordered select-sm" value={sortOthers} onChange={e => setSortOthers(e.target.value)}>
+                    <option value="time">Placement Time</option>
+                    <option value="delivery_time">Delivery/Event Time</option>
+                  </select>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -440,79 +520,99 @@ export default function OrdersPage() {
             <p>
               {activeTab === 'completed'
                 ? 'No completed orders yet.'
-                : `No active ${activeTab.replace('_', '-')} orders.`}
+                : `No active ${tabLabels[activeTab]?.toLowerCase() || activeTab} orders.`}
             </p>
           </div>
         ) : (
           activeTab === 'dine_in' ? (
-            /* DINE-IN VISUAL GRID */
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {filteredOrders.map(order => renderOrderCard(order))}
             </div>
           ) : (
-            /* LIST VIEW FOR ALL ORDERS, TAKEAWAY, DELIVERY, CATERING */
             <>
               <div className="grid grid-cols-1 md:hidden gap-4">
                 {filteredOrders.map(order => renderOrderCard(order))}
               </div>
               <div className="hidden md:block overflow-x-auto">
-              <table className="table table-zebra w-full">
-                <thead>
-                  <tr>
-                    <th>Order Info</th>
-                    {/* Completed mixes every order type, so it needs the column too. */}
-                    {['all_orders', 'completed'].includes(activeTab) && <th>Type</th>}
-                    {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
-                    <th>Total</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map(order => {
-                    const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
-                    return (
-                      <tr key={order.id} className="hover">
-                        <td>
-                          <div className="font-bold">#{order.id}</div>
-                          <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
-                          {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
-                        </td>
-                        {['all_orders', 'completed'].includes(activeTab) && (
-                          <td className="capitalize font-medium text-base-content/80">{order.order_type?.replace('_', '-')}</td>
-                        )}
-                        {['delivery', 'catering'].includes(activeTab) && (
-                          <td className="max-w-xs">
-                            <div className="text-sm font-semibold mb-1 flex items-center gap-1">
-                              <Clock size={12} className="text-primary"/> 
-                              {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP'}
+                <table className="table table-zebra w-full">
+                  <thead>
+                    <tr>
+                      <th>Order Info</th>
+                      {['active_orders', 'completed'].includes(activeTab) && <th>Type</th>}
+                      {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
+                      <th>Items</th>
+                      <th>Total</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map(order => {
+                      const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
+                      return (
+                        <tr key={order.id} className="hover">
+                          <td>
+                            <div className="font-bold">#{order.id}</div>
+                            <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
+                            {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
+                          </td>
+                          {['active_orders', 'completed'].includes(activeTab) && (
+                            <td className="font-medium text-base-content/80">{tabLabels[order.order_type] || order.order_type?.replace('_', ' ')}</td>
+                          )}
+                          {['delivery', 'catering'].includes(activeTab) && (
+                            <td className="max-w-xs">
+                              <div className="text-sm font-semibold mb-1 flex items-center gap-1">
+                                <Clock size={12} className="text-primary"/>
+                                {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP'}
+                              </div>
+                              <div className="text-xs opacity-80 flex items-start gap-1">
+                                <MapPin size={12} className="mt-0.5 text-error flex-shrink-0" />
+                                <span className="line-clamp-2">{order.delivery_address || 'No address provided'}</span>
+                              </div>
+                              {order.latitude && order.longitude && (
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" className="text-[10px] text-blue-500 hover:underline mt-1 inline-block">
+                                  View on Maps
+                                </a>
+                              )}
+                            </td>
+                          )}
+                          <td>
+                            <div className="space-y-0.5 text-xs max-w-[180px]">
+                              {(order.items || []).map((item: any) => (
+                                <div key={item.id} className="flex items-center gap-1">
+                                  <span className="badge badge-ghost badge-xs">×{item.quantity ?? item.qty}</span>
+                                  <span className="truncate">{item.product?.name || `#${item.product_id}`}</span>
+                                  {item.product?.needs_cooking && <ChefHat size={10} className="text-amber-500 flex-shrink-0" />}
+                                </div>
+                              ))}
                             </div>
-                            <div className="text-xs opacity-80 flex items-start gap-1">
-                              <MapPin size={12} className="mt-0.5 text-error flex-shrink-0" />
-                              <span className="line-clamp-2">{order.delivery_address || 'No address provided'}</span>
+                          </td>
+                          <td className="font-bold text-primary">৳{order.total}</td>
+                          <td>
+                            <div className="flex flex-col gap-1">
+                              <span className={`badge badge-sm ${s.badge}`}>{s.label}</span>
+                              <span className={`badge badge-sm ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'}`}>
+                                {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+                              </span>
                             </div>
-                            {order.latitude && order.longitude && (
-                              <a href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" className="text-[10px] text-blue-500 hover:underline mt-1 inline-block">
-                                View on Maps
-                              </a>
+                          </td>
+                          <td className="align-middle">
+                            {renderActions(order)}
+                            {activeTab === 'completed' && (
+                              <button
+                                className="btn btn-xs btn-ghost mt-1 gap-1"
+                                title="View Details"
+                                onClick={() => setDetailOrder(order)}
+                              >
+                                <Eye size={14} />
+                              </button>
                             )}
                           </td>
-                        )}
-                        <td className="font-bold text-primary">৳{order.total}</td>
-                        <td>
-                          <div className="flex flex-col gap-1">
-                            <span className={`badge badge-sm ${s.badge}`}>{s.label}</span>
-                            <span className={`badge badge-sm ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'}`}>
-                              {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
-                            </span>
-                          </div>
-                        </td>
-                        <td>{renderActions(order)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               {activeTab === 'completed' && completedTotalPages > 1 && (
@@ -539,6 +639,7 @@ export default function OrdersPage() {
         )}
       </Card>
 
+      {/* Payment modal */}
       <dialog id="payment_modal" className="modal">
         <div className="modal-box p-0 overflow-hidden max-w-md bg-base-100">
           <div className="bg-gradient-to-r from-primary to-secondary p-6 text-primary-content text-center relative">
@@ -548,13 +649,12 @@ export default function OrdersPage() {
             </h3>
             {paymentOrder && <p className="opacity-80 text-sm">Order #{paymentOrder.id}</p>}
           </div>
-          
+
           <div className="p-6">
             {paymentOrder && (
               <div className="bg-base-200/50 border border-base-300 p-5 rounded-2xl mb-5 text-center shadow-inner">
                 <p className="text-sm font-semibold text-base-content/60 uppercase tracking-wider mb-1">Amount Due</p>
                 <p className="text-4xl font-extrabold text-base-content">৳{modalTotal.toFixed(2)}</p>
-                
                 <div className="mt-4 pt-3 border-t border-base-300/50 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-base-content/60 px-2">
                   <span>Sub: ৳{modalSubtotal.toFixed(2)}</span>
                   {modalDiscountAmt > 0 && <span className="text-success font-semibold">-৳{modalDiscountAmt.toFixed(2)}</span>}
@@ -593,6 +693,63 @@ export default function OrdersPage() {
           <button>close</button>
         </form>
       </dialog>
+
+      {/* Order details modal (completed orders) */}
+      {detailOrder && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg">Order #{detailOrder.id} Details</h3>
+              <button className="btn btn-sm btn-circle btn-ghost" onClick={() => setDetailOrder(null)}>✕</button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div className="grid grid-cols-2 gap-2 bg-base-200/50 p-3 rounded-lg">
+                <div><span className="opacity-60">Status:</span> <span className="font-semibold capitalize">{detailOrder.status}</span></div>
+                <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : 'text-error'}`}>{detailOrder.payment_status}</span></div>
+                <div><span className="opacity-60">Type:</span> <span className="font-semibold">{tabLabels[detailOrder.order_type] || detailOrder.order_type?.replace('_', ' ')}</span></div>
+                <div><span className="opacity-60">Customer:</span> <span className="font-semibold">{detailOrder.customer?.name || 'Walk-in'}</span></div>
+                {detailOrder.table && <div><span className="opacity-60">Table:</span> <span className="font-semibold">{detailOrder.table.name}</span></div>}
+                <div><span className="opacity-60">Date:</span> <span className="font-semibold">{new Date(detailOrder.created_at).toLocaleString()}</span></div>
+              </div>
+              <div>
+                <p className="font-semibold mb-2">Items</p>
+                <div className="space-y-1">
+                  {(detailOrder.items || []).map((item: any) => (
+                    <div key={item.id} className="flex justify-between items-center p-2 bg-base-200/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <span className="badge badge-ghost badge-sm">×{item.quantity ?? item.qty}</span>
+                        <span>{item.product?.name || `Product #${item.product_id}`}</span>
+                        {item.product?.needs_cooking && <ChefHat size={12} className="text-amber-500" />}
+                      </div>
+                      <span className="font-semibold">৳{(parseFloat(item.price) * (item.quantity ?? item.qty ?? 1)).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="border-t pt-2 space-y-1">
+                <div className="flex justify-between"><span className="opacity-70">Subtotal</span><span>৳{parseFloat(detailOrder.subtotal || 0).toFixed(2)}</span></div>
+                {parseFloat(detailOrder.discount_amount || 0) > 0 && (
+                  <div className="flex justify-between text-success"><span>Discount</span><span>-৳{parseFloat(detailOrder.discount_amount).toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between"><span className="opacity-70">Tax</span><span>৳{parseFloat(detailOrder.tax_amount || 0).toFixed(2)}</span></div>
+                {parseFloat(detailOrder.delivery_charge || 0) > 0 && (
+                  <div className="flex justify-between"><span className="opacity-70">Delivery</span><span>৳{parseFloat(detailOrder.delivery_charge).toFixed(2)}</span></div>
+                )}
+                <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-primary">৳{parseFloat(detailOrder.total || 0).toFixed(2)}</span></div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/kitchen-print/${detailOrder.id}`, '_blank')}>
+                  <ChefHat size={14} /> Chef Slip
+                </button>
+                <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/receipt/${detailOrder.id}`, '_blank')}>
+                  <Printer size={14} /> Receipt
+                </button>
+              </div>
+            </div>
+          </div>
+          <div className="modal-backdrop" onClick={() => setDetailOrder(null)} />
+        </dialog>
+      )}
     </div>
   );
 }

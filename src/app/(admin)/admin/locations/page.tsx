@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, ApiError } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -34,6 +34,8 @@ export default function LocationsPage() {
   const [tableFormData, setTableFormData] = useState({ name: '', capacity: 4, is_active: 1 });
 
   const [locationTypes, setLocationTypes] = useState<any[]>([]);
+  const [outletLimitReached, setOutletLimitReached] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApi('/location-types').then(res => setLocationTypes(res.data || res || [])).catch(console.error);
@@ -44,7 +46,8 @@ export default function LocationsPage() {
     try {
       setLoading(true);
       const res = await fetchApi('/locations');
-      setLocations(res.data || res || []);
+      const locs = res.data || res || [];
+      setLocations(locs);
     } catch (err) {
       console.error(err);
     } finally {
@@ -59,6 +62,7 @@ export default function LocationsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitError(null);
     try {
       const payload = new FormData();
       Object.keys(formData).forEach(key => {
@@ -110,9 +114,20 @@ export default function LocationsPage() {
       setExistingMedia(null);
       setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
       loadData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to save location');
+      if (err instanceof ApiError && err.body?.error === 'outlet_limit_reached') {
+        setOutletLimitReached(true);
+        setIsFormOpen(false);
+        const limit = err.body.outlet_limit;
+        const planName = err.body.plan_name ?? err.body.plan ?? 'current';
+        setSubmitError(`Your ${planName} plan allows ${limit} outlet${limit === 1 ? '' : 's'}. Upgrade to add more locations.`);
+      } else if (err instanceof ApiError && err.status === 422 && err.body?.errors) {
+        const msgs = Object.values(err.body.errors).flat().join(' ');
+        setSubmitError(msgs);
+      } else {
+        setSubmitError('Failed to save location. Please try again.');
+      }
     }
   };
 
@@ -237,17 +252,28 @@ export default function LocationsPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem', alignItems: 'center' }}>
         <h1>Locations Management</h1>
-          <Button onClick={() => {
-          setIsFormOpen(!isFormOpen);
-          setEditingId(null);
-          setExistingMedia(null);
-          setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
-        }}>
+        <Button
+          onClick={() => {
+            setIsFormOpen(!isFormOpen);
+            setEditingId(null);
+            setExistingMedia(null);
+            setSubmitError(null);
+            setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
+          }}
+          disabled={outletLimitReached}
+          title={outletLimitReached ? 'Outlet limit reached for your plan' : undefined}
+        >
           {isFormOpen ? 'Close Form' : '+ New Location'}
         </Button>
       </div>
+
+      {submitError && (
+        <div className="alert alert-error mb-4 text-sm">
+          <span>{submitError}</span>
+        </div>
+      )}
 
       {isFormOpen && (
         <Card title={editingId ? 'Edit Location' : 'New Location'} style={{ marginBottom: '2rem' }}>
@@ -283,7 +309,7 @@ export default function LocationsPage() {
             </div>
             
             <div style={{ gridColumn: '1 / -1' }}>
-              <Input label="Google Map Embed URL" name="map_url" value={formData.map_url} onChange={handleInputChange} placeholder="https://www.google.com/maps/embed?..." required />
+              <Input label="Google Map Embed URL" name="map_url" value={formData.map_url} onChange={handleInputChange} placeholder="https://www.google.com/maps/embed?..." />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>

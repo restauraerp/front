@@ -18,7 +18,7 @@ export default function ReportFilterBar() {
   const [locations, setLocations] = useState<Branch[]>([]);
   
   const selectedBranch = searchParams.get('branch') || 'all';
-  const filterRange = searchParams.get('range') || 'past_week';
+  const filterRange = searchParams.get('range') || 'this_week';
   const customDateFrom = searchParams.get('from') || '';
   const customDateTo = searchParams.get('to') || '';
 

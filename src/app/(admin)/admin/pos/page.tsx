@@ -9,14 +9,14 @@ import {
 import OrderTypeSelector from './components/OrderTypeSelector';
 import TableSelector from './components/TableSelector';
 import CustomerPicker from './components/CustomerPicker';
-import DiscountInput from './components/DiscountInput';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { tenantKey } from '@/lib/tenant';
 import { isSellable } from '@/lib/product';
 
 interface CartItem {
   id: number; name: string; price: string; qty: number; notes: string;
-  images?: { url: string }[];
+  needs_cooking?: boolean;
+  images?: { url: string; is_featured?: boolean }[];
 }
 interface HeldOrder { id: number; items: CartItem[]; orderType: string; tableId: number | null; customerId: number | null; }
 
@@ -483,46 +483,67 @@ export default function POS() {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {cart.map(item => (
-                  <div key={item.id} style={{ padding: '0.45rem 0.55rem', borderRadius: '10px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontWeight: 600, fontSize: '0.8rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
-                        <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>{currency}{item.price}</p>
+                {cart.map(item => {
+                  const featuredImg = item.images?.find(i => i.is_featured) || item.images?.[0];
+                  return (
+                    <div key={item.id} style={{ padding: '0.45rem 0.55rem', borderRadius: '10px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        {/* Product thumbnail */}
+                        <div style={{ width: '34px', height: '34px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0, background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {featuredImg ? (
+                            <img src={`/storage/${featuredImg.url}`} alt={item.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#9ca3af' }}>{item.name.substring(0, 2).toUpperCase()}</span>
+                          )}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <p style={{ fontWeight: 600, fontSize: '0.8rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</p>
+                            {item.needs_cooking && (
+                              <span title="Needs cooking" style={{ flexShrink: 0, color: '#f59e0b' }}><ChefHat size={11} /></span>
+                            )}
+                          </div>
+                          <p style={{ fontSize: '0.7rem', color: '#9ca3af', margin: 0 }}>{currency}{item.price}</p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
+                          <button onClick={() => updateQty(item.id, -1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={11} /></button>
+                          <span style={{ fontWeight: 700, fontSize: '0.8rem', width: '22px', textAlign: 'center' }}>{item.qty}</span>
+                          <button onClick={() => updateQty(item.id, 1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={11} /></button>
+                        </div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 600, width: '55px', textAlign: 'right' }}>{currency}{(parseFloat(item.price) * item.qty).toFixed(0)}</span>
+                        <button onClick={() => setEditingNotes(editingNotes === item.id ? null : item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.notes ? '#6366f1' : '#d1d5db', padding: '2px' }}>
+                          <MessageSquare size={13} />
+                        </button>
+                        <button
+                          onClick={() => setCart(prev => prev.filter(c => c.id !== item.id))}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f87171', padding: '2px' }}
+                          title="Remove item"
+                        >
+                          <Trash2 size={13} />
+                        </button>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.15rem' }}>
-                        <button onClick={() => updateQty(item.id, -1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Minus size={11} /></button>
-                        <span style={{ fontWeight: 700, fontSize: '0.8rem', width: '22px', textAlign: 'center' }}>{item.qty}</span>
-                        <button onClick={() => updateQty(item.id, 1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={11} /></button>
-                      </div>
-                      <span style={{ fontSize: '0.82rem', fontWeight: 600, width: '55px', textAlign: 'right' }}>{currency}{(parseFloat(item.price) * item.qty).toFixed(0)}</span>
-                      <button onClick={() => setEditingNotes(editingNotes === item.id ? null : item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.notes ? '#6366f1' : '#d1d5db', padding: '2px' }}>
-                        <MessageSquare size={13} />
-                      </button>
+                      {editingNotes === item.id && (
+                        <input
+                          value={item.notes}
+                          onChange={e => updateNotes(item.id, e.target.value)}
+                          placeholder="e.g. no onion, extra spicy…"
+                          style={{ width: '100%', marginTop: '0.3rem', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.72rem', outline: 'none' }}
+                          autoFocus
+                        />
+                      )}
+                      {item.notes && editingNotes !== item.id && (
+                        <p style={{ fontSize: '0.65rem', color: '#6366f1', margin: '0.15rem 0 0', fontStyle: 'italic' }}>📝 {item.notes}</p>
+                      )}
                     </div>
-                    {editingNotes === item.id && (
-                      <input
-                        value={item.notes}
-                        onChange={e => updateNotes(item.id, e.target.value)}
-                        placeholder="e.g. no onion, extra spicy…"
-                        style={{ width: '100%', marginTop: '0.3rem', padding: '0.3rem 0.5rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.72rem', outline: 'none' }}
-                        autoFocus
-                      />
-                    )}
-                    {item.notes && editingNotes !== item.id && (
-                      <p style={{ fontSize: '0.65rem', color: '#6366f1', margin: '0.15rem 0 0', fontStyle: 'italic' }}>📝 {item.notes}</p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
 
-          {/* Footer: Discount, Payment, Totals */}
+          {/* Footer: Totals & Checkout */}
           <div className="border-t border-gray-100 py-3 px-4 flex flex-col gap-2 bg-white z-10 shrink-0">
-            <DiscountInput discounts={discounts} appliedDiscount={appliedDiscount} onApply={setAppliedDiscount} subtotal={subtotal} />
-
-            <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: '0.4rem' }}>
+            <div style={{ paddingTop: '0.4rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#6b7280' }}>
                 <span>Subtotal</span><span>{currency}{subtotal.toFixed(2)}</span>
               </div>

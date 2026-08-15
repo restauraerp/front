@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
-import { Boxes, Truck, ChefHat, ShoppingCart, MapPin, Trash2 } from 'lucide-react';
+import { Boxes, Truck, ChefHat, ShoppingCart, MapPin, Trash2, ClipboardList } from 'lucide-react';
 
 export default function InventoryDashboard() {
   const [stats, setStats] = useState({ items: 0, suppliers: 0, recipes: 0, purchaseOrders: 0, storage: 0, waste: 0 });
@@ -116,6 +116,14 @@ export default function InventoryDashboard() {
             )}
           </div>
           <Link href="/admin/inventory/waste" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Waste &rarr;</Link>
+        </Card>
+
+        <Card title={<div className="flex items-center gap-2"><ClipboardList className="text-warning" size={20} /> Report Consumption</div>}>
+          <div className="mb-4">
+            <p className="text-base-content/70 mb-2">Log inventory consumed outside of any product order — staff meals, tasting, spillage.</p>
+            <p className="text-xs text-base-content/50">Each log immediately reduces stock at the selected outlet.</p>
+          </div>
+          <Link href="/admin/inventory/consumption" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Log Consumption &rarr;</Link>
         </Card>
       </div>
     </div>
