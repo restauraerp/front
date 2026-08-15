@@ -14,7 +14,7 @@ import type { SubscriptionStatus } from './SubscriptionBanner';
  * never cover a control on any screen size.
  *
  * Two audiences, one component:
- *   - demo visitors, who should buy (primary) or start a trial (secondary)
+ *   - demo visitors, who should start a trial
  *   - trial owners, who should upgrade before the trial runs out
  */
 
@@ -92,23 +92,13 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
             You are looking at a demo restaurant.
           </span>
 
-          <span className="flex items-center gap-2">
-            {/* Buying is the primary target, so it is the solid button. */}
-            <a
-              href={verifyUrl('subscription')}
-              className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
-            >
-              Get your own
-              <ArrowRight size={14} />
-            </a>
-
-            <a
-              href={verifyUrl('trial')}
-              className="btn btn-xs sm:btn-sm btn-ghost text-primary-content font-semibold rounded-full underline-offset-2 hover:underline"
-            >
-              or take a free trial
-            </a>
-          </span>
+          <a
+            href={verifyUrl('trial')}
+            className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
+          >
+            Start your 7-day free trial
+            <ArrowRight size={14} />
+          </a>
         </>
       ) : (
         <>
