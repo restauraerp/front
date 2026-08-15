@@ -6,10 +6,17 @@ import ReportFilterBar from '@/components/reporting/ReportFilterBar';
 import { Suspense } from 'react';
 
 const tabs = [
-  { href: '/admin/reporting/sales', label: 'Sales Report' },
-  { href: '/admin/reporting/products', label: 'Product Performance' },
+  { href: '/admin/reporting/sales', label: 'Sales' },
+  { href: '/admin/reporting/products', label: 'Products' },
   { href: '/admin/reporting/time', label: 'Time Analysis' },
   { href: '/admin/reporting/inventory', label: 'Inventory Health' },
+  { href: '/admin/reporting/stock-value', label: 'Stock Value' },
+  { href: '/admin/reporting/expenses', label: 'All Expenses' },
+  { href: '/admin/reporting/non-inventory-expenses', label: 'Non-Inventory' },
+  { href: '/admin/reporting/consumable-expenses', label: 'Consumable' },
+  { href: '/admin/reporting/all-inventory-expenses', label: 'All Inventory' },
+  { href: '/admin/reporting/profit', label: 'Profit' },
+  { href: '/admin/reporting/compare', label: 'Compare' },
 ];
 
 function ReportingLayoutInner({ children }: { children: React.ReactNode }) {

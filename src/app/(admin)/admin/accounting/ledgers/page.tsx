@@ -20,15 +20,18 @@ function LedgersPageContent() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(parseInt(pageParam));
   const [totalPages, setTotalPages] = useState(1);
+  const [headers, setHeaders] = useState<any[]>([]);
+  const [assigningId, setAssigningId] = useState<number | null>(null);
 
-  // Sync internal page state with URL search param if it changes
   useEffect(() => {
     setPage(parseInt(pageParam));
   }, [pageParam]);
 
-  // Send GTM Event for page view
   useEffect(() => {
     sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/ledgers' });
+    fetchApi('/accounting-headers?nopaginate=1').then((res: any) => {
+      setHeaders(Array.isArray(res) ? res : (res?.data || []));
+    }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -72,11 +75,11 @@ function LedgersPageContent() {
         computedStartDate = getDhakaBoundary(m, false);
       } else if (filterRange === 'custom') {
         if (customDateFrom) {
-          const cFrom = new Date(`${customDateFrom}T00:00:00`); 
+          const cFrom = new Date(`${customDateFrom}T00:00:00`);
           computedStartDate = getDhakaBoundary(cFrom, false);
         }
         if (customDateTo) {
-          const cTo = new Date(`${customDateTo}T00:00:00`); 
+          const cTo = new Date(`${customDateTo}T00:00:00`);
           computedEndDate = getDhakaBoundary(cTo, true);
         }
       }
@@ -102,7 +105,28 @@ function LedgersPageContent() {
     }
   };
 
-  const isInflow = (type: string) => ['credit', 'income', 'sale'].includes(type);
+  const assignHeader = async (ledgerId: number, headerId: string) => {
+    setAssigningId(ledgerId);
+    try {
+      await fetchApi(`/accounting-ledgers/${ledgerId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ header_id: headerId === '' ? null : parseInt(headerId) }),
+      });
+      setLedgers(prev =>
+        prev.map(l => {
+          if (l.id !== ledgerId) return l;
+          const found = headers.find(h => h.id === parseInt(headerId));
+          return { ...l, header_id: headerId === '' ? null : parseInt(headerId), header: found || null };
+        })
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setAssigningId(null);
+    }
+  };
+
+  const isInflow = (type: string) => ['credit', 'income', 'sale', 'order_payment'].includes(type);
   const isOutflow = (type: string) => ['debit', 'expense', 'salary', 'purchase'].includes(type);
 
   const columns = [
@@ -119,7 +143,7 @@ function LedgersPageContent() {
             : 'badge-ghost';
         return (
           <span className={`badge ${badgeClass} font-medium px-3 py-1 h-auto rounded-full capitalize`}>
-            {row.transaction_type || '—'}
+            {(row.transaction_type || '—').replace(/_/g, ' ')}
           </span>
         );
       }
@@ -129,11 +153,7 @@ function LedgersPageContent() {
       label: 'Amount (৳)',
       render: (row: any) => {
         const type = (row.transaction_type || '').toLowerCase();
-        const amountClass = isInflow(type)
-          ? 'text-success'
-          : isOutflow(type)
-            ? 'text-error'
-            : 'text-base-content';
+        const amountClass = isInflow(type) ? 'text-success' : isOutflow(type) ? 'text-error' : 'text-base-content';
         const sign = isOutflow(type) ? '−' : isInflow(type) ? '+' : '';
         return (
           <span className={`font-semibold tabular-nums ${amountClass}`}>
@@ -143,6 +163,23 @@ function LedgersPageContent() {
       }
     },
     { key: 'description', label: 'Description' },
+    {
+      key: 'header',
+      label: 'Header',
+      render: (row: any) => (
+        <select
+          className="select select-bordered select-xs w-36"
+          value={row.header_id ?? ''}
+          disabled={assigningId === row.id}
+          onChange={e => assignHeader(row.id, e.target.value)}
+        >
+          <option value="">— Unassigned —</option>
+          {headers.map((h: any) => (
+            <option key={h.id} value={h.id}>{h.name}</option>
+          ))}
+        </select>
+      ),
+    },
     {
       key: 'created_at',
       label: 'Date & Time',
@@ -164,7 +201,7 @@ function LedgersPageContent() {
     <div>
       <PageHeader
         title="Accounting Ledgers"
-        subtitle="View all automated financial transactions."
+        subtitle="View all automated financial transactions and assign headers."
       />
 
       <AccountingFilterBar />

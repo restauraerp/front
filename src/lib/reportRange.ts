@@ -15,9 +15,14 @@ export type ReportBucket = 'hour' | 'day' | 'month';
 export type ReportRangeKey =
   | 'today'
   | 'yesterday'
-  | 'past_week'
-  | 'past_28_days'
-  | '12_months'
+  | 'this_week'
+  | 'last_week'
+  | 'this_month'
+  | 'last_month'
+  | 'this_quarter'
+  | 'last_quarter'
+  | 'this_year'
+  | 'last_year'
   | 'all_time'
   | 'custom';
 
@@ -36,16 +41,20 @@ export interface ReportWindow {
 export const RANGE_OPTIONS: { value: ReportRangeKey; label: string }[] = [
   { value: 'today', label: 'Today' },
   { value: 'yesterday', label: 'Yesterday' },
-  { value: 'past_week', label: 'Past Week' },
-  { value: 'past_28_days', label: 'Past 28 Days' },
-  { value: '12_months', label: 'Past 12 Months' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'last_week', label: 'Last Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_quarter', label: 'This Quarter' },
+  { value: 'last_quarter', label: 'Last Quarter' },
+  { value: 'this_year', label: 'This Year' },
+  { value: 'last_year', label: 'Last Year' },
   { value: 'all_time', label: 'All Time' },
   { value: 'custom', label: 'Custom Range' },
 ];
 
 /** Today's calendar date in the business timezone, as 'YYYY-MM-DD'. */
 export function businessToday(now: Date = new Date()): string {
-  // en-CA formats as YYYY-MM-DD, which is exactly what we want.
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: BUSINESS_TIMEZONE,
     year: 'numeric',
@@ -73,6 +82,22 @@ function addMonths(ymd: string, months: number): string {
 
 function startOfMonth(ymd: string): string {
   return `${ymd.slice(0, 7)}-01`;
+}
+
+/** Returns 'YYYY-MM-01' for the first month of the quarter containing ymd. */
+function startOfQuarter(ymd: string): string {
+  const month = parseInt(ymd.slice(5, 7), 10); // 1-12
+  const quarterStartMonth = Math.floor((month - 1) / 3) * 3 + 1; // 1, 4, 7, or 10
+  return `${ymd.slice(0, 4)}-${String(quarterStartMonth).padStart(2, '0')}-01`;
+}
+
+/** Returns Sunday of the week containing ymd, as 'YYYY-MM-DD'. */
+function startOfWeek(ymd: string): string {
+  const d = new Date(`${ymd}T00:00:00Z`);
+  // getUTCDay(): 0=Sun,1=Mon,...,6=Sat. Weeks start on Sunday.
+  const dow = d.getUTCDay(); // 0=Sun=start of week
+  d.setUTCDate(d.getUTCDate() - dow);
+  return d.toISOString().slice(0, 10);
 }
 
 const startOfDay = (ymd: string) => `${ymd} 00:00:00`;
@@ -103,7 +128,7 @@ export function resolveRange(
 ): ReportWindow {
   const today = businessToday(now);
   const tomorrow = addDays(today, 1);
-  const key = (RANGE_OPTIONS.find(o => o.value === range)?.value ?? 'past_week') as ReportRangeKey;
+  const key = (RANGE_OPTIONS.find(o => o.value === range)?.value ?? 'this_week') as ReportRangeKey;
 
   switch (key) {
     case 'today':
@@ -124,35 +149,92 @@ export function resolveRange(
       };
     }
 
-    case 'past_week': {
-      // Seven days ending today, inclusive.
-      const start = addDays(today, -6);
+    case 'this_week': {
+      const weekStart = startOfWeek(today);
+      const weekEnd = addDays(weekStart, 7);
       return {
-        from: startOfDay(start),
-        to: startOfDay(tomorrow),
+        from: startOfDay(weekStart),
+        to: startOfDay(weekEnd),
         bucket: 'day',
-        label: rangeLabel(start, tomorrow),
+        label: rangeLabel(weekStart, weekEnd),
       };
     }
 
-    case 'past_28_days': {
-      const start = addDays(today, -27);
+    case 'last_week': {
+      const thisWeekStart = startOfWeek(today);
+      const lastWeekStart = addDays(thisWeekStart, -7);
       return {
-        from: startOfDay(start),
-        to: startOfDay(tomorrow),
+        from: startOfDay(lastWeekStart),
+        to: startOfDay(thisWeekStart),
         bucket: 'day',
-        label: rangeLabel(start, tomorrow),
+        label: rangeLabel(lastWeekStart, thisWeekStart),
       };
     }
 
-    case '12_months': {
-      // Twelve whole months ending with the current one.
-      const start = addMonths(startOfMonth(today), -11);
+    case 'this_month': {
+      const monthStart = startOfMonth(today);
+      const nextMonthStart = addMonths(monthStart, 1);
       return {
-        from: startOfDay(start),
-        to: startOfDay(tomorrow),
+        from: startOfDay(monthStart),
+        to: startOfDay(nextMonthStart),
+        bucket: 'day',
+        label: rangeLabel(monthStart, nextMonthStart),
+      };
+    }
+
+    case 'last_month': {
+      const thisMonthStart = startOfMonth(today);
+      const lastMonthStart = addMonths(thisMonthStart, -1);
+      return {
+        from: startOfDay(lastMonthStart),
+        to: startOfDay(thisMonthStart),
+        bucket: 'day',
+        label: rangeLabel(lastMonthStart, thisMonthStart),
+      };
+    }
+
+    case 'this_quarter': {
+      const quarterStart = startOfQuarter(today);
+      const nextQuarterStart = addMonths(quarterStart, 3);
+      return {
+        from: startOfDay(quarterStart),
+        to: startOfDay(nextQuarterStart),
         bucket: 'month',
-        label: rangeLabel(start, tomorrow),
+        label: rangeLabel(quarterStart, nextQuarterStart),
+      };
+    }
+
+    case 'last_quarter': {
+      const thisQuarterStart = startOfQuarter(today);
+      const lastQuarterStart = addMonths(thisQuarterStart, -3);
+      return {
+        from: startOfDay(lastQuarterStart),
+        to: startOfDay(thisQuarterStart),
+        bucket: 'month',
+        label: rangeLabel(lastQuarterStart, thisQuarterStart),
+      };
+    }
+
+    case 'this_year': {
+      const yearStart = `${today.slice(0, 4)}-01-01`;
+      const nextYearStart = `${parseInt(today.slice(0, 4), 10) + 1}-01-01`;
+      return {
+        from: startOfDay(yearStart),
+        to: startOfDay(nextYearStart),
+        bucket: 'month',
+        label: rangeLabel(yearStart, nextYearStart),
+      };
+    }
+
+    case 'last_year': {
+      const thisYear = parseInt(today.slice(0, 4), 10);
+      const lastYearStart = `${thisYear - 1}-01-01`;
+      const thisYearStart = `${thisYear}-01-01`;
+      return {
+        from: startOfDay(lastYearStart),
+        to: startOfDay(thisYearStart),
+        bucket: 'month',
+        label: rangeLabel(lastYearStart, thisYearStart),
       };
     }
 
@@ -174,7 +256,6 @@ export function resolveRange(
           incomplete: true,
         };
       }
-      // Tolerate the dates being picked in either order.
       const [start, end] = customFrom <= customTo ? [customFrom, customTo] : [customTo, customFrom];
       const endExclusive = addDays(end, 1);
       const spanDays = Math.round(
@@ -183,7 +264,6 @@ export function resolveRange(
       return {
         from: startOfDay(start),
         to: startOfDay(endExclusive),
-        // Daily bars stop being readable past a few months.
         bucket: spanDays <= 1 ? 'hour' : spanDays > 92 ? 'month' : 'day',
         label: rangeLabel(start, endExclusive),
       };
