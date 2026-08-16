@@ -597,15 +597,32 @@ export default function OrdersPage() {
                             </div>
                           </td>
                           <td className="align-middle">
-                            {renderActions(order)}
-                            {activeTab === 'completed' && (
-                              <button
-                                className="btn btn-xs btn-ghost mt-1 gap-1"
-                                title="View Details"
-                                onClick={() => setDetailOrder(order)}
-                              >
-                                <Eye size={14} />
-                              </button>
+                            {activeTab === 'completed' ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10"
+                                  title="Chef Slip"
+                                  onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')}
+                                >
+                                  <ChefHat size={14} />
+                                </button>
+                                <button
+                                  className="btn btn-xs btn-ghost border border-base-300"
+                                  title="Receipt"
+                                  onClick={() => window.open(`/receipt/${order.id}`, '_blank')}
+                                >
+                                  <Printer size={14} />
+                                </button>
+                                <button
+                                  className="btn btn-xs btn-ghost border border-base-300"
+                                  title="View Details"
+                                  onClick={() => setDetailOrder(order)}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                              </div>
+                            ) : (
+                              renderActions(order)
                             )}
                           </td>
                         </tr>
