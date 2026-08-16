@@ -1,5 +1,6 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { Suspense, useEffect, useState, useMemo } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchApi, fetchOptional, apiErrorMessage } from '@/lib/api';
 import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
@@ -20,7 +21,20 @@ interface CartItem {
 }
 interface HeldOrder { id: number; items: CartItem[]; orderType: string; tableId: number | null; customerId: number | null; }
 
-export default function POS() {
+export default function POSPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg text-primary" /></div>}>
+      <POS />
+    </Suspense>
+  );
+}
+
+function POS() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const editOrderId = searchParams.get('edit');
+  const [editMode, setEditMode] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -114,6 +128,62 @@ export default function POS() {
       setSelectedTable(null);
     }
   }, [orderType, activeLocationId]);
+
+  useEffect(() => {
+    if (!editOrderId || loading) return;
+    setEditLoading(true);
+    fetchApi(`/orders/${editOrderId}`)
+      .then(res => {
+        const order = res.data || res;
+        if (order.payment_status === 'paid') {
+          alert('This order has already been paid and cannot be edited.');
+          router.push('/admin/orders');
+          return;
+        }
+        setEditMode(true);
+        setOrderType(order.order_type || 'dine_in');
+        setSelectedTable(order.table_id || null);
+        setSelectedCustomer(order.customer_id || null);
+        setDeliveryCharge(parseFloat(order.delivery_charge || '0'));
+        setDeliveryTime(order.delivery_time || '');
+        setDeliveryAddress(order.delivery_address || '');
+        setLatitude(order.latitude ? String(order.latitude) : '');
+        setLongitude(order.longitude ? String(order.longitude) : '');
+        if (order.discount_id) {
+          const disc = discounts.find((d: any) => d.id === order.discount_id);
+          if (disc) setAppliedDiscount(disc);
+        }
+        if (order.location_id) setActiveLocationId(order.location_id);
+        const merged = new Map<number, CartItem>();
+        for (const item of (order.items || [])) {
+          const pid = item.product?.id || item.product_id;
+          const existing = merged.get(pid);
+          const qty = item.quantity || item.qty || 1;
+          if (existing) {
+            existing.qty += qty;
+            if (item.notes && !existing.notes.includes(item.notes)) {
+              existing.notes = [existing.notes, item.notes].filter(Boolean).join('; ');
+            }
+          } else {
+            merged.set(pid, {
+              id: pid,
+              name: item.product?.name || `Product #${item.product_id}`,
+              price: String(item.price),
+              qty,
+              notes: item.notes || '',
+              needs_cooking: item.product?.needs_cooking,
+              images: item.product?.images,
+            });
+          }
+        }
+        setCart(Array.from(merged.values()));
+      })
+      .catch(() => {
+        alert('Failed to load order for editing.');
+        router.push('/admin/orders');
+      })
+      .finally(() => setEditLoading(false));
+  }, [editOrderId, loading]);
 
   // Only what may actually be sold. The catalog keeps withdrawn products so
   // they can be brought back, and /products returns them all, so the till has
@@ -219,29 +289,38 @@ export default function POS() {
     if (cart.length === 0) return;
     setCheckingOut(true);
     try {
+      const payload = {
+        location_id: activeLocationId,
+        order_type: orderType,
+        subtotal: subtotal.toFixed(2),
+        tax_amount: tax.toFixed(2),
+        discount_amount: discountAmount.toFixed(2),
+        delivery_charge: finalDeliveryCharge.toFixed(2),
+        total: total.toFixed(2),
+        table_id: orderType === 'dine_in' ? selectedTable : null,
+        customer_id: selectedCustomer,
+        discount_id: appliedDiscount?.id || null,
+        delivery_time: deliveryTime || null,
+        delivery_address: deliveryAddress || null,
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        items: cart.map(item => ({
+          product_id: item.id, qty: item.qty, price: item.price, notes: item.notes || null,
+        })),
+      };
+
+      if (editMode && editOrderId) {
+        await fetchApi(`/orders/${editOrderId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        });
+        router.push('/admin/orders');
+        return;
+      }
+
       const res = await fetchApi('/orders', {
         method: 'POST',
-        body: JSON.stringify({
-          location_id: activeLocationId,
-          order_type: orderType,
-          // No status: where an order opens depends on what is on it and when
-          // it is due, which the API decides.
-          subtotal: subtotal.toFixed(2),
-          tax_amount: tax.toFixed(2),
-          discount_amount: discountAmount.toFixed(2),
-          delivery_charge: finalDeliveryCharge.toFixed(2),
-          total: total.toFixed(2),
-          table_id: orderType === 'dine_in' ? selectedTable : null,
-          customer_id: selectedCustomer,
-          discount_id: appliedDiscount?.id || null,
-          delivery_time: deliveryTime || null,
-          delivery_address: deliveryAddress || null,
-          latitude: latitude ? parseFloat(latitude) : null,
-          longitude: longitude ? parseFloat(longitude) : null,
-          items: cart.map(item => ({
-            product_id: item.id, qty: item.qty, price: item.price, notes: item.notes || null,
-          })),
-        }),
+        body: JSON.stringify(payload),
       });
       const newOrder = res.data || res;
       setLastOrderId(newOrder.id);
@@ -251,7 +330,7 @@ export default function POS() {
       setSelectedCustomer(null);
       setAppliedDiscount(null);
     } catch {
-      alert('Failed to place order. Please try again.');
+      alert(editMode ? 'Failed to update order. Please try again.' : 'Failed to place order. Please try again.');
     } finally {
       setCheckingOut(false);
     }
@@ -263,7 +342,7 @@ export default function POS() {
       <div className="flex-1 flex flex-col min-w-0 h-[65vh] md:h-full">
         {/* Header Row: Title + Search + Location */}
         <div className="flex items-center gap-4 mb-3 flex-wrap">
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>Point of Sale</h1>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>{editMode ? `Edit Order #${editOrderId}` : 'Point of Sale'}</h1>
 
           {/* Location Switcher */}
           {locations.length > 0 && (
@@ -325,7 +404,7 @@ export default function POS() {
 
         {/* Product Grid */}
         <div className="flex-1 overflow-y-auto min-h-0 pb-4">
-          {loading ? (
+          {(loading || editLoading) ? (
             <div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg text-primary" /></div>
           ) : filteredProducts.length === 0 ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '4rem 0', gap: '0.75rem', color: '#9ca3af' }}>
@@ -460,7 +539,7 @@ export default function POS() {
         {/* Cart */}
         <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[400px] md:min-h-0 overflow-hidden">
           <div className="flex items-center justify-between py-3 px-4 border-b border-gray-100">
-            <h2 style={{ fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>Current Order</h2>
+            <h2 style={{ fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>{editMode ? `Editing Order #${editOrderId}` : 'Current Order'}</h2>
             <div style={{ display: 'flex', gap: '0.3rem' }}>
               {cart.length > 0 && (
                 <>
@@ -577,13 +656,13 @@ export default function POS() {
               }}
             >
               {checkingOut ? <span className="loading loading-spinner loading-sm" /> : <CreditCard size={16} />}
-              Place Order
+              {editMode ? 'Update Order' : 'Place Order'}
             </button>
           </div>
         </div>
       </div>
 
-      {/* Success modal */}
+      {/* Success modal — only shown for new orders; edits redirect to orders page */}
       <dialog id="checkout_success" className="modal">
         <div className="modal-box text-center">
           <div className="text-5xl mb-3">🎉</div>
