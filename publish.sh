@@ -24,4 +24,5 @@ git checkout develop
 
 git push origin "v$VERSION"
 
+sleep 10
 gh run watch
