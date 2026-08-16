@@ -3,7 +3,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import DiscountInput from '../pos/components/DiscountInput';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 
 const statusConfig: Record<string, { badge: string; label: string }> = {
@@ -85,8 +85,29 @@ export default function OrdersPage() {
   // Detail modal state
   const [detailOrder, setDetailOrder] = useState<any>(null);
 
+  // Confirmation modal state
+  const [confirmModal, setConfirmModal] = useState<{
+    type: 'trash' | 'restore';
+    orderId: number;
+  } | null>(null);
+  const [confirmProcessing, setConfirmProcessing] = useState(false);
+
+  // Admin role + trashed orders
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [trashedOrders, setTrashedOrders] = useState<any[]>([]);
+  const [trashedPage, setTrashedPage] = useState(1);
+  const [trashedTotalPages, setTrashedTotalPages] = useState(1);
+  const [trashedTotal, setTrashedTotal] = useState(0);
+  const [trashedLoading, setTrashedLoading] = useState(true);
+
   useEffect(() => {
     loadOrders();
+    fetchApi('/auth/me').then(res => {
+      const roles = res?.roles?.map((r: any) => r.name) || [];
+      if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
+        setIsAdmin(true);
+      }
+    }).catch(console.error);
     fetchApi('/discounts').then(res => setDiscounts(res.data || res || [])).catch(console.error);
     fetchApi('/tax-rules').then(res => {
       const rules = res?.data || res || [];
@@ -151,6 +172,68 @@ export default function OrdersPage() {
 
     return () => { cancelled = true; };
   }, [activeTab, completedPage, activeLocationId, completedReloadKey]);
+
+  const [trashedReloadKey, setTrashedReloadKey] = useState(0);
+
+  useEffect(() => {
+    if (activeTab !== 'trashed' || !isAdmin) return;
+
+    let cancelled = false;
+    setTrashedLoading(true);
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ page: String(trashedPage) });
+        if (activeLocationId) params.set('location_id', String(activeLocationId));
+
+        const res = await fetchApi(`/orders-trashed?${params.toString()}`);
+        if (cancelled) return;
+
+        setTrashedOrders(res.data || []);
+        setTrashedTotalPages(res.last_page || 1);
+        setTrashedTotal(res.total ?? 0);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setTrashedLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeTab, trashedPage, activeLocationId, isAdmin, trashedReloadKey]);
+
+  const handleTrashOrder = (orderId: number) => {
+    setConfirmModal({ type: 'trash', orderId });
+    (document.getElementById('confirm_modal') as HTMLDialogElement)?.showModal();
+  };
+
+  const handleRestoreOrder = (orderId: number) => {
+    setConfirmModal({ type: 'restore', orderId });
+    (document.getElementById('confirm_modal') as HTMLDialogElement)?.showModal();
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmModal) return;
+    setConfirmProcessing(true);
+    try {
+      if (confirmModal.type === 'trash') {
+        await fetchApi(`/orders/${confirmModal.orderId}/trash`, { method: 'POST' });
+        loadOrders();
+        setCompletedReloadKey(k => k + 1);
+      } else {
+        await fetchApi(`/orders-trashed/${confirmModal.orderId}/restore`, { method: 'POST' });
+        setTrashedReloadKey(k => k + 1);
+        loadOrders();
+        setCompletedReloadKey(k => k + 1);
+      }
+      (document.getElementById('confirm_modal') as HTMLDialogElement)?.close();
+      setConfirmModal(null);
+    } catch {
+      alert(confirmModal.type === 'trash' ? 'Failed to trash order' : 'Failed to restore order');
+    } finally {
+      setConfirmProcessing(false);
+    }
+  };
 
   const handleUpdateStatus = async (order: any, newStatus: string) => {
     if (newStatus === 'pay_modal') {
@@ -391,6 +474,7 @@ export default function OrdersPage() {
 
   const filteredOrders = useMemo(() => {
     if (activeTab === 'completed') return completedOrders;
+    if (activeTab === 'trashed') return trashedOrders;
 
     let current = orders.filter(o => {
       if (activeLocationId && o.location_id !== activeLocationId) return false;
@@ -413,7 +497,7 @@ export default function OrdersPage() {
       });
     }
     return current;
-  }, [orders, completedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
+  }, [orders, completedOrders, trashedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
   const tabLabels: Record<string, string> = {
     active_orders: 'Active Orders',
@@ -422,6 +506,7 @@ export default function OrdersPage() {
     delivery: 'Delivery',
     catering: 'Catering',
     completed: 'Completed',
+    ...(isAdmin ? { trashed: 'Trashed' } : {}),
   };
 
   const tabCounts = useMemo(() => {
@@ -462,7 +547,7 @@ export default function OrdersPage() {
         </div>
         <button
           className="btn btn-ghost btn-sm gap-2 self-start md:self-auto"
-          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : loadOrders())}
+          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : activeTab === 'trashed' ? setTrashedReloadKey(k => k + 1) : loadOrders())}
         >
           <RefreshCw size={14} /> Refresh
         </button>
@@ -470,7 +555,7 @@ export default function OrdersPage() {
 
       <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
         {Object.entries(tabLabels).map(([key, label]) => {
-          const count = key !== 'completed' ? (tabCounts as any)[key] : null;
+          const count = key !== 'completed' && key !== 'trashed' ? (tabCounts as any)[key] : null;
           return (
             <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => setActiveTab(key)}>
               {label}
@@ -489,9 +574,12 @@ export default function OrdersPage() {
             {activeTab === 'completed' && completedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({completedTotal.toLocaleString()})</span>
             )}
+            {activeTab === 'trashed' && trashedTotal > 0 && (
+              <span className="ml-2 text-sm font-normal text-base-content/50">({trashedTotal.toLocaleString()})</span>
+            )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {activeTab === 'completed' ? (
+            {activeTab === 'completed' || activeTab === 'trashed' ? (
               <span className="text-base-content/60">Newest first</span>
             ) : (
               <>
@@ -512,7 +600,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {(activeTab === 'completed' ? completedLoading : loading) ? (
+        {(activeTab === 'completed' ? completedLoading : activeTab === 'trashed' ? trashedLoading : loading) ? (
           <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-16 text-base-content/40 bg-base-200/50 rounded-xl border border-dashed border-base-300">
@@ -520,6 +608,8 @@ export default function OrdersPage() {
             <p>
               {activeTab === 'completed'
                 ? 'No completed orders yet.'
+                : activeTab === 'trashed'
+                ? 'No trashed orders.'
                 : `No active ${tabLabels[activeTab]?.toLowerCase() || activeTab} orders.`}
             </p>
           </div>
@@ -538,7 +628,7 @@ export default function OrdersPage() {
                   <thead>
                     <tr>
                       <th>Order Info</th>
-                      {['active_orders', 'completed'].includes(activeTab) && <th>Type</th>}
+                      {['active_orders', 'completed', 'trashed'].includes(activeTab) && <th>Type</th>}
                       {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
                       <th>Items</th>
                       <th>Total</th>
@@ -556,7 +646,7 @@ export default function OrdersPage() {
                             <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                             {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
                           </td>
-                          {['active_orders', 'completed'].includes(activeTab) && (
+                          {['active_orders', 'completed', 'trashed'].includes(activeTab) && (
                             <td className="font-medium text-base-content/80">{tabLabels[order.order_type] || order.order_type?.replace('_', ' ')}</td>
                           )}
                           {['delivery', 'catering'].includes(activeTab) && (
@@ -597,7 +687,24 @@ export default function OrdersPage() {
                             </div>
                           </td>
                           <td className="align-middle">
-                            {activeTab === 'completed' ? (
+                            {activeTab === 'trashed' ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  className="btn btn-xs btn-ghost border border-base-300"
+                                  title="View Details"
+                                  onClick={() => setDetailOrder(order)}
+                                >
+                                  <Eye size={14} />
+                                </button>
+                                <button
+                                  className="btn btn-xs btn-success btn-outline"
+                                  title="Restore Order"
+                                  onClick={() => handleRestoreOrder(order.id)}
+                                >
+                                  <RotateCcw size={14} />
+                                </button>
+                              </div>
+                            ) : activeTab === 'completed' ? (
                               <div className="flex items-center gap-1">
                                 <button
                                   className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10"
@@ -620,6 +727,15 @@ export default function OrdersPage() {
                                 >
                                   <Eye size={14} />
                                 </button>
+                                {isAdmin && (
+                                  <button
+                                    className="btn btn-xs btn-error btn-outline"
+                                    title="Trash Order"
+                                    onClick={() => handleTrashOrder(order.id)}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                )}
                               </div>
                             ) : (
                               renderActions(order)
@@ -647,6 +763,26 @@ export default function OrdersPage() {
                       className="join-item btn btn-sm"
                       onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
                       disabled={completedPage === completedTotalPages || completedLoading}
+                    >»</button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'trashed' && trashedTotalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <div className="join">
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setTrashedPage(p => Math.max(1, p - 1))}
+                      disabled={trashedPage === 1 || trashedLoading}
+                    >«</button>
+                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                      Page {trashedPage} of {trashedTotalPages}
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setTrashedPage(p => Math.min(trashedTotalPages, p + 1))}
+                      disabled={trashedPage === trashedTotalPages || trashedLoading}
                     >»</button>
                   </div>
                 </div>
@@ -767,6 +903,47 @@ export default function OrdersPage() {
           <div className="modal-backdrop" onClick={() => setDetailOrder(null)} />
         </dialog>
       )}
+
+      {/* Trash/Restore confirmation modal */}
+      <dialog id="confirm_modal" className="modal">
+        <div className="modal-box max-w-sm">
+          <div className={`flex items-center gap-3 mb-4 ${confirmModal?.type === 'trash' ? 'text-error' : 'text-success'}`}>
+            {confirmModal?.type === 'trash' ? <AlertTriangle size={24} /> : <RotateCcw size={24} />}
+            <h3 className="font-bold text-lg text-base-content">
+              {confirmModal?.type === 'trash' ? 'Trash Order' : 'Restore Order'}
+            </h3>
+          </div>
+          <p className="text-base-content/70">
+            {confirmModal?.type === 'trash'
+              ? `Are you sure you want to trash order #${confirmModal?.orderId}? It will be excluded from all reports, profit/loss calculations, and statistics.`
+              : `Are you sure you want to restore order #${confirmModal?.orderId}? It will be included in all reports and calculations again.`}
+          </p>
+          <div className="modal-action">
+            <button
+              className="btn btn-ghost"
+              onClick={() => {
+                (document.getElementById('confirm_modal') as HTMLDialogElement)?.close();
+                setConfirmModal(null);
+              }}
+              disabled={confirmProcessing}
+            >
+              Cancel
+            </button>
+            <button
+              className={`btn ${confirmModal?.type === 'trash' ? 'btn-error' : 'btn-success'}`}
+              onClick={executeConfirmAction}
+              disabled={confirmProcessing}
+            >
+              {confirmProcessing
+                ? <span className="loading loading-spinner loading-sm" />
+                : confirmModal?.type === 'trash' ? 'Trash' : 'Restore'}
+            </button>
+          </div>
+        </div>
+        <form method="dialog" className="modal-backdrop">
+          <button onClick={() => setConfirmModal(null)}>close</button>
+        </form>
+      </dialog>
     </div>
   );
 }
