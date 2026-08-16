@@ -341,8 +341,8 @@ export default function OrdersPage() {
           </button>
         )}
         {!isEditing && order.payment_status !== 'paid' && (
-          <button className="btn btn-xs btn-outline gap-1" onClick={() => startEdit(order)}>
-            <Pencil size={12} /> Edit Items
+          <button className="btn btn-xs btn-outline gap-1" onClick={() => window.location.href = `/admin/pos?edit=${order.id}`}>
+            <Pencil size={12} /> Edit in POS
           </button>
         )}
         {!isEditing && ['pending', 'cooking'].includes(order.status) && (
