@@ -467,7 +467,39 @@ export default function OrdersPage() {
           })}
         </div>
 
-        {renderActions(order)}
+        {activeTab === 'trashed' ? (
+          <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
+            <button className="btn btn-xs btn-ghost border border-base-300" title="View Details" onClick={() => setDetailOrder(order)}>
+              <Eye size={12} /> View
+            </button>
+            <div className="ml-auto">
+              <button className="btn btn-xs btn-success btn-outline gap-1" title="Restore Order" onClick={() => handleRestoreOrder(order.id)}>
+                <RotateCcw size={12} /> Restore
+              </button>
+            </div>
+          </div>
+        ) : activeTab === 'completed' ? (
+          <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
+            <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
+              <ChefHat size={12} />
+            </button>
+            <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
+              <Printer size={12} />
+            </button>
+            <button className="btn btn-xs btn-ghost border border-base-300" title="View Details" onClick={() => setDetailOrder(order)}>
+              <Eye size={12} />
+            </button>
+            {isAdmin && (
+              <div className="ml-auto">
+                <button className="btn btn-xs btn-error btn-outline gap-1" title="Trash Order" onClick={() => handleTrashOrder(order.id)}>
+                  <Trash2 size={12} /> Trash
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          renderActions(order)
+        )}
       </div>
     );
   };
