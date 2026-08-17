@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function LocationsPage() {
   const [locations, setLocations] = useState<any[]>([]);
@@ -280,26 +281,17 @@ export default function LocationsPage() {
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Location Type</label>
-              <select 
-                style={{ padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: '8px', fontFamily: 'inherit' }} 
-                name="type" 
-                value={formData.type} 
-                onChange={handleInputChange}
-              >
-                {locationTypes.length > 0 ? (
-                  locationTypes.map(lt => (
-                    <option key={lt.slug} value={lt.slug}>{lt.title}</option>
-                  ))
-                ) : (
-                  <>
-                    <option value="head_office">Head Office</option>
-                    <option value="branch">Branch</option>
-                  </>
-                )}
-              </select>
-            </div>
+            <SearchSelect
+              label="Location Type"
+              value={formData.type}
+              onChange={(v) => setFormData(prev => ({ ...prev, type: String(v) }))}
+              options={locationTypes.length > 0
+                ? locationTypes.map((lt: any) => ({ value: lt.slug, label: lt.title }))
+                : [{ value: 'head_office', label: 'Head Office' }, { value: 'branch', label: 'Branch' }]
+              }
+              placeholder="Select type"
+              searchPlaceholder="Search types…"
+            />
 
             <Input label="Phone" name="phone" value={formData.phone} onChange={handleInputChange} required />
             <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} />

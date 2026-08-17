@@ -6,6 +6,7 @@ import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { tenantKey } from '@/lib/tenant';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function DeliveryPage() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
@@ -216,36 +217,35 @@ export default function DeliveryPage() {
         <Card title={editingId ? 'Edit Assignment' : 'Assign Delivery'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Order ID" name="order_id" type="number" value={formData.order_id} onChange={handleInputChange} required />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
-              <label style={{ fontWeight: 500, fontSize: '0.9rem', color: 'var(--text-main)' }}>Assign Rider</label>
-              <select 
-                style={{ padding: '0.75rem', border: '1px solid #e5e7eb', borderRadius: '8px', fontFamily: 'inherit' }} 
-                name="rider_id" value={formData.rider_id} onChange={handleInputChange}
-              >
-                <option value="">-- Select Rider (Optional) --</option>
-                {riders
-                  .filter((rider) => {
-                    if (formData.order_id) {
-                      const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
-                      if (selectedOrder && selectedOrder.location_id) {
-                        return rider.location_id === selectedOrder.location_id;
-                      }
-                    } else if (activeLocationId) {
-                      return rider.location_id === activeLocationId;
+            <SearchSelect
+              label="Assign Rider"
+              value={formData.rider_id}
+              onChange={(v) => setFormData(prev => ({ ...prev, rider_id: String(v) }))}
+              options={riders
+                .filter((rider) => {
+                  if (formData.order_id) {
+                    const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
+                    if (selectedOrder && selectedOrder.location_id) {
+                      return rider.location_id === selectedOrder.location_id;
                     }
-                    return true;
-                  })
-                  .map(rider => {
-                    const activeCount = deliveries.filter((d: any) => d.rider_id === rider.id && !['Delivered', 'Failed', 'Cancelled'].includes(d.status)).length;
-                    const statusText = activeCount > 0 ? ` (On Delivery: ${activeCount} active)` : '';
-                    return (
-                      <option key={rider.id} value={rider.id}>
-                        {rider.name} - {rider.location?.name || 'No Branch'}{statusText}
-                      </option>
-                    );
-                  })}
-              </select>
-            </div>
+                  } else if (activeLocationId) {
+                    return rider.location_id === activeLocationId;
+                  }
+                  return true;
+                })
+                .map(rider => {
+                  const activeCount = deliveries.filter((d: any) => d.rider_id === rider.id && !['Delivered', 'Failed', 'Cancelled'].includes(d.status)).length;
+                  const statusText = activeCount > 0 ? ` (${activeCount} active)` : '';
+                  return {
+                    value: rider.id,
+                    label: rider.name,
+                    hint: `${rider.location?.name || 'No Branch'}${statusText}`,
+                  };
+                })}
+              placeholder="-- Select Rider (Optional) --"
+              searchPlaceholder="Search riders…"
+              clearable
+            />
             <Input label="Delivery Charge" name="delivery_charge" type="number" step="0.01" value={formData.delivery_charge} onChange={handleInputChange} required />
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
