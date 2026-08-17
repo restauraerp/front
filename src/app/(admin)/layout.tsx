@@ -3,6 +3,14 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import ConversionBanner from '@/components/layout/ConversionBanner';
+import dynamic from 'next/dynamic';
+
+/**
+ * Client-only, deliberately. The tour reads where somebody had got to straight
+ * from localStorage during its first render rather than in a mount effect - which
+ * is only safe because there is no server render to disagree with.
+ */
+const Walkthrough = dynamic(() => import('@/components/walkthrough/Walkthrough'), { ssr: false });
 import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import {
   LayoutDashboard,
@@ -214,6 +222,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <li key={href}>
                 <Link
                   href={href}
+                  // The guided tour anchors on this rather than on a class or a
+                  // position, so restyling the sidebar cannot silently break a
+                  // tour. Derived from the href so a new nav item is taggable
+                  // without anybody remembering to.
+                  data-tour={`nav-${href.replace('/admin', '').replace(/^\//, '') || 'dashboard'}`}
                   onClick={() => setDrawerOpen(false)}
                   className={`flex items-center transition-all duration-300 ease-in-out ${
                     collapsed
@@ -292,6 +305,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             scroll container, so sitting above it keeps the banner in view
             without ever overlaying a control. */}
         <ConversionBanner status={subscription} />
+
+        {/* The guided tour. Mounted here rather than per page because it walks
+            between pages: it has to survive the navigation its own steps cause.
+            It renders nothing at all unless this is a demo visit or a trial tour
+            has been asked for, and nothing again once it is dismissed. */}
+        <Walkthrough />
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">

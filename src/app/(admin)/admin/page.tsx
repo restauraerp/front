@@ -114,7 +114,9 @@ export default function Dashboard() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* The tour's opening step points here: what the software produces, before
+          anything about how it is set up. */}
+      <div data-tour="dashboard-summary" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-primary"><TrendingUp size={28} /></div>
           <div className="stat-title text-xs">Today's Revenue</div>
