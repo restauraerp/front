@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { UserCircle } from 'lucide-react';
 import styles from '@/components/ui/ui.module.css';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -222,35 +223,25 @@ export default function EmployeesPage() {
               )}
             </div>
             
-            <div className="form-control w-full">
-              <label className="label"><span className="label-text font-medium">Location</span></label>
-              <select 
-                className="select select-bordered w-full"
-                name="location_id" 
-                value={formData.location_id} 
-                onChange={(e) => handleInputChange(e as any)}
-              >
-                <option value="">No Location</option>
-                {locations.map(loc => (
-                  <option key={loc.id} value={loc.id}>{loc.name}</option>
-                ))}
-              </select>
-            </div>
+            <SearchSelect
+              label="Location"
+              value={formData.location_id}
+              onChange={(v) => setFormData(prev => ({ ...prev, location_id: String(v) }))}
+              options={locations.map((loc: any) => ({ value: loc.id, label: loc.name }))}
+              placeholder="No Location"
+              searchPlaceholder="Search locations…"
+              clearable
+            />
             
-            <div className="form-control w-full">
-              <label className="label"><span className="label-text font-medium">Role</span></label>
-              <select 
-                className="select select-bordered w-full"
-                name="role" 
-                value={formData.role} 
-                onChange={(e) => handleInputChange(e as any)}
-              >
-                <option value="">No Role</option>
-                {roles.map(r => (
-                  <option key={r.id} value={r.name}>{r.name.replace('_', ' ').toUpperCase()}</option>
-                ))}
-              </select>
-            </div>
+            <SearchSelect
+              label="Role"
+              value={formData.role}
+              onChange={(v) => setFormData(prev => ({ ...prev, role: String(v) }))}
+              options={roles.map((r: any) => ({ value: r.name, label: r.name.replace('_', ' ').toUpperCase() }))}
+              placeholder="No Role"
+              searchPlaceholder="Search roles…"
+              clearable
+            />
             
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <Button type="submit" variant="primary">{editingId ? 'Update Employee' : 'Create Employee'}</Button>

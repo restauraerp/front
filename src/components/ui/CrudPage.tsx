@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Table } from '@/components/ui/Table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Plus, X, Search } from 'lucide-react';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface CrudField {
   key: string;
@@ -172,19 +173,14 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
               {formFields.map(field => (
                 <div key={field.key} className={field.colSpan ? 'sm:col-span-2' : ''}>
                   {field.options ? (
-                    <div className="form-control w-full">
-                      <label className="label"><span className="label-text font-medium">{field.label}</span></label>
-                      <select
-                        className="select select-bordered w-full"
-                        name={field.key}
-                        value={formData[field.key]}
-                        onChange={handleChange}
-                      >
-                        {field.options.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </select>
-                    </div>
+                    <SearchSelect
+                      label={field.label}
+                      value={formData[field.key]}
+                      onChange={(v) => setFormData(prev => ({ ...prev, [field.key]: String(v) }))}
+                      options={field.options.map(opt => ({ value: opt.value, label: opt.label }))}
+                      placeholder={`Select ${field.label.toLowerCase()}`}
+                      searchPlaceholder={`Search…`}
+                    />
                   ) : field.textarea ? (
                     <div className="form-control w-full">
                       <label className="label"><span className="label-text font-medium">{field.label}</span></label>

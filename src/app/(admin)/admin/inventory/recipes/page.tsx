@@ -5,6 +5,7 @@ import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Trash2, Plus } from 'lucide-react';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 interface InventoryItem {
   id: number;
@@ -138,16 +139,14 @@ function RecipesPageContent() {
       <Card className="mb-6">
         <div className="form-control max-w-sm">
           <label className="label"><span className="label-text font-medium">Select Product</span></label>
-          <select
-            className="select select-bordered w-full"
+          <SearchSelect
+            label=""
             value={selectedProductId}
-            onChange={e => handleProductChange(e.target.value)}
-          >
-            <option value="">— Choose a product —</option>
-            {products.map((p: any) => (
-              <option key={p.id} value={p.id}>{p.name}</option>
-            ))}
-          </select>
+            onChange={(v) => handleProductChange(String(v))}
+            options={products.map((p: any) => ({ value: p.id, label: p.name }))}
+            placeholder="— Choose a product —"
+            searchPlaceholder="Search products…"
+          />
         </div>
       </Card>
 
@@ -190,16 +189,16 @@ function RecipesPageContent() {
                               ) : (
                                 <div className="w-8 h-8 rounded bg-base-200 flex-shrink-0" />
                               )}
-                              <select
-                                className="select select-bordered select-sm flex-1 min-w-[180px]"
-                                value={row.inventory_item_id}
-                                onChange={e => updateRow(idx, 'inventory_item_id', e.target.value)}
-                              >
-                                <option value="">— Select item —</option>
-                                {inventoryItems.map(i => (
-                                  <option key={i.id} value={i.id}>{i.title}</option>
-                                ))}
-                              </select>
+                              <div className="flex-1 min-w-[180px]">
+                                <SearchSelect
+                                  label=""
+                                  value={row.inventory_item_id}
+                                  onChange={(v) => updateRow(idx, 'inventory_item_id', String(v))}
+                                  options={inventoryItems.map(i => ({ value: i.id, label: `${i.title} (${i.unit})` }))}
+                                  placeholder="— Select item —"
+                                  searchPlaceholder="Search items…"
+                                />
+                              </div>
                             </div>
                           </td>
                           <td>

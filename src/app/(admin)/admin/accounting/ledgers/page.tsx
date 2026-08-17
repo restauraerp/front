@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { PageHeader } from '@/components/ui/PageHeader';
 import AccountingFilterBar from '@/components/accounting/AccountingFilterBar';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 function LedgersPageContent() {
   const searchParams = useSearchParams();
@@ -167,17 +168,18 @@ function LedgersPageContent() {
       key: 'header',
       label: 'Header',
       render: (row: any) => (
-        <select
-          className="select select-bordered select-xs w-36"
-          value={row.header_id ?? ''}
-          disabled={assigningId === row.id}
-          onChange={e => assignHeader(row.id, e.target.value)}
-        >
-          <option value="">— Unassigned —</option>
-          {headers.map((h: any) => (
-            <option key={h.id} value={h.id}>{h.name}</option>
-          ))}
-        </select>
+        <div className="w-40">
+          <SearchSelect
+            label=""
+            value={row.header_id ?? ''}
+            onChange={(v) => assignHeader(row.id, String(v))}
+            options={headers.map((h: any) => ({ value: h.id, label: h.name }))}
+            placeholder="— Unassigned —"
+            searchPlaceholder="Search headers…"
+            clearable
+            disabled={assigningId === row.id}
+          />
+        </div>
       ),
     },
     {

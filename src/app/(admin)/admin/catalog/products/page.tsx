@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/Input';
 import { MultiImageUpload, ExistingImage } from '@/components/ui/MultiImageUpload';
 import styles from '@/components/ui/ui.module.css';
 import { Star } from 'lucide-react';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<any[]>([]);
@@ -321,15 +322,14 @@ export default function ProductsPage() {
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />
 
-            <div className="form-control w-full">
-              <label className="label"><span className="label-text font-medium">Category</span></label>
-              <select className="select select-bordered w-full" name="category_id" value={formData.category_id} onChange={handleInputChange}>
-                <option value="">Select a category</option>
-                {categories.map((c: any) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
+            <SearchSelect
+              label="Category"
+              value={formData.category_id}
+              onChange={(v) => setFormData(prev => ({ ...prev, category_id: String(v) }))}
+              options={categories.map((c: any) => ({ value: c.id, label: c.name }))}
+              placeholder="Select a category"
+              searchPlaceholder="Search categories…"
+            />
 
             <div className="form-control w-full">
               <label className="label"><span className="label-text font-medium">Type</span></label>
@@ -533,14 +533,16 @@ export default function ProductsPage() {
           </select>
         </div>
 
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Category</span></label>
-          <select className="select select-bordered select-sm" value={filterCategory} onChange={e => { setFilterCategory(e.target.value); setPage(1); }}>
-            <option value="">All Categories</option>
-            {categories.map((c: any) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+        <div className="form-control min-w-[160px]">
+          <SearchSelect
+            label=""
+            value={filterCategory}
+            onChange={(v) => { setFilterCategory(String(v)); setPage(1); }}
+            options={categories.map((c: any) => ({ value: c.id, label: c.name }))}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories…"
+            clearable
+          />
         </div>
 
         <div className="form-control">

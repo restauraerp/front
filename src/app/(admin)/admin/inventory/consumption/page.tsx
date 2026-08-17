@@ -6,6 +6,7 @@ import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function ConsumptionLogPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -202,25 +203,25 @@ export default function ConsumptionLogPage() {
               </div>
 
               <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="form-control w-full">
-                  <label className="label"><span className="label-text font-medium">Inventory Item</span></label>
-                  <select className="select select-bordered w-full" name="inventory_item_id" value={formData.inventory_item_id} onChange={handleChange} required>
-                    <option value="">— Select item —</option>
-                    {items.map((i: any) => (
-                      <option key={i.id} value={i.id}>{i.title} ({i.unit})</option>
-                    ))}
-                  </select>
-                </div>
+                <SearchSelect
+                  label="Inventory Item"
+                  value={formData.inventory_item_id}
+                  onChange={(v) => setFormData(prev => ({ ...prev, inventory_item_id: String(v) }))}
+                  options={items.map((i: any) => ({ value: i.id, label: `${i.title} (${i.unit})` }))}
+                  placeholder="— Select item —"
+                  searchPlaceholder="Search items…"
+                  required
+                />
 
-                <div className="form-control w-full">
-                  <label className="label"><span className="label-text font-medium">Outlet</span></label>
-                  <select className="select select-bordered w-full" name="location_id" value={formData.location_id} onChange={handleChange} required>
-                    <option value="">— Select outlet —</option>
-                    {locations.map((l: any) => (
-                      <option key={l.id} value={l.id}>{l.name}</option>
-                    ))}
-                  </select>
-                </div>
+                <SearchSelect
+                  label="Outlet"
+                  value={formData.location_id}
+                  onChange={(v) => setFormData(prev => ({ ...prev, location_id: String(v) }))}
+                  options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
+                  placeholder="— Select outlet —"
+                  searchPlaceholder="Search outlets…"
+                  required
+                />
 
                 <div className="form-control w-full">
                   <label className="label">
