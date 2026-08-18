@@ -11,6 +11,7 @@ import dynamic from 'next/dynamic';
  * is only safe because there is no server render to disagree with.
  */
 const Walkthrough = dynamic(() => import('@/components/walkthrough/Walkthrough'), { ssr: false });
+import type { TourKind } from '@/lib/walkthrough/tours';
 import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import {
   LayoutDashboard,
@@ -84,6 +85,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
+  // Whether /auth/me has answered. The tour waits on this - see where it is mounted.
+  const [identityLoaded, setIdentityLoaded] = useState(false);
 
   // Close the drawer whenever navigation happens, so links that don't manage
   // the drawer themselves (profile, breadcrumbs, back button) can't leave it
@@ -173,9 +176,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (res?.must_set_password && window.location.pathname !== '/admin/set-password') {
           router.replace('/admin/set-password');
         }
-      }).catch(console.error);
+      }).catch(console.error).finally(() => setIdentityLoaded(true));
     });
   }, [router]);
+
+  /**
+   * Which tour to run, decided here because this is the part that knows who is
+   * signed in.
+   *
+   * A trial gets its own tour, and gets it *after* the demo one rather than
+   * instead of it. They are separate lists with separate progress, so somebody
+   * who walked the demo is still shown around their own restaurant - which is a
+   * different restaurant, empty, and the one they have to actually set up.
+   *
+   * Left undefined for anybody else, and the tour then recognises a demo visit
+   * on its own.
+   */
+  const tourKind: TourKind | undefined =
+    subscription?.is_demo === false && subscription.tenant_status === 'trialing' ? 'trial' : undefined;
 
   // isSuperAdmin is the platform role (tenant_id NULL), held by RestoraERP
   // staff rather than by any restaurant - a restaurant owner is
@@ -309,8 +327,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* The guided tour. Mounted here rather than per page because it walks
             between pages: it has to survive the navigation its own steps cause.
             It renders nothing at all unless this is a demo visit or a trial tour
-            has been asked for, and nothing again once it is dismissed. */}
-        <Walkthrough />
+            has been asked for, and nothing again once it is dismissed.
+
+            Held until /auth/me answers: somebody who came straight from the demo
+            still carries the demo cookie for a moment, and starting them on the
+            demo tour inside their own restaurant is worse than starting a beat
+            late. */}
+        {identityLoaded && <Walkthrough kind={tourKind} />}
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">

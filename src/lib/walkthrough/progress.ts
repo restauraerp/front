@@ -41,18 +41,29 @@ export function reportProgress({ kind, percent, key, seconds }: ProgressReport):
   if (key) body.key = key;
   if (seconds !== undefined) body.seconds = seconds;
 
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+  };
+
   // The demo runs on one shared restaurant, so the tenant says nothing about who
-  // this is - the token from the demo link is the only thing that does. A trial
-  // sends nothing, because core-api reads the restaurant from the session.
+  // this is - the token from the demo link is the only thing that does.
   if (isDemoSession()) {
     const ref = readCookie(LEAD_COOKIE);
     if (ref) body.ref = ref;
+  } else {
+    // A trial is identified by who is signed in, and core-api reads that from
+    // the bearer token rather than from a cookie. Sent by hand rather than
+    // through fetchApi: that helper redirects to /login on a 401, and telemetry
+    // must never be able to throw somebody out of the product they are using.
+    const token = readCookie('token');
+    if (token) headers.Authorization = `Bearer ${token}`;
   }
 
   try {
     void fetch(`${API_BASE_URL}/walkthrough/progress`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      headers,
       credentials: 'include',
       keepalive: true,
       body: JSON.stringify(body),
