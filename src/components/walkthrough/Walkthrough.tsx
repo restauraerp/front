@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { isDemoSession } from '@/lib/demo';
+import { isDemoSession, readLanguage, type Language } from '@/lib/demo';
 import { percentAt, tours, type TourKind, type TourStep } from '@/lib/walkthrough/tours';
 import { readState, reportProgress, writeState } from '@/lib/walkthrough/progress';
 
@@ -61,10 +61,15 @@ type Props = {
    * demo visit, or a trial in its first days - lives with whatever knows it.
    */
   kind?: TourKind;
-  lang?: 'en' | 'bn';
+  /**
+   * Overrides the language. Left unset, the tour reads whatever the marketing
+   * site carried over - which is the language they were actually reading, not a
+   * guess from a browser setting.
+   */
+  lang?: Language;
 };
 
-export default function Walkthrough({ kind, lang = 'en' }: Props) {
+export default function Walkthrough({ kind, lang }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -77,6 +82,8 @@ export default function Walkthrough({ kind, lang = 'en' }: Props) {
   }, [kind]);
 
   const steps = useMemo(() => (resolvedKind ? tours[resolvedKind] : []), [resolvedKind]);
+
+  const language = useMemo(() => lang ?? readLanguage(), [lang]);
 
   // Read straight from storage rather than in a mount effect. The component is
   // loaded client-only (see the dynamic import where it is mounted), so there is
@@ -345,11 +352,11 @@ export default function Walkthrough({ kind, lang = 'en' }: Props) {
         </p>
 
         <h2 id="walkthrough-title" style={{ margin: '6px 0 8px', fontSize: 17, fontWeight: 700, color: '#1A1D1F' }}>
-          {step.title[lang]}
+          {step.title[language]}
         </h2>
 
         <p id="walkthrough-body" style={{ margin: '0 0 16px', fontSize: 14, lineHeight: 1.55, color: '#5B6266' }}>
-          {step.body[lang]}
+          {step.body[language]}
         </p>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -358,23 +365,23 @@ export default function Walkthrough({ kind, lang = 'en' }: Props) {
             onClick={dismiss}
             style={{ ...buttonStyle, background: 'transparent', color: '#5B6266', paddingInline: 0 }}
           >
-            {lang === 'bn' ? 'বন্ধ করুন' : 'Close'}
+            {language === 'bn' ? 'বন্ধ করুন' : 'Close'}
           </button>
 
           <span style={{ flex: 1 }} />
 
           {index > 0 && (
             <button type="button" onClick={back} style={{ ...buttonStyle, background: '#F2F5F4', color: '#1A1D1F' }}>
-              {lang === 'bn' ? 'আগের' : 'Back'}
+              {language === 'bn' ? 'আগের' : 'Back'}
             </button>
           )}
 
           <button type="button" onClick={advance} style={{ ...buttonStyle, background: '#0F6E5C', color: '#fff' }}>
             {index + 1 === total
-              ? lang === 'bn'
+              ? language === 'bn'
                 ? 'শেষ'
                 : 'Done'
-              : lang === 'bn'
+              : language === 'bn'
                 ? 'পরবর্তী'
                 : 'Next'}
           </button>

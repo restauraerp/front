@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { DEMO_COOKIE, DEMO_PARAM, FBC_COOKIE, FBP_COOKIE, LEAD_COOKIE } from '@/lib/demo';
+import { DEMO_COOKIE, DEMO_PARAM, FBC_COOKIE, FBP_COOKIE, LANG_COOKIE, LEAD_COOKIE } from '@/lib/demo';
 import {
   DEV_TRAFFIC_COOKIE,
   DEV_TRAFFIC_HEADER,
@@ -81,6 +81,8 @@ export function proxy(request: NextRequest) {
       ['fbc', FBC_COOKIE],
       // Who this demo visitor is, when they came through verification.
       ['ref', LEAD_COOKIE],
+      // And which language they have been reading in.
+      ['lang', LANG_COOKIE],
     ] as const) {
       const value = request.nextUrl.searchParams.get(param);
 
