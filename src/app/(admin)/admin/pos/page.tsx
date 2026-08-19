@@ -50,6 +50,10 @@ function POS() {
   const [tables, setTables] = useState<any[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  // Who to credit for the sale. Separate from the account running the till,
+  // which is very often shared - see the served_by_user_id migration.
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [servedBy, setServedBy] = useState<number | ''>('');
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -80,8 +84,9 @@ function POS() {
       fetchApi('/discounts'),
       fetchApi('/tax-rules'),
       fetchApi('/locations'),
+      fetchOptional<any>('/users?nopaginate=1', []),
     ])
-      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes]) => {
+      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes]) => {
         setProducts(prodRes.data || prodRes || []);
         const map: Record<string, string> = {};
         (setRes.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -97,6 +102,7 @@ function POS() {
         setTaxRate(rules.filter((r: any) => r.is_active).reduce((sum: number, r: any) => sum + Number(r.percentage || 0), 0));
         const locs = locRes.data || locRes || [];
         setLocations(locs);
+        setEmployees(staffRes?.data || staffRes || []);
 
         let savedLoc = null;
         if (typeof window !== 'undefined') {
@@ -254,6 +260,7 @@ function POS() {
     setCart([]);
     setSelectedTable(null);
     setSelectedCustomer(null);
+    setServedBy('');
     setAppliedDiscount(null);
   };
 
@@ -298,6 +305,7 @@ function POS() {
         delivery_charge: finalDeliveryCharge.toFixed(2),
         total: total.toFixed(2),
         table_id: orderType === 'dine_in' ? selectedTable : null,
+        served_by_user_id: servedBy === '' ? null : servedBy,
         customer_id: selectedCustomer,
         discount_id: appliedDiscount?.id || null,
         delivery_time: deliveryTime || null,
@@ -328,6 +336,10 @@ function POS() {
       setCart([]);
       setSelectedTable(null);
       setSelectedCustomer(null);
+      // Cleared with the rest of the ticket: the next customer is not
+      // necessarily served by the same person, and a sticky value would
+      // quietly credit them anyway.
+      setServedBy('');
       setAppliedDiscount(null);
     } catch {
       alert(editMode ? 'Failed to update order. Please try again.' : 'Failed to place order. Please try again.');
@@ -461,6 +473,27 @@ function POS() {
           {showOrderConfig && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               <OrderTypeSelector value={orderType} onChange={setOrderType} />
+
+              {/* Hidden when there is nobody to choose between: a restaurant
+                  with one staff account has no attribution question to answer,
+                  and an empty picker is just another thing to skip past. */}
+              {employees.length > 1 && (
+                <div>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SERVED BY (OPTIONAL)</p>
+                  <select
+                    className="select select-bordered select-sm w-full"
+                    style={{ fontSize: '0.8rem' }}
+                    value={servedBy}
+                    onChange={(e) => setServedBy(e.target.value === '' ? '' : Number(e.target.value))}
+                    aria-label="Employee who served this order"
+                  >
+                    <option value="">Nobody in particular</option>
+                    {employees.map((employee: any) => (
+                      <option key={employee.id} value={employee.id}>{employee.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {orderType === 'dine_in' && (
                 <div>
                   <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SELECT TABLE</p>
