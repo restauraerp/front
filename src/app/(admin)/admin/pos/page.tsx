@@ -1,6 +1,7 @@
 'use client';
 import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 import { fetchApi, fetchOptional, apiErrorMessage } from '@/lib/api';
 import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
@@ -75,6 +76,16 @@ function POS() {
   const [showOrderConfig, setShowOrderConfig] = useState(true);
 
   const currency = settings.currency_symbol || '৳';
+
+  // Email as the hint: two people called Rahim are otherwise the same row.
+  const employeeOptions = useMemo(
+    () => employees.map((employee: any) => ({
+      value: employee.id,
+      label: employee.name || `Employee #${employee.id}`,
+      hint: employee.email || undefined,
+    })),
+    [employees],
+  );
 
   useEffect(() => {
     Promise.all([
@@ -484,22 +495,23 @@ function POS() {
 
               {/* Hidden when there is nobody to choose between: a restaurant
                   with one staff account has no attribution question to answer,
-                  and an empty picker is just another thing to skip past. */}
+                  and an empty picker is just another thing to skip past.
+
+                  Searchable rather than a plain dropdown - a restaurant with
+                  forty staff cannot be scrolled through mid-service, and two
+                  people called Rahim are told apart by the hint. */}
               {employees.length > 1 && (
                 <div>
                   <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SERVED BY (OPTIONAL)</p>
-                  <select
-                    className="select select-bordered select-sm w-full"
-                    style={{ fontSize: '0.8rem' }}
+                  <SearchSelect
                     value={servedBy}
-                    onChange={(e) => setServedBy(e.target.value === '' ? '' : Number(e.target.value))}
-                    aria-label="Employee who served this order"
-                  >
-                    <option value="">Nobody in particular</option>
-                    {employees.map((employee: any) => (
-                      <option key={employee.id} value={employee.id}>{employee.name}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setServedBy(value === '' ? '' : Number(value))}
+                    options={employeeOptions}
+                    placeholder="Nobody in particular"
+                    searchPlaceholder="Type a name…"
+                    emptyText="No employee matches that search."
+                    clearable
+                  />
                 </div>
               )}
               {/* Only shown once a partner exists, and only for the order types
