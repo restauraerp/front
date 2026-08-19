@@ -88,6 +88,13 @@ export default function OrdersPage() {
 
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
+  // Why this payment looks the way it does - the bKash transaction id, the
+  // card's last four, which guest settled a shared table.
+  const [paymentNote, setPaymentNote] = useState('');
+  // Reconciling the till against a mobile-money statement means looking at one
+  // method at a time.
+  const [completedSort, setCompletedSort] = useState('recent');
+  const [completedMethod, setCompletedMethod] = useState('');
   const [processing, setProcessing] = useState(false);
   const [taxRate, setTaxRate] = useState(0);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -216,6 +223,8 @@ export default function OrdersPage() {
       try {
         const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
         if (activeLocationId) params.set('location_id', String(activeLocationId));
+        if (completedSort === 'payment_method') params.set('sort', 'payment_method');
+        if (completedMethod) params.set('payment_method', completedMethod);
 
         const res = await fetchApi(`/orders?${params.toString()}`);
         if (cancelled) return;
@@ -231,7 +240,7 @@ export default function OrdersPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [activeTab, completedPage, activeLocationId, completedReloadKey]);
+  }, [activeTab, completedPage, activeLocationId, completedReloadKey, completedSort, completedMethod]);
 
   const [trashedReloadKey, setTrashedReloadKey] = useState(0);
 
@@ -455,13 +464,15 @@ export default function OrdersPage() {
       await fetchApi(`/orders/${paymentOrder.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          payment_method: paymentMethod, discount_id: appliedDiscount?.id || null,
+          payment_method: paymentMethod, payment_note: paymentNote || null,
+          discount_id: appliedDiscount?.id || null,
           discount_amount: modalDiscountAmt.toFixed(2), delivery_charge: modalDelivery.toFixed(2),
           tax_amount: modalTax.toFixed(2), total: modalTotal.toFixed(2)
         })
       });
       (document.getElementById('payment_modal') as HTMLDialogElement)?.close();
       setPaymentOrder(null);
+      setPaymentNote('');
       loadOrders();
     } catch {
       alert('Failed to process payment');
@@ -763,7 +774,34 @@ export default function OrdersPage() {
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {activeTab === 'completed' || activeTab === 'due' || activeTab === 'trashed' ? (
+            {activeTab === 'completed' ? (
+              <>
+                {/* Reconciling the till against a bKash or card statement means
+                    looking at one method at a time, and grouping the rest. */}
+                <span className="text-base-content/60">Paid by:</span>
+                <select
+                  className="select select-bordered select-sm"
+                  value={completedMethod}
+                  onChange={e => { setCompletedMethod(e.target.value); setCompletedPage(1); }}
+                  aria-label="Filter by payment method"
+                >
+                  <option value="">Any method</option>
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="mfs">Mobile money</option>
+                  <option value="due">On account</option>
+                </select>
+                <select
+                  className="select select-bordered select-sm"
+                  value={completedSort}
+                  onChange={e => { setCompletedSort(e.target.value); setCompletedPage(1); }}
+                  aria-label="Sort completed orders"
+                >
+                  <option value="recent">Newest first</option>
+                  <option value="payment_method">Group by payment method</option>
+                </select>
+              </>
+            ) : activeTab === 'due' || activeTab === 'trashed' ? (
               <span className="text-base-content/60">Newest first</span>
             ) : (
               <>
@@ -1043,6 +1081,19 @@ export default function OrdersPage() {
               </div>
             </div>
 
+            <div className="form-control w-full mb-4">
+              <label className="label py-1">
+                <span className="label-text text-sm">Reference or note (optional)</span>
+              </label>
+              <input
+                value={paymentNote}
+                onChange={(e) => setPaymentNote(e.target.value)}
+                placeholder={paymentMethod === 'mfs' ? 'e.g. bKash TrxID BKS8891' : paymentMethod === 'card' ? 'e.g. Visa ending 4421' : 'e.g. paid by the host'}
+                className="input input-bordered w-full"
+                aria-label="Payment note"
+              />
+            </div>
+
             <button className="btn btn-primary w-full btn-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" onClick={submitPayment} disabled={processing}>
               {processing ? <span className="loading loading-spinner"></span> : `Confirm ৳${modalTotal.toFixed(2)}`}
             </button>
@@ -1065,6 +1116,9 @@ export default function OrdersPage() {
               <div className="grid grid-cols-2 gap-2 bg-base-200/50 p-3 rounded-lg">
                 <div><span className="opacity-60">Status:</span> <span className="font-semibold capitalize">{detailOrder.status}</span></div>
                 <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : detailOrder.payment_status === 'due' ? 'text-warning' : 'text-error'}`}>{paymentBadge(detailOrder.payment_status).label}</span></div>
+                {detailOrder.payments?.[0]?.note && (
+                  <div className="col-span-2"><span className="opacity-60">Payment note:</span> <span className="font-semibold">{detailOrder.payments[0].note}</span></div>
+                )}
                 {detailOrder.payment_status === 'due' && detailOrder.due_note && (
                   <div className="col-span-2"><span className="opacity-60">On account:</span> <span className="font-semibold">{detailOrder.due_note}</span></div>
                 )}

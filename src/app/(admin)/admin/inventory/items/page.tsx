@@ -29,6 +29,8 @@ export default function InventoryItemsPage() {
     description: '',
     sku: '',
     unit: '',
+    sale_unit: '',
+    sale_units_per_purchase_unit: '1',
     min_stock_level: '',
     current_stock: '',
     cost_per_unit: '',
@@ -81,7 +83,7 @@ export default function InventoryItemsPage() {
 
   const resetForm = (locs: any[] = locations) => {
     setFormData({
-      title: '', description: '', sku: '', unit: '', min_stock_level: '',
+      title: '', description: '', sku: '', unit: '', sale_unit: '', sale_units_per_purchase_unit: '1', min_stock_level: '',
       current_stock: '', cost_per_unit: '', is_sellable: false, selling_price: '',
       locations: locs.map(l => ({ location_id: l.id, quantity: 0, is_active: true })),
     });
@@ -120,6 +122,8 @@ export default function InventoryItemsPage() {
       if (formData.description) fd.append('description', formData.description);
       fd.append('sku', formData.sku);
       fd.append('unit', formData.unit);
+      fd.append('sale_unit', formData.sale_unit || '');
+      fd.append('sale_units_per_purchase_unit', formData.sale_units_per_purchase_unit || '1');
       if (formData.min_stock_level) fd.append('min_stock_level', formData.min_stock_level);
       fd.append('is_sellable', formData.is_sellable ? '1' : '0');
       if (formData.is_sellable && formData.selling_price) fd.append('selling_price', formData.selling_price);
@@ -155,6 +159,7 @@ export default function InventoryItemsPage() {
     setEditingId(row.id);
     setFormData({
       title: row.title || '', description: row.description || '', sku: row.sku || '', unit: row.unit || '',
+      sale_unit: row.sale_unit || '', sale_units_per_purchase_unit: String(row.sale_units_per_purchase_unit ?? '1'),
       min_stock_level: row.min_stock_level || '', current_stock: row.current_stock || '', cost_per_unit: row.cost_per_unit || '',
       is_sellable: Boolean(row.is_sellable), selling_price: row.selling_price ?? '',
       locations: (row.locations || []).map((loc: any) => ({
@@ -201,7 +206,12 @@ export default function InventoryItemsPage() {
     },
     { key: 'title', label: 'Title', render: (row: any) => row.title },
     { key: 'sku', label: 'SKU' },
-    { key: 'unit', label: 'Unit' },
+    {
+      key: 'unit', label: 'Unit',
+      render: (row: { unit?: string; sale_unit?: string | null; sale_units_per_purchase_unit?: string | number }) => row.sale_unit && row.sale_unit !== row.unit
+        ? <span>{row.unit} <span className="text-base-content/50 text-xs">(1 = {row.sale_units_per_purchase_unit} {row.sale_unit})</span></span>
+        : row.unit,
+    },
     { key: 'current_stock', label: 'Global Stock' },
     {
       key: 'is_sellable', label: 'Directly Sellable',
@@ -237,7 +247,39 @@ export default function InventoryItemsPage() {
               />
             </div>
             <Input label="SKU" name="sku" value={formData.sku} onChange={handleInputChange} required />
-            <Input label="Unit (e.g. kg, L)" name="unit" value={formData.unit} onChange={handleInputChange} required />
+            <Input label="Bought in (e.g. sack, drum, kg)" name="unit" value={formData.unit} onChange={handleInputChange} required />
+
+            {/* Stock is counted and valued in the purchase unit above. These two
+                are only for items the kitchen measures differently - rice
+                arrives in 50kg sacks and leaves the store in kilos. Left blank,
+                the item behaves exactly as it always has. */}
+            <Input
+              label="Used in (optional)"
+              name="sale_unit"
+              value={formData.sale_unit}
+              onChange={handleInputChange}
+              placeholder="e.g. kg, litre — leave blank if the same"
+            />
+            {formData.sale_unit && formData.sale_unit !== formData.unit && (
+              <div className="form-control w-full">
+                <label className="label">
+                  <span className="label-text font-medium">
+                    How many {formData.sale_unit} in one {formData.unit || 'purchase unit'}?
+                  </span>
+                </label>
+                <input
+                  type="number" step="0.0001" min="0.0001"
+                  className="input input-bordered w-full"
+                  name="sale_units_per_purchase_unit"
+                  value={formData.sale_units_per_purchase_unit}
+                  onChange={handleInputChange}
+                  aria-label="Units per purchase unit"
+                />
+                <span className="label-text-alt text-base-content/50 mt-1">
+                  Stock stays counted in {formData.unit || 'the purchase unit'}; the kitchen can report in {formData.sale_unit}.
+                </span>
+              </div>
+            )}
             <div className="form-control w-full">
               <label className="label"><span className="label-text font-medium">Cost per unit</span></label>
               <div className="input input-bordered flex items-center justify-between bg-base-200/50">
