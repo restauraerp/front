@@ -15,7 +15,14 @@ export default function LoginForm() {
   // build. The credentials come from the API (GET demo-config, which 404s
   // unless the API has DEMO_MODE on), so nothing demo-related ships in this
   // bundle and rotating the demo password never needs a rebuild here.
-  const demoRequested = useSearchParams().get(DEMO_PARAM) === 'true';
+  const params = useSearchParams();
+  const demoRequested = params.get(DEMO_PARAM) === 'true';
+
+  // Set when the app threw away a session the API had stopped recognising -
+  // most often because the demo restaurant was rebuilt underneath it. Saying so
+  // matters: without it somebody who was signed in a moment ago is dumped at a
+  // login screen for no visible reason and assumes the app is broken.
+  const sessionExpired = params.get('expired') === '1';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -124,6 +131,17 @@ export default function LoginForm() {
             <h1 className="text-2xl font-bold text-base-content">RestoraERP</h1>
             <p className="text-sm text-base-content/50">Staff Portal Login</p>
           </div>
+
+          {sessionExpired && !error && (
+            <div className="alert alert-warning mb-4">
+              <AlertCircle size={16} />
+              <span className="text-sm">
+                {demoRequested
+                  ? 'The demo was rebuilt, so the old sign-in no longer works. The details below are the current ones.'
+                  : 'Your session has expired. Please sign in again.'}
+              </span>
+            </div>
+          )}
 
           {/* Error alert */}
           {error && (
