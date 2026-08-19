@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import RestaurantIdentityCard from '@/components/settings/RestaurantIdentityCard';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
@@ -96,8 +97,15 @@ export default function SettingsPage() {
 
   return (
     <div>
+      {/* The handful of settings that end up on paper in front of a customer,
+          as named fields. Everything else stays in the generic editor below -
+          there are two dozen storefront keys and no reason to hide them. */}
+      <div style={{ marginBottom: '2rem' }}>
+        <RestaurantIdentityCard onSaved={loadData} />
+      </div>
+
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <h1>Website Settings</h1>
+        <h1>All settings</h1>
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);

@@ -3,20 +3,29 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { fetchApi } from '@/lib/api';
+import { usePermissions } from '@/hooks/usePermissions';
 import { Users, CalendarCheck, CalendarOff, Banknote, Shield } from 'lucide-react';
 
 export default function HROverview() {
   const [stats, setStats] = useState({ employees: 0, attendances: 0, leaves: 0, payrolls: 0, roles: 0 });
   const [loading, setLoading] = useState(true);
+  // Starter holds view_hr so it can hire and give a new waiter a login.
+  // Attendance, leave and payroll are what the HR module is sold for and stay
+  // behind the gate; their endpoints answer 403. Gated on `loaded` as well so
+  // the paid cards are never painted and then pulled away.
+  const { loaded, can } = usePermissions();
+  const hasFullHr = loaded && can('manage_payroll');
 
   useEffect(() => {
     async function loadStats() {
       try {
+        // The three gated endpoints are not called without the entitlement:
+        // they would only ever 403, and a console full of them hides real errors.
         const [empRes, attRes, leaveRes, payRes, rolesRes] = await Promise.all([
           fetchApi('/users?per_page=1').catch(() => null),
-          fetchApi('/attendances?per_page=1').catch(() => null),
-          fetchApi('/leaves?per_page=1').catch(() => null),
-          fetchApi('/payrolls?per_page=1').catch(() => null),
+          hasFullHr ? fetchApi('/attendances?per_page=1').catch(() => null) : null,
+          hasFullHr ? fetchApi('/leaves?per_page=1').catch(() => null) : null,
+          hasFullHr ? fetchApi('/payrolls?per_page=1').catch(() => null) : null,
           fetchApi('/roles?per_page=1').catch(() => null)
         ]);
 
@@ -37,12 +46,12 @@ export default function HROverview() {
     }
 
     loadStats();
-  }, []);
+  }, [hasFullHr]);
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-8">Human Resource Management</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <h1 className="text-2xl font-bold mb-8">{hasFullHr ? 'Human Resource Management' : 'Staff'}</h1>
+      <div className={`grid grid-cols-1 gap-6 ${hasFullHr ? 'md:grid-cols-2 lg:grid-cols-4' : 'md:grid-cols-2 max-w-3xl'}`}>
         
         <Card title={<div className="flex items-center gap-2"><Users className="text-primary" size={20} /> Employees</div>}>
           <div className="mb-4">
@@ -56,6 +65,7 @@ export default function HROverview() {
           <Link href="/admin/hr/employees" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Employees &rarr;</Link>
         </Card>
 
+        {hasFullHr && (
         <Card title={<div className="flex items-center gap-2"><CalendarCheck className="text-primary" size={20} /> Attendance</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2 text-sm">Track daily check-ins and check-outs.</p>
@@ -67,7 +77,9 @@ export default function HROverview() {
           </div>
           <Link href="/admin/hr/attendance" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">View Attendance &rarr;</Link>
         </Card>
+        )}
 
+        {hasFullHr && (
         <Card title={<div className="flex items-center gap-2"><CalendarOff className="text-primary" size={20} /> Leaves</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2 text-sm">Manage employee time-off requests.</p>
@@ -79,7 +91,9 @@ export default function HROverview() {
           </div>
           <Link href="/admin/hr/leaves" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Leaves &rarr;</Link>
         </Card>
+        )}
 
+        {hasFullHr && (
         <Card title={<div className="flex items-center gap-2"><Banknote className="text-primary" size={20} /> Payroll</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2 text-sm">Generate and track compensation.</p>
@@ -91,6 +105,7 @@ export default function HROverview() {
           </div>
           <Link href="/admin/hr/payroll" className="text-primary font-medium hover:underline inline-flex items-center gap-1 text-sm">Manage Payroll &rarr;</Link>
         </Card>
+        )}
 
         <Card title={<div className="flex items-center gap-2"><Shield className="text-primary" size={20} /> Roles & Permissions</div>}>
           <div className="mb-4">

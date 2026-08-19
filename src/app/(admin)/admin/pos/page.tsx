@@ -1,6 +1,7 @@
 'use client';
 import React, { Suspense, useEffect, useState, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 import { fetchApi, fetchOptional, apiErrorMessage } from '@/lib/api';
 import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
@@ -50,6 +51,14 @@ function POS() {
   const [tables, setTables] = useState<any[]>([]);
   const [tablesLoading, setTablesLoading] = useState(false);
   const [selectedTable, setSelectedTable] = useState<number | null>(null);
+  // Who to credit for the sale. Separate from the account running the till,
+  // which is very often shared - see the served_by_user_id migration.
+  const [employees, setEmployees] = useState<any[]>([]);
+  const [servedBy, setServedBy] = useState<number | ''>('');
+  // A third party that sent this order in. Their cut is worked out server-side
+  // from their own rate - the till never prices it.
+  const [partners, setPartners] = useState<any[]>([]);
+  const [partnerId, setPartnerId] = useState<number | ''>('');
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -68,6 +77,16 @@ function POS() {
 
   const currency = settings.currency_symbol || '৳';
 
+  // Email as the hint: two people called Rahim are otherwise the same row.
+  const employeeOptions = useMemo(
+    () => employees.map((employee: any) => ({
+      value: employee.id,
+      label: employee.name || `Employee #${employee.id}`,
+      hint: employee.email || undefined,
+    })),
+    [employees],
+  );
+
   useEffect(() => {
     Promise.all([
       fetchApi('/products?nopaginate=1'),
@@ -80,8 +99,10 @@ function POS() {
       fetchApi('/discounts'),
       fetchApi('/tax-rules'),
       fetchApi('/locations'),
+      fetchOptional<any>('/users?nopaginate=1', []),
+      fetchOptional<any>('/partners?nopaginate=1&active_only=1', []),
     ])
-      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes]) => {
+      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes, partnerRes]) => {
         setProducts(prodRes.data || prodRes || []);
         const map: Record<string, string> = {};
         (setRes.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -97,6 +118,8 @@ function POS() {
         setTaxRate(rules.filter((r: any) => r.is_active).reduce((sum: number, r: any) => sum + Number(r.percentage || 0), 0));
         const locs = locRes.data || locRes || [];
         setLocations(locs);
+        setEmployees(staffRes?.data || staffRes || []);
+        setPartners(partnerRes?.data || partnerRes || []);
 
         let savedLoc = null;
         if (typeof window !== 'undefined') {
@@ -254,6 +277,7 @@ function POS() {
     setCart([]);
     setSelectedTable(null);
     setSelectedCustomer(null);
+    setServedBy('');
     setAppliedDiscount(null);
   };
 
@@ -298,6 +322,8 @@ function POS() {
         delivery_charge: finalDeliveryCharge.toFixed(2),
         total: total.toFixed(2),
         table_id: orderType === 'dine_in' ? selectedTable : null,
+        served_by_user_id: servedBy === '' ? null : servedBy,
+        partner_id: partnerId === '' ? null : partnerId,
         customer_id: selectedCustomer,
         discount_id: appliedDiscount?.id || null,
         delivery_time: deliveryTime || null,
@@ -328,6 +354,11 @@ function POS() {
       setCart([]);
       setSelectedTable(null);
       setSelectedCustomer(null);
+      // Cleared with the rest of the ticket: the next customer is not
+      // necessarily served by the same person, and a sticky value would
+      // quietly credit them anyway.
+      setServedBy('');
+      setPartnerId('');
       setAppliedDiscount(null);
     } catch {
       alert(editMode ? 'Failed to update order. Please try again.' : 'Failed to place order. Please try again.');
@@ -344,8 +375,10 @@ function POS() {
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>{editMode ? `Edit Order #${editOrderId}` : 'Point of Sale'}</h1>
 
-          {/* Location Switcher */}
-          {locations.length > 0 && (
+          {/* Location Switcher. Hidden at one outlet - activeLocationId is
+              still set from the list above and still goes out with the order,
+              because orders.location_id is NOT NULL. */}
+          {locations.length > 1 && (
             <select
               value={activeLocationId || ''}
               onChange={(e) => {
@@ -459,6 +492,50 @@ function POS() {
           {showOrderConfig && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
               <OrderTypeSelector value={orderType} onChange={setOrderType} />
+
+              {/* Hidden when there is nobody to choose between: a restaurant
+                  with one staff account has no attribution question to answer,
+                  and an empty picker is just another thing to skip past.
+
+                  Searchable rather than a plain dropdown - a restaurant with
+                  forty staff cannot be scrolled through mid-service, and two
+                  people called Rahim are told apart by the hint. */}
+              {employees.length > 1 && (
+                <div>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SERVED BY (OPTIONAL)</p>
+                  <SearchSelect
+                    value={servedBy}
+                    onChange={(value) => setServedBy(value === '' ? '' : Number(value))}
+                    options={employeeOptions}
+                    placeholder="Nobody in particular"
+                    searchPlaceholder="Type a name…"
+                    emptyText="No employee matches that search."
+                    clearable
+                  />
+                </div>
+              )}
+              {/* Only shown once a partner exists, and only for the order types
+                  an aggregator actually sends. */}
+              {partners.length > 0 && ['delivery', 'takeaway'].includes(orderType) && (
+                <div>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>CAME THROUGH (OPTIONAL)</p>
+                  <select
+                    className="select select-bordered select-sm w-full"
+                    style={{ fontSize: '0.8rem' }}
+                    value={partnerId}
+                    onChange={(e) => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+                    aria-label="Third party that sent this order"
+                  >
+                    <option value="">Direct — not through a partner</option>
+                    {partners.map((partner: any) => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name} ({Number(partner.commission_rate).toFixed(0)}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {orderType === 'dine_in' && (
                 <div>
                   <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SELECT TABLE</p>
