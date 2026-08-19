@@ -189,11 +189,26 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
    * who walked the demo is still shown around their own restaurant - which is a
    * different restaurant, empty, and the one they have to actually set up.
    *
-   * Left undefined for anybody else, and the tour then recognises a demo visit
-   * on its own.
+   * A paying restaurant gets no tour at all, and that is decided here rather
+   * than left to the tour's own demo detection. The detection reads a cookie,
+   * the cookie is cleared a moment later by the effect above, and those two
+   * race - so somebody who demoed and then subscribed in the same browser could
+   * be walked through the demo tour inside the restaurant they pay for. Saying
+   * "no tour" outright cannot race with anything.
+   *
+   * Only when we have no billing state at all does the tour fall back to
+   * recognising a demo visit itself, because a demo visitor is exactly who has
+   * no billing state.
    */
-  const tourKind: TourKind | undefined =
-    subscription?.is_demo === false && subscription.tenant_status === 'trialing' ? 'trial' : undefined;
+  const tour: { show: boolean; kind?: TourKind } = React.useMemo(() => {
+    if (subscription?.is_demo === true) return { show: true, kind: 'demo' };
+
+    if (subscription?.is_demo === false) {
+      return subscription.tenant_status === 'trialing' ? { show: true, kind: 'trial' } : { show: false };
+    }
+
+    return { show: true };
+  }, [subscription]);
 
   // isSuperAdmin is the platform role (tenant_id NULL), held by RestoraERP
   // staff rather than by any restaurant - a restaurant owner is
@@ -333,7 +348,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             still carries the demo cookie for a moment, and starting them on the
             demo tour inside their own restaurant is worse than starting a beat
             late. */}
-        {identityLoaded && <Walkthrough kind={tourKind} />}
+        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} />}
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
