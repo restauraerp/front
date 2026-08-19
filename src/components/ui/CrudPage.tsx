@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, ApiError, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -75,6 +75,9 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [meta, setMeta] = useState<PageMeta | null>(null);
+  // Field-level messages from a refused save, keyed as Laravel returns them.
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Serialised, because a caller building this object inline hands us a new
   // reference on every render - and an object in a dependency array compares
@@ -137,6 +140,9 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldErrors({});
+    setFormError(null);
+
     try {
       if (editingId) {
         await fetchApi(`${endpoint}/${editingId}`, { method: 'PUT', body: JSON.stringify(formData) });
@@ -148,12 +154,24 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
       setFormData({ ...defaultValues });
       loadData();
     } catch (err) {
-      console.error(err);
-      alert('Failed to save record. Check your inputs and try again.');
+      // The API says exactly what is wrong with which field, and this used to
+      // answer every refusal with "Check your inputs and try again." A cashier
+      // told that about a phone number has no way to learn that Bangladeshi
+      // mobiles are eleven digits - so the field's own message goes under the
+      // field, and anything not attached to a field goes above the form.
+      if (err instanceof ApiError && err.status === 422 && err.body?.errors) {
+        setFieldErrors(err.body.errors);
+        setFormError(null);
+      } else {
+        console.error(err);
+        setFormError(apiErrorMessage(err, 'Could not save this record. Please try again.'));
+      }
     }
   };
 
   const handleEdit = (row: any) => {
+    setFieldErrors({});
+    setFormError(null);
     setEditingId(row.id);
     const populated: Record<string, any> = {};
     for (const key of Object.keys(defaultValues)) {
@@ -204,6 +222,8 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
                 setIsFormOpen(!isFormOpen);
                 setEditingId(null);
                 setFormData({ ...defaultValues });
+                setFieldErrors({});
+                setFormError(null);
               }}
               variant={isFormOpen ? 'ghost' : 'neutral'}
               className={
@@ -221,6 +241,12 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
       {isFormOpen && (
         <Card title={editingId ? `Edit Record` : addLabel}>
           <form onSubmit={handleSubmit}>
+            {formError && (
+              <div role="alert" className="alert alert-error mb-4 text-sm">
+                <span>{formError}</span>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {formFields.map(field => (
                 <div key={field.key} className={field.colSpan ? 'sm:col-span-2' : ''}>
@@ -252,7 +278,13 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
                       step={field.step}
                       value={formData[field.key]}
                       onChange={handleChange}
+                      className={fieldErrors[field.key] ? 'input-error' : ''}
+                      aria-invalid={fieldErrors[field.key] ? true : undefined}
                     />
+                  )}
+
+                  {fieldErrors[field.key] && (
+                    <p className="text-error text-sm mt-1">{fieldErrors[field.key].join(' ')}</p>
                   )}
                 </div>
               ))}
