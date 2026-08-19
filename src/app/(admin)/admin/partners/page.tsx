@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { CrudPage } from '@/components/ui/CrudPage';
 import { Card } from '@/components/ui/Card';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
+import { SETTING_KEYS, useSetting, clearBrandingCache } from '@/hooks/useBranding';
 
 interface PartnerRow {
   id: number;
@@ -28,6 +29,32 @@ export default function PartnersPage() {
   const [error, setError] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
 
+  // Each partner's cut is their own - one aggregator takes 25%, the next takes
+  // 18%. This is only what a *new* partner starts at, so a restaurant that has
+  // negotiated the same number with everyone stops retyping it.
+  const { value: defaultCut, loaded: cutLoaded } = useSetting(SETTING_KEYS.partnerDefaultCommission, '25');
+  const [editingCut, setEditingCut] = useState(false);
+  const [cutDraft, setCutDraft] = useState('');
+
+  const saveDefaultCut = async () => {
+    try {
+      const existing = await fetchApi('/website-settings?nopaginate=1');
+      const rows = (existing?.data ?? existing ?? []) as { id: number; key: string }[];
+      const row = rows.find((r) => r.key === SETTING_KEYS.partnerDefaultCommission);
+      const body = JSON.stringify({ key: SETTING_KEYS.partnerDefaultCommission, value: cutDraft, type: 'string' });
+
+      await (row
+        ? fetchApi(`/website-settings/${row.id}`, { method: 'PUT', body })
+        : fetchApi('/website-settings', { method: 'POST', body }));
+
+      clearBrandingCache();
+      setEditingCut(false);
+      setRefresh((n) => n + 1);
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not save the default rate.'));
+    }
+  };
+
   useEffect(() => {
     let active = true;
 
@@ -45,6 +72,10 @@ export default function PartnersPage() {
   }, [refresh]);
 
   const totalOwed = (owed ?? []).reduce((sum, p) => sum + p.outstanding, 0);
+
+  if (!cutLoaded) {
+    return <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>;
+  }
 
   return (
     <div className="space-y-6">
@@ -69,6 +100,39 @@ export default function PartnersPage() {
               ))}
             </div>
           </>
+        )}
+      </Card>
+
+      <Card title="Default cut for a new partner">
+        {editingCut ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              className="input input-bordered input-sm w-28"
+              value={cutDraft}
+              onChange={(e) => setCutDraft(e.target.value)}
+              aria-label="Default commission rate"
+            />
+            <span className="text-sm">%</span>
+            <button className="btn btn-sm btn-primary" onClick={saveDefaultCut}>Save</button>
+            <button className="btn btn-sm btn-ghost" onClick={() => setEditingCut(false)}>Cancel</button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-2xl font-bold text-primary">{Number(defaultCut).toFixed(2)}%</span>
+            <button
+              className="btn btn-sm btn-ghost border border-base-300"
+              onClick={() => { setCutDraft(defaultCut); setEditingCut(true); }}
+            >
+              Change
+            </button>
+            <span className="text-sm text-base-content/60">
+              Only the starting value — each partner keeps its own rate.
+            </span>
+          </div>
         )}
       </Card>
 
@@ -112,9 +176,7 @@ export default function PartnersPage() {
         ]}
         defaultValues={{
           name: '',
-          // What the aggregators in this market ask for, and what the
-          // restaurant asked us to default to.
-          commission_rate: '25',
+          commission_rate: defaultCut,
           contact_name: '',
           phone: '',
           email: '',

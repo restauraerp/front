@@ -13,6 +13,16 @@ import { fetchApi } from '@/lib/api';
  * printing "RESTORA ERP", "123 Restaurant Street" and a placeholder phone
  * number onto real customers' receipts while the till printed the truth.
  */
+/**
+ * Settings that are not branding but live in the same key/value table.
+ *
+ * Read through the same cache, so asking for one costs no extra request.
+ */
+export const SETTING_KEYS = {
+  /** Starting commission for a new delivery partner. */
+  partnerDefaultCommission: 'partner_default_commission_rate',
+} as const;
+
 export const BRANDING_KEYS = {
   name: 'site_name',
   address: 'address',
@@ -49,6 +59,17 @@ const FALLBACK: Omit<Branding, 'loaded'> = {
 
 let cached: Promise<Record<string, string>> | null = null;
 
+/**
+ * Components currently reading these settings.
+ *
+ * Emptying the cache is not enough on its own: a hook that has already
+ * resolved will not look again, so a restaurant that renamed itself kept
+ * printing the old name until the tab was reloaded - exactly what clearing the
+ * cache was supposed to prevent. Clearing now tells everyone reading to look
+ * again.
+ */
+const listeners = new Set<() => void>();
+
 function loadSettings(): Promise<Record<string, string>> {
   cached ??= fetchApi('/website-settings?nopaginate=1')
     .then((res) => {
@@ -63,13 +84,24 @@ function loadSettings(): Promise<Record<string, string>> {
   return cached;
 }
 
-/** Forget the cached settings - call after saving them. */
+/** Forget the cached settings and re-read them wherever they are on screen. */
 export function clearBrandingCache(): void {
   cached = null;
+  listeners.forEach((notify) => notify());
 }
 
 export function useBranding(): Branding {
   const [settings, setSettings] = useState<Record<string, string> | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const notify = () => setVersion((n) => n + 1);
+    listeners.add(notify);
+
+    return () => {
+      listeners.delete(notify);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -81,7 +113,7 @@ export function useBranding(): Branding {
     return () => {
       active = false;
     };
-  }, []);
+  }, [version]);
 
   if (settings === null) {
     return { ...FALLBACK, loaded: false };
@@ -102,4 +134,44 @@ export function useBranding(): Branding {
     receiptFooter: read(BRANDING_KEYS.receiptFooter),
     loaded: true,
   };
+}
+
+/**
+ * One arbitrary setting, with a fallback for when it has never been set.
+ *
+ * Shares the cache `useBranding` fills, so a screen reading both makes one
+ * request rather than two.
+ */
+export function useSetting(key: string, fallback: string): { value: string; loaded: boolean } {
+  const [settings, setSettings] = useState<Record<string, string> | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const notify = () => setVersion((n) => n + 1);
+    listeners.add(notify);
+
+    return () => {
+      listeners.delete(notify);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    loadSettings().then((value) => {
+      if (active) setSettings(value);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [version]);
+
+  if (settings === null) {
+    return { value: fallback, loaded: false };
+  }
+
+  const stored = (settings[key] ?? '').trim();
+
+  return { value: stored === '' ? fallback : stored, loaded: true };
 }
