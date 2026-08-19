@@ -1,12 +1,15 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import React, { useEffect, useRef, useState } from 'react';
+import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { AlertTriangle, Trash2, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+
+interface StockItem { id: number; title: string; unit: string }
+interface Outlet { id: number; name: string }
 
 export default function ConsumptionLogPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -18,13 +21,32 @@ export default function ConsumptionLogPage() {
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [formData, setFormData] = useState({
-    inventory_item_id: '',
+  /**
+   * Several items written off in one submission.
+   *
+   * A cook closing the kitchen writes off eight things at once, and doing that
+   * one form at a time - pick outlet, pick date, save, reopen - is how a
+   * restaurant stops bothering and the stock figures drift.
+   *
+   * The outlet and the date are shared across the rows on purpose: they are
+   * properties of the moment, not of each item, and asking eight times is the
+   * repetition this exists to remove.
+   */
+  // A counter rather than Math.random: keys only have to be unique within this
+  // list, and calling a random source while rendering is impure - React's lint
+  // rejects it, and rightly, since a re-render would produce different keys.
+  const nextRowKey = useRef(0);
+  const emptyRow = () => ({ key: String(nextRowKey.current++), inventory_item_id: '', quantity: '', reason: '' });
+
+  const [sharedFields, setSharedFields] = useState({
     location_id: '',
-    quantity: '',
-    reason: '',
     consumed_at: new Date().toISOString().slice(0, 10),
   });
+  const [rows, setRows] = useState<ReturnType<typeof emptyRow>[]>(() => [{ key: '0', inventory_item_id: '', quantity: '', reason: '' }]);
+
+  // Admins can correct a log after the fact; the API adjusts the stock it moved.
+  const [editing, setEditing] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ quantity: '', reason: '' });
 
   const [activeTab, setActiveTab] = useState<'history' | 'trashed'>('history');
   const [isAdmin, setIsAdmin] = useState(false);
@@ -76,25 +98,54 @@ export default function ConsumptionLogPage() {
     } catch (err) { console.error(err); } finally { setTrashedLoading(false); }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const entries = rows
+      .filter(row => row.inventory_item_id && row.quantity)
+      .map(row => ({
+        inventory_item_id: row.inventory_item_id,
+        location_id: sharedFields.location_id,
+        consumed_at: sharedFields.consumed_at,
+        quantity: row.quantity,
+        reason: row.reason || null,
+      }));
+
+    if (entries.length === 0) {
+      alert('Add at least one item with a quantity.');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      await fetchApi('/consumption-logs', {
+      // One request, one transaction. Eight rows that half-saved would leave
+      // stock wrong in a way nobody could see.
+      await fetchApi('/consumption-logs/batch', {
         method: 'POST',
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ entries }),
       });
       setIsFormOpen(false);
-      setFormData({ inventory_item_id: '', location_id: '', quantity: '', reason: '', consumed_at: new Date().toISOString().slice(0, 10) });
+      setRows([emptyRow()]);
       loadLogs();
     } catch (err) {
-      console.error(err);
-      alert('Failed to log consumption.');
+      alert(apiErrorMessage(err, 'Could not report this consumption.'));
+    } finally { setSubmitting(false); }
+  };
+
+  const submitEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editing) return;
+
+    setSubmitting(true);
+    try {
+      await fetchApi(`/consumption-logs/${editing.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ quantity: editForm.quantity, reason: editForm.reason || null }),
+      });
+      setEditing(null);
+      loadLogs();
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not update this log.'));
     } finally { setSubmitting(false); }
   };
 
@@ -124,8 +175,6 @@ export default function ConsumptionLogPage() {
     } finally { setConfirmProcessing(false); }
   };
 
-  const selectedItem = items.find((i: any) => String(i.id) === formData.inventory_item_id);
-
   const columns = [
     { key: 'consumed_at', label: 'Date', render: (row: any) => row.consumed_at?.slice(0, 10) || '—' },
     { key: 'item', label: 'Item', render: (row: any) => row.inventory_item?.title || '—' },
@@ -135,6 +184,19 @@ export default function ConsumptionLogPage() {
       render: (row: any) => `${row.quantity} ${row.inventory_item?.unit || ''}`,
     },
     { key: 'reason', label: 'Reason', render: (row: any) => row.reason || <span className="text-base-content/40">—</span> },
+    {
+      // A corrected figure has to say so. The whole reason editing is admin-only
+      // is that this number moved stock; a silent change is one nobody can
+      // reconcile against when the count does not match.
+      key: 'edited_at', label: 'Corrected',
+      render: (row: any) => row.edited_at
+        ? (
+          <span className="text-xs text-warning" title={`Was ${row.original_quantity}`}>
+            {row.edited_at.slice(0, 10)} by {row.edited_by_user?.name || 'an admin'}
+          </span>
+        )
+        : <span className="text-base-content/40">—</span>,
+    },
   ];
 
   const trashedColumns = [
@@ -202,58 +264,91 @@ export default function ConsumptionLogPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <SearchSelect
-                  label="Inventory Item"
-                  value={formData.inventory_item_id}
-                  onChange={(v) => setFormData(prev => ({ ...prev, inventory_item_id: String(v) }))}
-                  options={items.map((i: any) => ({ value: i.id, label: `${i.title} (${i.unit})` }))}
-                  placeholder="— Select item —"
-                  searchPlaceholder="Search items…"
-                  required
-                />
-
-                <SearchSelect
-                  label="Outlet"
-                  value={formData.location_id}
-                  onChange={(v) => setFormData(prev => ({ ...prev, location_id: String(v) }))}
-                  options={locations.map((l: any) => ({ value: l.id, label: l.name }))}
-                  placeholder="— Select outlet —"
-                  searchPlaceholder="Search outlets…"
-                  required
-                />
-
-                <div className="form-control w-full">
-                  <label className="label">
-                    <span className="label-text font-medium">Quantity</span>
-                    {selectedItem && <span className="label-text-alt text-base-content/50">in {selectedItem.unit}</span>}
-                  </label>
-                  <input
-                    type="number" step="0.001" min="0.001"
-                    className="input input-bordered w-full"
-                    name="quantity" value={formData.quantity} onChange={handleChange} required
+              <form onSubmit={handleSubmit}>
+                {/* Shared across the rows: the outlet and the date are
+                    properties of the moment, not of each item, and asking for
+                    them once per row is the repetition this removes. */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                  <SearchSelect
+                    label="Outlet"
+                    value={sharedFields.location_id}
+                    onChange={(v) => setSharedFields(prev => ({ ...prev, location_id: String(v) }))}
+                    options={(locations as Outlet[]).map((l) => ({ value: l.id, label: l.name }))}
+                    placeholder="— Select outlet —"
+                    searchPlaceholder="Search outlets…"
+                    required
+                  />
+                  <Input
+                    label="Date of Consumption"
+                    name="consumed_at" type="date"
+                    value={sharedFields.consumed_at}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSharedFields(prev => ({ ...prev, consumed_at: e.target.value }))}
                   />
                 </div>
 
-                <Input
-                  label="Date of Consumption"
-                  name="consumed_at" type="date"
-                  value={formData.consumed_at} onChange={handleChange}
-                />
+                <div className="space-y-3">
+                  {rows.map((row, index) => {
+                    const item = (items as StockItem[]).find((i) => String(i.id) === row.inventory_item_id);
 
-                <div className="form-control w-full sm:col-span-2">
-                  <label className="label"><span className="label-text font-medium">Reason <span className="font-normal text-base-content/50">(optional)</span></span></label>
-                  <textarea
-                    className="textarea textarea-bordered w-full"
-                    name="reason" rows={2}
-                    value={formData.reason} onChange={handleChange}
-                    placeholder="Staff meal, tasting, spillage, cleaning…"
-                  />
+                    return (
+                      <div key={row.key} className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end p-3 rounded-xl bg-base-200/40">
+                        <div className="sm:col-span-5">
+                          <SearchSelect
+                            label={index === 0 ? 'Item' : undefined}
+                            value={row.inventory_item_id}
+                            onChange={(v) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, inventory_item_id: String(v) } : r))}
+                            options={(items as StockItem[]).map((i) => ({ value: i.id, label: `${i.title} (${i.unit})` }))}
+                            placeholder="— Select item —"
+                            searchPlaceholder="Search items…"
+                          />
+                        </div>
+
+                        <div className="sm:col-span-2">
+                          <label className="label py-1">
+                            <span className="label-text text-xs">{index === 0 ? 'Quantity' : ''}</span>
+                            {item && <span className="label-text-alt text-base-content/50">{item.unit}</span>}
+                          </label>
+                          <input
+                            type="number" step="0.001" min="0.001"
+                            className="input input-bordered input-sm w-full"
+                            value={row.quantity}
+                            onChange={(e) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, quantity: e.target.value } : r))}
+                            aria-label={`Quantity for row ${index + 1}`}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-4">
+                          <label className="label py-1"><span className="label-text text-xs">{index === 0 ? 'Reason' : ''}</span></label>
+                          <input
+                            className="input input-bordered input-sm w-full"
+                            value={row.reason}
+                            onChange={(e) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, reason: e.target.value } : r))}
+                            placeholder="Staff meal, spillage…"
+                            aria-label={`Reason for row ${index + 1}`}
+                          />
+                        </div>
+
+                        <div className="sm:col-span-1 flex justify-end">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-ghost text-error"
+                            onClick={() => setRows(prev => prev.length === 1 ? [emptyRow()] : prev.filter(r => r.key !== row.key))}
+                            aria-label={`Remove row ${index + 1}`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
 
-                <div className="sm:col-span-2 flex gap-3">
+                <div className="flex flex-wrap gap-3 mt-4">
+                  <Button type="button" variant="ghost" onClick={() => setRows(prev => [...prev, emptyRow()])} className="border border-base-300 gap-2">
+                    <Plus size={14} /> Add another item
+                  </Button>
                   <Button type="submit" variant="primary" disabled={submitting}>
-                    {submitting ? 'Logging…' : 'Log & Deduct Stock'}
+                    {submitting ? 'Reporting…' : `Report ${rows.filter(r => r.inventory_item_id && r.quantity).length || ''} & Deduct Stock`}
                   </Button>
                   <Button type="button" variant="secondary" onClick={() => setIsFormOpen(false)} disabled={submitting}>Cancel</Button>
                 </div>
@@ -284,6 +379,15 @@ export default function ConsumptionLogPage() {
                               <div className="flex justify-end gap-1">
                                 {isAdmin && (
                                   <button
+                                    className="btn btn-xs btn-ghost text-info hover:bg-info/10"
+                                    title="Correct this log"
+                                    onClick={() => { setEditing(row); setEditForm({ quantity: String(row.quantity ?? ''), reason: row.reason ?? '' }); }}
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                )}
+                                {isAdmin && (
+                                  <button
                                     className="btn btn-xs btn-ghost text-error hover:bg-error/10"
                                     title="Trash"
                                     onClick={() => setConfirmModal({ type: 'trash', log: row })}
@@ -304,6 +408,60 @@ export default function ConsumptionLogPage() {
             }
           </Card>
         </>
+      )}
+
+      {editing && (
+        <dialog className="modal modal-open">
+          <div className="modal-box max-w-md">
+            <h3 className="font-bold text-lg mb-1">Correct this log</h3>
+            <p className="text-sm text-base-content/60 mb-4">
+              {editing.inventory_item?.title} at {editing.location?.name} on {editing.consumed_at?.slice(0, 10)}
+            </p>
+
+            <div className="bg-warning/10 border border-warning/30 rounded-lg px-4 py-3 flex items-start gap-2 mb-4">
+              <AlertTriangle size={16} className="text-warning mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-base-content/80">
+                Changing the quantity moves stock again — the difference is added back or taken off.
+                The correction is recorded against your name.
+              </p>
+            </div>
+
+            <form onSubmit={submitEdit}>
+              <div className="form-control w-full mb-3">
+                <label className="label"><span className="label-text font-medium">Quantity</span>
+                  <span className="label-text-alt text-base-content/50">{editing.inventory_item?.unit}</span>
+                </label>
+                <input
+                  type="number" step="0.001" min="0.001"
+                  className="input input-bordered w-full"
+                  value={editForm.quantity}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, quantity: e.target.value }))}
+                  aria-label="Corrected quantity"
+                  required
+                />
+              </div>
+
+              <div className="form-control w-full mb-4">
+                <label className="label"><span className="label-text font-medium">Reason</span></label>
+                <input
+                  className="input input-bordered w-full"
+                  value={editForm.reason}
+                  onChange={(e) => setEditForm(prev => ({ ...prev, reason: e.target.value }))}
+                  placeholder="Staff meal, spillage…"
+                  aria-label="Corrected reason"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button type="submit" variant="primary" disabled={submitting}>
+                  {submitting ? 'Saving…' : 'Save correction'}
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setEditing(null)} disabled={submitting}>Cancel</Button>
+              </div>
+            </form>
+          </div>
+          <div className="modal-backdrop" onClick={() => setEditing(null)} />
+        </dialog>
       )}
 
       {activeTab === 'trashed' && isAdmin && (
