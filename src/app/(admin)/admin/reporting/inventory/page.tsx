@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Info } from 'lucide-react';
+import { Info, Search } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { useReport, useReportFilters } from '@/hooks/useReport';
@@ -20,6 +20,7 @@ interface InventoryRow {
   quantity: number;
   total_value: number;
   is_low: boolean;
+  image_url: string | null;
 }
 
 interface InventoryReport {
@@ -38,10 +39,38 @@ export default function InventoryReportPage() {
     { location_id: branch },
   );
 
-  const rows = React.useMemo(() => data?.data ?? [], [data]);
+  const [search, setSearch] = React.useState('');
+
+  const allRows = React.useMemo(() => data?.data ?? [], [data]);
+
+  // Filtered here rather than on the server: the report already returns every
+  // item a restaurant stocks in one response, so a round trip per keystroke
+  // would buy nothing and cost the wait.
+  const rows = React.useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return allRows;
+
+    return allRows.filter((row) =>
+      (row.name ?? '').toLowerCase().includes(term)
+      || (row.sku ?? '').toLowerCase().includes(term)
+      || (row.unit ?? '').toLowerCase().includes(term));
+  }, [allRows, search]);
+
   const pager = useTablePagination(rows, 10);
 
   const columns = [
+    {
+      key: 'image_url',
+      label: '',
+      render: (row: InventoryRow) => (
+        <div className="w-9 h-9 rounded overflow-hidden bg-base-200 flex items-center justify-center shrink-0">
+          {row.image_url
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={`/storage/${row.image_url}`} alt="" className="w-full h-full object-cover" />
+            : <span className="text-[10px] font-bold text-base-content/30">{(row.name || '?').substring(0, 2).toUpperCase()}</span>}
+        </div>
+      ),
+    },
     { key: 'name', label: 'Item Name' },
     { key: 'sku', label: 'SKU' },
     { key: 'unit', label: 'Unit' },
@@ -97,7 +126,24 @@ export default function InventoryReportPage() {
       </div>
 
       <Card title="Inventory Stock Report (Low Stock First)">
-        {rows.length === 0 ? (
+        <div className="relative flex items-center w-full sm:w-72 mb-4">
+          <Search size={16} className="absolute left-3 text-base-content/40 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search by name, SKU or unit…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="input input-bordered input-sm w-full pl-9"
+            aria-label="Search inventory"
+          />
+        </div>
+
+        {allRows.length > 0 && rows.length === 0 ? (
+          <ReportEmpty
+            title="Nothing matches that search"
+            hint="Try part of an item name, its SKU, or the unit it is counted in."
+          />
+        ) : rows.length === 0 ? (
           <ReportEmpty
             title="No inventory items"
             hint="Add items under Inventory to see stock levels here."
@@ -106,6 +152,11 @@ export default function InventoryReportPage() {
           <>
             <Table columns={columns} data={pager.pageRows} onEdit={undefined} onDelete={undefined} />
             <ReportPager {...pager} noun="items" onPrev={pager.prev} onNext={pager.next} />
+            {search.trim() !== '' && (
+              <p className="text-sm text-base-content/60 mt-2">
+                Showing {rows.length} of {allRows.length} items
+              </p>
+            )}
           </>
         )}
       </Card>
