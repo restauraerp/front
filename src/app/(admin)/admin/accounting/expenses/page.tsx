@@ -2,9 +2,17 @@
 import { useEffect, useState } from 'react';
 import { CrudPage } from '@/components/ui/CrudPage';
 import { fetchApi } from '@/lib/api';
+import { useLocations } from '@/hooks/useLocations';
 import { sendGTMEvent } from '@next/third-parties/google';
 
 export default function ExpensesPage() {
+  // At one outlet "Generic (All Branches)" and the branch itself are the same
+  // place, so the field is dropped - but the expense is still attributed to
+  // that outlet rather than left generic. Attributed is the recoverable
+  // choice: if a second branch opens later, the existing spend already sits
+  // where it happened instead of in an unassignable pile.
+  const { single, only, loaded: outletsLoaded } = useLocations();
+
   const [locations, setLocations] = useState<{value: string, label: string}[]>([
     { value: '', label: 'Generic (All Branches)' }
   ]);
@@ -34,10 +42,17 @@ export default function ExpensesPage() {
     }).catch(console.error);
   }, []);
 
+  // CrudPage reads defaultValues once into useState, so the outlet has to be
+  // known before it mounts - arriving a moment later would leave location_id
+  // empty and quietly file every expense as generic.
+  if (!outletsLoaded) {
+    return <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>;
+  }
+
   return (
     <CrudPage
       title="Expenses"
-      subtitle="Log and track operational expenses across your branches."
+      subtitle={single ? "Log and track operational expenses." : "Log and track operational expenses across your branches."}
       endpoint="/expenses"
       addLabel="+ Log Expense"
       tableColumns={[
@@ -73,11 +88,16 @@ export default function ExpensesPage() {
       ]}
       formFields={[
         { key: 'header_id', label: 'Accounting Header', options: headers },
-        { key: 'location_id', label: 'Branch / Location', options: locations },
+        ...(single ? [] : [{ key: 'location_id', label: 'Branch / Location', options: locations }]),
         { key: 'category', label: 'Category (e.g. Utility, Maintenance)' },
         { key: 'amount', label: 'Amount', type: 'number', step: '0.01' },
       ]}
-      defaultValues={{ header_id: '', location_id: '', category: '', amount: '' }}
+      defaultValues={{
+        header_id: '',
+        location_id: single && only ? String(only.id) : '',
+        category: '',
+        amount: '',
+      }}
     />
   );
 }

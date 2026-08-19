@@ -1,10 +1,33 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import DiscountInput from '../pos/components/DiscountInput';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
+
+/** The fields the row actions read off an order. */
+interface OrderRow {
+  id: number;
+  total?: string | number;
+  payment_status?: string | null;
+  amount_outstanding?: number;
+  customer?: { phone?: string | null } | null;
+}
+
+/**
+ * How a payment state reads on screen.
+ *
+ * Three states, not two: "due" is money the restaurant agreed to collect later
+ * and is chasing, which is a different thing from "unpaid" - a customer who has
+ * not settled up yet and is still standing there. Showing both as red "Unpaid"
+ * loses exactly the distinction the Due tab exists to make.
+ */
+const paymentBadge = (status?: string | null): { className: string; label: string } => {
+  if (status === 'paid') return { className: 'badge-success text-white', label: 'Paid' };
+  if (status === 'due') return { className: 'badge-warning', label: 'Due' };
+  return { className: 'badge-error text-white', label: 'Unpaid' };
+};
 
 const statusConfig: Record<string, { badge: string; label: string }> = {
   pending: { badge: 'badge-warning', label: 'Pending' },
@@ -71,6 +94,15 @@ export default function OrdersPage() {
   const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
 
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
+  // Owed money. Server-paginated like Completed rather than filtered from the
+  // active list, because due orders are deliberately no longer in it - see
+  // Order::scopeActive() in core-api.
+  const [dueOrders, setDueOrders] = useState<any[]>([]);
+  const [dueLoading, setDueLoading] = useState(true);
+  const [duePage, setDuePage] = useState(1);
+  const [dueTotal, setDueTotal] = useState(0);
+  const [dueTotalPages, setDueTotalPages] = useState(1);
+  const [dueReloadKey, setDueReloadKey] = useState(0);
   const [completedPage, setCompletedPage] = useState(1);
   const [completedTotalPages, setCompletedTotalPages] = useState(1);
   const [completedTotal, setCompletedTotal] = useState(0);
@@ -84,6 +116,8 @@ export default function OrdersPage() {
 
   // Detail modal state
   const [detailOrder, setDetailOrder] = useState<any>(null);
+  // Which order is having its link minted, so the button can show progress.
+  const [sharingId, setSharingId] = useState<number | null>(null);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -146,6 +180,32 @@ export default function OrdersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab !== 'due') return;
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ due_only: '1', page: String(duePage) });
+        if (activeLocationId) params.set('location_id', String(activeLocationId));
+
+        const res = await fetchApi(`/orders?${params.toString()}`);
+        if (cancelled) return;
+
+        setDueOrders(res.data || []);
+        setDueTotalPages(res.last_page || 1);
+        setDueTotal(res.total ?? 0);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setDueLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeTab, duePage, activeLocationId, dueReloadKey]);
 
   useEffect(() => {
     if (activeTab !== 'completed') return;
@@ -248,6 +308,93 @@ export default function OrdersPage() {
       await fetchApi(`/orders/${order.id}`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
       loadOrders();
     } catch { alert('Failed to update order status'); }
+  };
+
+  /**
+   * Sends the customer their invoice over WhatsApp.
+   *
+   * The API mints a signed, expiring link to a public invoice page - no file is
+   * generated and nothing is stored. A phone on the order preselects the chat;
+   * without one WhatsApp asks the sender who to send it to, which is the right
+   * fallback for a walk-in whose number was never taken.
+   */
+  /**
+   * Puts an order on account. The note is where the arrangement goes - a room
+   * number, a company account, who authorised it - and the API insists on both
+   * it and a customer, because a debt nobody is named on cannot be collected.
+   */
+  const handleMarkDue = async (order: OrderRow) => {
+    const note = prompt(
+      `Put order #${order.id} on account?\n\nWhat is it owed against? (room number, company account, who agreed to it)`,
+    );
+
+    if (note === null) return;
+
+    try {
+      await fetchApi(`/orders/${order.id}/due`, {
+        method: 'POST',
+        body: JSON.stringify({ due_note: note }),
+      });
+      setDetailOrder(null);
+      loadOrders();
+      setDueReloadKey(k => k + 1);
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not put this order on account.'));
+    }
+  };
+
+  /** Records money collected against a due order, in part or in full. */
+  const handleSettle = async (order: OrderRow) => {
+    const outstanding = Number(order.amount_outstanding ?? order.total ?? 0);
+    const amount = prompt(
+      `Settle order #${order.id}\n\n৳${outstanding.toFixed(2)} outstanding. How much is being paid now?`,
+      outstanding.toFixed(2),
+    );
+
+    if (amount === null) return;
+
+    const method = prompt('Paid by? (cash, card, bkash, nagad…)', 'cash');
+    if (method === null) return;
+
+    const note = prompt('Reference or note (optional) — transaction id, who paid', '') ?? '';
+
+    try {
+      await fetchApi(`/orders/${order.id}/settle`, {
+        method: 'POST',
+        body: JSON.stringify({ amount, method, note: note || null }),
+      });
+      setDetailOrder(null);
+      setDueReloadKey(k => k + 1);
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not record this payment.'));
+    }
+  };
+
+  const handleShareInvoice = async (order: OrderRow) => {
+    setSharingId(order.id);
+    try {
+      const res = await fetchApi(`/orders/${order.id}/invoice-link`, { method: 'POST' });
+
+      const total = Number(order.total || 0).toLocaleString('en-BD', { minimumFractionDigits: 2 });
+      const message =
+        `Here is your invoice for order #${order.id} — ৳${total}.\n${res.url}`;
+
+      // From the API, not from the row: wa.me will not resolve a national-form
+      // number, and rows written before phone canonicalisation still hold one.
+      // An order with no customer sends no number at all, and WhatsApp asks the
+      // sender who to send it to - the right fallback for a walk-in.
+      const phone = res.customer_phone ?? '';
+
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        '_blank',
+        'noopener,noreferrer',
+      );
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not create a share link for this invoice.'));
+    } finally {
+      setSharingId(null);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -391,8 +538,8 @@ export default function OrdersPage() {
           </div>
           <div className="flex flex-col items-end gap-1">
             <span className={`badge ${s.badge} badge-sm font-bold shadow-sm`}>{s.label}</span>
-            <span className={`badge ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'} badge-sm font-bold shadow-sm`}>
-              {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+            <span className={`badge ${paymentBadge(order.payment_status).className} badge-sm font-bold shadow-sm`}>
+              {paymentBadge(order.payment_status).label}
             </span>
           </div>
         </div>
@@ -505,6 +652,7 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = useMemo(() => {
+    if (activeTab === 'due') return dueOrders;
     if (activeTab === 'completed') return completedOrders;
     if (activeTab === 'trashed') return trashedOrders;
 
@@ -529,7 +677,7 @@ export default function OrdersPage() {
       });
     }
     return current;
-  }, [orders, completedOrders, trashedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
+  }, [orders, completedOrders, dueOrders, trashedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
   const tabLabels: Record<string, string> = {
     active_orders: 'Active Orders',
@@ -537,6 +685,7 @@ export default function OrdersPage() {
     takeaway: 'Takeaway',
     delivery: 'Delivery',
     catering: 'Catering',
+    due: 'Due',
     completed: 'Completed',
     ...(isAdmin ? { trashed: 'Trashed' } : {}),
   };
@@ -579,7 +728,7 @@ export default function OrdersPage() {
         </div>
         <button
           className="btn btn-ghost btn-sm gap-2 self-start md:self-auto"
-          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : activeTab === 'trashed' ? setTrashedReloadKey(k => k + 1) : loadOrders())}
+          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : activeTab === 'due' ? setDueReloadKey(k => k + 1) : activeTab === 'trashed' ? setTrashedReloadKey(k => k + 1) : loadOrders())}
         >
           <RefreshCw size={14} /> Refresh
         </button>
@@ -606,12 +755,15 @@ export default function OrdersPage() {
             {activeTab === 'completed' && completedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({completedTotal.toLocaleString()})</span>
             )}
+            {activeTab === 'due' && dueTotal > 0 && (
+              <span className="ml-2 text-sm font-normal text-base-content/50">({dueTotal.toLocaleString()})</span>
+            )}
             {activeTab === 'trashed' && trashedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({trashedTotal.toLocaleString()})</span>
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
-            {activeTab === 'completed' || activeTab === 'trashed' ? (
+            {activeTab === 'completed' || activeTab === 'due' || activeTab === 'trashed' ? (
               <span className="text-base-content/60">Newest first</span>
             ) : (
               <>
@@ -632,7 +784,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {(activeTab === 'completed' ? completedLoading : activeTab === 'trashed' ? trashedLoading : loading) ? (
+        {(activeTab === 'completed' ? completedLoading : activeTab === 'due' ? dueLoading : activeTab === 'trashed' ? trashedLoading : loading) ? (
           <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-16 text-base-content/40 bg-base-200/50 rounded-xl border border-dashed border-base-300">
@@ -640,6 +792,8 @@ export default function OrdersPage() {
             <p>
               {activeTab === 'completed'
                 ? 'No completed orders yet.'
+                : activeTab === 'due'
+                ? 'Nothing is owed. Orders put on account appear here until they are settled.'
                 : activeTab === 'trashed'
                 ? 'No trashed orders.'
                 : `No active ${tabLabels[activeTab]?.toLowerCase() || activeTab} orders.`}
@@ -660,7 +814,7 @@ export default function OrdersPage() {
                   <thead>
                     <tr>
                       <th>Order Info</th>
-                      {['active_orders', 'completed', 'trashed'].includes(activeTab) && <th>Type</th>}
+                      {['active_orders', 'completed', 'due', 'trashed'].includes(activeTab) && <th>Type</th>}
                       {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
                       <th>Items</th>
                       <th>Total</th>
@@ -678,7 +832,7 @@ export default function OrdersPage() {
                             <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                             {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
                           </td>
-                          {['active_orders', 'completed', 'trashed'].includes(activeTab) && (
+                          {['active_orders', 'completed', 'due', 'trashed'].includes(activeTab) && (
                             <td className="font-medium text-base-content/80">{tabLabels[order.order_type] || order.order_type?.replace('_', ' ')}</td>
                           )}
                           {['delivery', 'catering'].includes(activeTab) && (
@@ -713,8 +867,8 @@ export default function OrdersPage() {
                           <td>
                             <div className="flex flex-col gap-1">
                               <span className={`badge badge-sm ${s.badge}`}>{s.label}</span>
-                              <span className={`badge badge-sm ${order.payment_status === 'paid' ? 'badge-success text-white' : 'badge-error text-white'}`}>
-                                {order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}
+                              <span className={`badge badge-sm ${paymentBadge(order.payment_status).className}`}>
+                                {paymentBadge(order.payment_status).label}
                               </span>
                             </div>
                           </td>
@@ -795,6 +949,26 @@ export default function OrdersPage() {
                       className="join-item btn btn-sm"
                       onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
                       disabled={completedPage === completedTotalPages || completedLoading}
+                    >»</button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'due' && dueTotalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <div className="join">
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setDuePage(p => Math.max(1, p - 1))}
+                      disabled={duePage === 1 || dueLoading}
+                    >«</button>
+                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                      Page {duePage} of {dueTotalPages}
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setDuePage(p => Math.min(dueTotalPages, p + 1))}
+                      disabled={duePage === dueTotalPages || dueLoading}
                     >»</button>
                   </div>
                 </div>
@@ -890,7 +1064,10 @@ export default function OrdersPage() {
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2 bg-base-200/50 p-3 rounded-lg">
                 <div><span className="opacity-60">Status:</span> <span className="font-semibold capitalize">{detailOrder.status}</span></div>
-                <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : 'text-error'}`}>{detailOrder.payment_status}</span></div>
+                <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : detailOrder.payment_status === 'due' ? 'text-warning' : 'text-error'}`}>{paymentBadge(detailOrder.payment_status).label}</span></div>
+                {detailOrder.payment_status === 'due' && detailOrder.due_note && (
+                  <div className="col-span-2"><span className="opacity-60">On account:</span> <span className="font-semibold">{detailOrder.due_note}</span></div>
+                )}
                 <div><span className="opacity-60">Type:</span> <span className="font-semibold">{tabLabels[detailOrder.order_type] || detailOrder.order_type?.replace('_', ' ')}</span></div>
                 <div><span className="opacity-60">Customer:</span> <span className="font-semibold">{detailOrder.customer?.name || 'Walk-in'}</span></div>
                 {detailOrder.table && <div><span className="opacity-60">Table:</span> <span className="font-semibold">{detailOrder.table.name}</span></div>}
@@ -928,6 +1105,33 @@ export default function OrdersPage() {
                 </button>
                 <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/receipt/${detailOrder.id}`, '_blank')}>
                   <Printer size={14} /> Receipt
+                </button>
+                {detailOrder.payment_status === 'due' ? (
+                  <button
+                    className="btn btn-sm btn-ghost flex-1 gap-1 text-warning"
+                    onClick={() => handleSettle(detailOrder)}
+                    title="Record money collected against this order"
+                  >
+                    <Banknote size={14} /> Settle
+                  </button>
+                ) : detailOrder.payment_status !== 'paid' ? (
+                  <button
+                    className="btn btn-sm btn-ghost flex-1 gap-1 text-warning"
+                    onClick={() => handleMarkDue(detailOrder)}
+                    title="Let this order leave unpaid, to be collected later"
+                  >
+                    <Clock size={14} /> On account
+                  </button>
+                ) : null}
+                <button
+                  className="btn btn-sm btn-ghost flex-1 gap-1 text-success"
+                  onClick={() => handleShareInvoice(detailOrder)}
+                  disabled={sharingId === detailOrder.id}
+                  title="Send this invoice to the customer on WhatsApp"
+                >
+                  {sharingId === detailOrder.id
+                    ? <span className="loading loading-spinner loading-xs" />
+                    : <Share2 size={14} />} Share
                 </button>
               </div>
             </div>

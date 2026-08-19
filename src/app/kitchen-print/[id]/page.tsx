@@ -2,11 +2,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function KitchenPrintPage() {
   const params = useParams();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const branding = useBranding();
 
   useEffect(() => {
     if (params.id) {
@@ -29,6 +31,9 @@ export default function KitchenPrintPage() {
   return (
     <div id="kot" style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }}>
       <div style={{ textAlign: 'center', marginBottom: '20px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+        {branding.name && (
+          <p style={{ fontSize: '0.9rem', margin: '0 0 4px 0', fontWeight: 'bold' }}>{branding.name.toUpperCase()}</p>
+        )}
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>KITCHEN ORDER TICKET</h1>
         <h2 style={{ fontSize: '1.2rem', fontWeight: 'bold', margin: '0' }}>{order.order_type.replace('_', ' ').toUpperCase()}</h2>
       </div>
@@ -37,6 +42,12 @@ export default function KitchenPrintPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <span>Order #: {order.id}</span>
           <span>{new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        </div>
+        {/* The date, which this slip never carried. A ticket pulled off the
+            spike the next morning, or kept for a dispute, said only that it
+            was placed at 7:42 - with no way to tell which day. */}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', fontSize: '0.85rem', fontWeight: 'normal' }}>
+          <span>{new Date(order.created_at).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })}</span>
         </div>
         {order.table && (
           <div style={{ marginTop: '5px' }}>

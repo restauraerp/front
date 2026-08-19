@@ -1,32 +1,23 @@
 'use client';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import { MapPin, Calendar } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
 import { RANGE_OPTIONS } from '@/lib/reportRange';
-
-interface Branch {
-  id: number;
-  name: string;
-}
+import { useLocations } from '@/hooks/useLocations';
 
 export default function ReportFilterBar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
-  
-  const [locations, setLocations] = useState<Branch[]>([]);
-  
+
+  // With one outlet the only choices are "All Branches" and that branch, which
+  // are the same report. The control is dropped rather than disabled: a greyed
+  // dropdown still asks the reader to work out that it does not matter.
+  const { locations, single } = useLocations();
+
   const selectedBranch = searchParams.get('branch') || 'all';
   const filterRange = searchParams.get('range') || 'this_week';
   const customDateFrom = searchParams.get('from') || '';
   const customDateTo = searchParams.get('to') || '';
-
-  useEffect(() => {
-    fetchApi('/locations?nopaginate=true').then(res => {
-      setLocations(res.data || res || []);
-    }).catch(console.error);
-  }, []);
 
   const updateParams = (updates: Record<string, string>) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -39,19 +30,21 @@ export default function ReportFilterBar() {
 
   return (
     <div className="flex flex-wrap items-center gap-1 bg-base-100 p-1.5 rounded-2xl shadow-sm border border-base-200">
-      <div className="flex items-center gap-2 px-3 border-r border-base-200">
-        <MapPin size={16} className="text-base-content/50" />
-        <select 
-          className="select select-sm select-ghost font-medium focus:bg-transparent px-0 pr-6" 
-          value={selectedBranch} 
-          onChange={(e) => updateParams({ branch: e.target.value })}
-        >
-          <option value="all">All Branches</option>
-          {locations.map((loc) => (
-            <option key={loc.id} value={loc.id}>{loc.name}</option>
-          ))}
-        </select>
-      </div>
+      {!single && (
+        <div className="flex items-center gap-2 px-3 border-r border-base-200">
+          <MapPin size={16} className="text-base-content/50" />
+          <select
+            className="select select-sm select-ghost font-medium focus:bg-transparent px-0 pr-6"
+            value={selectedBranch}
+            onChange={(e) => updateParams({ branch: e.target.value })}
+          >
+            <option value="all">All Branches</option>
+            {locations.map((loc) => (
+              <option key={loc.id} value={loc.id}>{loc.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="flex items-center gap-2 px-3">
         <Calendar size={16} className="text-base-content/50" />

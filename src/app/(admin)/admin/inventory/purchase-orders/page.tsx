@@ -313,17 +313,22 @@ export default function PurchaseOrdersPage() {
               disabled={submitting}
             />
 
-            <SearchSelect
-              label="Outlet receiving the delivery"
-              required
-              value={formData.location_id}
-              onChange={(value) => setFormData(prev => ({ ...prev, location_id: value as number }))}
-              options={locationOptions}
-              placeholder="Select an outlet"
-              searchPlaceholder="Search outlets…"
-              emptyText="No outlet matches that search."
-              disabled={submitting}
-            />
+            {/* One outlet means one possible answer, and resetForm has
+                already filled it in - asking is busywork. The field returns by
+                itself when a second outlet is opened. */}
+            {locations.length > 1 && (
+              <SearchSelect
+                label="Outlet receiving the delivery"
+                required
+                value={formData.location_id}
+                onChange={(value) => setFormData(prev => ({ ...prev, location_id: value as number }))}
+                options={locationOptions}
+                placeholder="Select an outlet"
+                searchPlaceholder="Search outlets…"
+                emptyText="No outlet matches that search."
+                disabled={submitting}
+              />
+            )}
 
             <div className="form-control w-full sm:col-span-2">
               <label className="label"><span className="label-text font-medium">Items</span></label>

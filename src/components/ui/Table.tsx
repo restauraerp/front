@@ -16,7 +16,7 @@ const getStatusBadge = (status: any) => {
   return <span className="badge badge-ghost px-3 py-1 h-auto rounded-full">{status}</span>;
 };
 
-export const Table = ({ columns, data, onEdit, onDelete, rowClassName }: any) => {
+export const Table = ({ columns, data, onEdit, onDelete, rowClassName, onRowClick }: any) => {
   return (
     <div className="overflow-x-auto w-full">
       <table className={`table w-full ${rowClassName ? '' : 'table-zebra'}`}>
@@ -41,7 +41,11 @@ export const Table = ({ columns, data, onEdit, onDelete, rowClassName }: any) =>
             </tr>
           ) : (
             data.map((row: any, index: number) => (
-              <tr key={row.id || `row-${index}`} className={`hover ${rowClassName ? rowClassName(row) : ''}`}>
+              <tr
+                key={row.id || `row-${index}`}
+                className={`hover ${onRowClick ? 'cursor-pointer' : ''} ${rowClassName ? rowClassName(row) : ''}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
                 {columns.map((col: any) => (
                   <td key={col.key} className="text-sm">
                     {col.render 
@@ -54,7 +58,7 @@ export const Table = ({ columns, data, onEdit, onDelete, rowClassName }: any) =>
                   </td>
                 ))}
                 {(onEdit || onDelete) && (
-                  <td>
+                  <td onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2">
                       {onEdit && (
                         <button
