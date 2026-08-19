@@ -1,9 +1,9 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import DiscountInput from '../pos/components/DiscountInput';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 
 const statusConfig: Record<string, { badge: string; label: string }> = {
@@ -84,6 +84,8 @@ export default function OrdersPage() {
 
   // Detail modal state
   const [detailOrder, setDetailOrder] = useState<any>(null);
+  // Which order is having its link minted, so the button can show progress.
+  const [sharingId, setSharingId] = useState<number | null>(null);
 
   // Confirmation modal state
   const [confirmModal, setConfirmModal] = useState<{
@@ -248,6 +250,41 @@ export default function OrdersPage() {
       await fetchApi(`/orders/${order.id}`, { method: 'PUT', body: JSON.stringify({ status: newStatus }) });
       loadOrders();
     } catch { alert('Failed to update order status'); }
+  };
+
+  /**
+   * Sends the customer their invoice over WhatsApp.
+   *
+   * The API mints a signed, expiring link to a public invoice page - no file is
+   * generated and nothing is stored. A phone on the order preselects the chat;
+   * without one WhatsApp asks the sender who to send it to, which is the right
+   * fallback for a walk-in whose number was never taken.
+   */
+  const handleShareInvoice = async (order: any) => {
+    setSharingId(order.id);
+    try {
+      const res = await fetchApi(`/orders/${order.id}/invoice-link`, { method: 'POST' });
+
+      const total = Number(order.total || 0).toLocaleString('en-BD', { minimumFractionDigits: 2 });
+      const message =
+        `Here is your invoice for order #${order.id} — ৳${total}.\n${res.url}`;
+
+      // From the API, not from the row: wa.me will not resolve a national-form
+      // number, and rows written before phone canonicalisation still hold one.
+      // An order with no customer sends no number at all, and WhatsApp asks the
+      // sender who to send it to - the right fallback for a walk-in.
+      const phone = res.customer_phone ?? '';
+
+      window.open(
+        `https://wa.me/${phone}?text=${encodeURIComponent(message)}`,
+        '_blank',
+        'noopener,noreferrer',
+      );
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not create a share link for this invoice.'));
+    } finally {
+      setSharingId(null);
+    }
   };
 
   const handleDelete = async (id: number) => {
@@ -928,6 +965,16 @@ export default function OrdersPage() {
                 </button>
                 <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/receipt/${detailOrder.id}`, '_blank')}>
                   <Printer size={14} /> Receipt
+                </button>
+                <button
+                  className="btn btn-sm btn-ghost flex-1 gap-1 text-success"
+                  onClick={() => handleShareInvoice(detailOrder)}
+                  disabled={sharingId === detailOrder.id}
+                  title="Send this invoice to the customer on WhatsApp"
+                >
+                  {sharingId === detailOrder.id
+                    ? <span className="loading loading-spinner loading-xs" />
+                    : <Share2 size={14} />} Share
                 </button>
               </div>
             </div>
