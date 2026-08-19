@@ -8,8 +8,12 @@ import { Input } from '@/components/ui/Input';
 import { AlertTriangle, Pencil, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
-interface StockItem { id: number; title: string; unit: string }
+interface StockItem { id: number; title: string; unit: string; sale_unit?: string | null; sale_units_per_purchase_unit?: string | number }
 interface Outlet { id: number; name: string }
+
+/** An item bought in one unit and used in another - see the sale_unit migration. */
+const hasTwoUnits = (item?: StockItem) =>
+  !!item?.sale_unit && item.sale_unit !== item.unit;
 
 export default function ConsumptionLogPage() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -36,13 +40,13 @@ export default function ConsumptionLogPage() {
   // list, and calling a random source while rendering is impure - React's lint
   // rejects it, and rightly, since a re-render would produce different keys.
   const nextRowKey = useRef(0);
-  const emptyRow = () => ({ key: String(nextRowKey.current++), inventory_item_id: '', quantity: '', reason: '' });
+  const emptyRow = () => ({ key: String(nextRowKey.current++), inventory_item_id: '', quantity: '', reason: '', entry_unit: 'purchase' });
 
   const [sharedFields, setSharedFields] = useState({
     location_id: '',
     consumed_at: new Date().toISOString().slice(0, 10),
   });
-  const [rows, setRows] = useState<ReturnType<typeof emptyRow>[]>(() => [{ key: '0', inventory_item_id: '', quantity: '', reason: '' }]);
+  const [rows, setRows] = useState<ReturnType<typeof emptyRow>[]>(() => [{ key: '0', inventory_item_id: '', quantity: '', reason: '', entry_unit: 'purchase' }]);
 
   // Admins can correct a log after the fact; the API adjusts the stock it moved.
   const [editing, setEditing] = useState<any>(null);
@@ -108,6 +112,7 @@ export default function ConsumptionLogPage() {
         location_id: sharedFields.location_id,
         consumed_at: sharedFields.consumed_at,
         quantity: row.quantity,
+        entry_unit: row.entry_unit,
         reason: row.reason || null,
       }));
 
@@ -181,7 +186,20 @@ export default function ConsumptionLogPage() {
     { key: 'location', label: 'Outlet', render: (row: any) => row.location?.name || '—' },
     {
       key: 'quantity', label: 'Quantity',
-      render: (row: any) => `${row.quantity} ${row.inventory_item?.unit || ''}`,
+      render: (row: any) => {
+        const unit = row.entry_unit === 'sale' && row.inventory_item?.sale_unit
+          ? row.inventory_item.sale_unit
+          : row.inventory_item?.unit || '';
+
+        return (
+          <span>
+            {row.quantity} {unit}
+            {row.entry_unit === 'sale' && row.stock_quantity && (
+              <span className="text-base-content/50 text-xs"> ({row.stock_quantity} {row.inventory_item?.unit})</span>
+            )}
+          </span>
+        );
+      },
     },
     { key: 'reason', label: 'Reason', render: (row: any) => row.reason || <span className="text-base-content/40">—</span> },
     {
@@ -306,15 +324,31 @@ export default function ConsumptionLogPage() {
                         <div className="sm:col-span-2">
                           <label className="label py-1">
                             <span className="label-text text-xs">{index === 0 ? 'Quantity' : ''}</span>
-                            {item && <span className="label-text-alt text-base-content/50">{item.unit}</span>}
+                            {item && !hasTwoUnits(item) && <span className="label-text-alt text-base-content/50">{item.unit}</span>}
                           </label>
-                          <input
-                            type="number" step="0.001" min="0.001"
-                            className="input input-bordered input-sm w-full"
-                            value={row.quantity}
-                            onChange={(e) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, quantity: e.target.value } : r))}
-                            aria-label={`Quantity for row ${index + 1}`}
-                          />
+                          <div className="flex gap-1">
+                            <input
+                              type="number" step="0.001" min="0.001"
+                              className="input input-bordered input-sm w-full"
+                              value={row.quantity}
+                              onChange={(e) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, quantity: e.target.value } : r))}
+                              aria-label={`Quantity for row ${index + 1}`}
+                            />
+                            {/* Only for items counted in one unit and used in
+                                another - rice bought by the sack, cooked by the
+                                kilo. Everything else has one answer. */}
+                            {item && hasTwoUnits(item) && (
+                              <select
+                                className="select select-bordered select-sm"
+                                value={row.entry_unit}
+                                onChange={(e) => setRows(prev => prev.map(r => r.key === row.key ? { ...r, entry_unit: e.target.value } : r))}
+                                aria-label={`Unit for row ${index + 1}`}
+                              >
+                                <option value="purchase">{item.unit}</option>
+                                <option value="sale">{item.sale_unit}</option>
+                              </select>
+                            )}
+                          </div>
                         </div>
 
                         <div className="sm:col-span-4">
