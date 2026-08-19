@@ -2,36 +2,52 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { useBranding } from '@/hooks/useBranding';
 
 export default function ReceiptPage() {
   const params = useParams();
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const branding = useBranding();
 
   useEffect(() => {
-    if (params.id) {
-      fetchApi(`/orders/${params.id}`)
-        .then(res => {
-          setOrder(res.data || res);
-          // Wait for render then print
-          setTimeout(() => {
+    // Printing waits for the restaurant's name as well as the order. Firing at
+    // a fixed 500ms raced the settings request and could put a nameless header
+    // on paper, which is not something you can take back once it has printed.
+    if (!params.id || !branding.loaded) return;
+
+    let printed = false;
+
+    fetchApi(`/orders/${params.id}`)
+      .then(res => {
+        setOrder(res.data || res);
+        setTimeout(() => {
+          if (!printed) {
+            printed = true;
             window.print();
-          }, 500);
-        })
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    }
-  }, [params.id]);
+          }
+        }, 300);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+
+    return () => { printed = true; };
+  }, [params.id, branding.loaded]);
 
   if (loading) return <div className="p-10 text-center font-mono">Loading receipt...</div>;
   if (!order) return <div className="p-10 text-center font-mono">Order not found.</div>;
 
   return (
     <div id="receipt" style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }}>
+      {/* The restaurant's own name, address and phone, from Settings. This was
+          hardcoded to "RESTORA ERP", "123 Restaurant Street" and a made-up
+          phone number, and every customer of every restaurant was handed it. */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>RESTORA ERP</h1>
-        <p style={{ margin: '0', fontSize: '0.85rem' }}>123 Restaurant Street</p>
-        <p style={{ margin: '0', fontSize: '0.85rem' }}>Phone: +880 1234-567890</p>
+        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>
+          {(branding.name || 'Receipt').toUpperCase()}
+        </h1>
+        {branding.address && <p style={{ margin: '0', fontSize: '0.85rem' }}>{branding.address}</p>}
+        {branding.phone && <p style={{ margin: '0', fontSize: '0.85rem' }}>{branding.phone}</p>}
       </div>
 
       <div style={{ borderBottom: '1px dashed #000', paddingBottom: '10px', marginBottom: '10px', fontSize: '0.85rem' }}>
@@ -62,7 +78,7 @@ export default function ReceiptPage() {
                 {item.notes && <div style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>* {item.notes}</div>}
               </td>
               <td style={{ textAlign: 'center', padding: '5px 0' }}>{item.quantity}</td>
-              <td style={{ textAlign: 'right', padding: '5px 0' }}>৳{(item.price * item.quantity).toFixed(2)}</td>
+              <td style={{ textAlign: 'right', padding: '5px 0' }}>{branding.currency}{(item.price * item.quantity).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
@@ -71,27 +87,27 @@ export default function ReceiptPage() {
       <div style={{ borderTop: '1px dashed #000', paddingTop: '10px', fontSize: '0.85rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
           <span>Subtotal</span>
-          <span>৳{order.subtotal}</span>
+          <span>{branding.currency}{order.subtotal}</span>
         </div>
         {order.discount_amount > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
             <span>Discount</span>
-            <span>-৳{order.discount_amount}</span>
+            <span>-{branding.currency}{order.discount_amount}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
           <span>Tax</span>
-          <span>৳{order.tax_amount}</span>
+          <span>{branding.currency}{order.tax_amount}</span>
         </div>
         {order.delivery_charge > 0 && (
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
             <span>Delivery</span>
-            <span>৳{order.delivery_charge}</span>
+            <span>{branding.currency}{order.delivery_charge}</span>
           </div>
         )}
         <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 'bold', fontSize: '1rem', marginTop: '10px', borderTop: '1px solid #000', paddingTop: '5px' }}>
           <span>TOTAL</span>
-          <span>৳{order.total}</span>
+          <span>{branding.currency}{order.total}</span>
         </div>
       </div>
 
@@ -102,8 +118,7 @@ export default function ReceiptPage() {
       )}
 
       <div style={{ textAlign: 'center', marginTop: '30px', fontSize: '0.85rem' }}>
-        <p style={{ margin: '0' }}>Thank you for your visit!</p>
-        <p style={{ margin: '0', fontSize: '0.75rem', marginTop: '5px' }}>Powered by RestoraERP</p>
+        <p style={{ margin: '0' }}>{branding.receiptFooter || 'Thank you for your visit!'}</p>
       </div>
 
       {/* CSS to optimize for thermal printers */}
