@@ -344,8 +344,10 @@ function POS() {
         <div className="flex items-center gap-4 mb-3 flex-wrap">
           <h1 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, whiteSpace: 'nowrap' }}>{editMode ? `Edit Order #${editOrderId}` : 'Point of Sale'}</h1>
 
-          {/* Location Switcher */}
-          {locations.length > 0 && (
+          {/* Location Switcher. Hidden at one outlet - activeLocationId is
+              still set from the list above and still goes out with the order,
+              because orders.location_id is NOT NULL. */}
+          {locations.length > 1 && (
             <select
               value={activeLocationId || ''}
               onChange={(e) => {

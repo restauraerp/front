@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { fetchApi, ApiError } from '@/lib/api';
+import { fetchApi, apiErrorMessage, ApiError } from '@/lib/api';
+import { clearLocationCache } from '@/hooks/useLocations';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -114,6 +115,9 @@ export default function LocationsPage() {
       setVideos(null);
       setExistingMedia(null);
       setFormData({ name: '', type: 'head_office', address: '', map_url: '', phone: '', email: '', is_active: 1 });
+      // Opening a second outlet has to bring back every picker that hid itself
+      // while there was only one, without waiting for a reload.
+      clearLocationCache();
       loadData();
     } catch (err: any) {
       console.error(err);
@@ -153,14 +157,25 @@ export default function LocationsPage() {
   };
 
   const handleDelete = async (row: any) => {
-    if (confirm(`Are you sure you want to delete ${row.name}?`)) {
-      try {
-        await fetchApi(`/locations/${row.id}`, { method: 'DELETE' });
-        loadData();
-      } catch (err) {
-        console.error(err);
-        alert('Failed to delete location');
-      }
+    // Says what deleting an outlet actually does. The old wording - "are you
+    // sure you want to delete X?" - was asked of an action that hard-deletes
+    // every order rung through that outlet, and their payments with them.
+    const warning =
+      `Delete ${row.name}?\n\n` +
+      'This removes the outlet and everything recorded against it. If it has ever taken an order, ' +
+      'switch it off instead - that stops staff selling from it and keeps its history.';
+
+    if (!confirm(warning)) return;
+
+    try {
+      await fetchApi(`/locations/${row.id}`, { method: 'DELETE' });
+      clearLocationCache();
+      loadData();
+    } catch (err) {
+      // The API refuses with the reason and the order count. Showing "Failed
+      // to delete location" instead left the owner to guess, and guessing at a
+      // refusal usually means trying again harder.
+      alert(apiErrorMessage(err, 'Could not delete this outlet. Please try again.'));
     }
   };
 
