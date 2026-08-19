@@ -7,7 +7,7 @@ import {
   ShoppingBag, Trash2, Plus, Minus, CreditCard, RefreshCw,
   Search, MessageSquare, Pause, Play, ChevronDown, ChevronUp,
   ChefHat, Package
-} from 'lucide-react';
+, Tag } from 'lucide-react';
 import OrderTypeSelector from './components/OrderTypeSelector';
 import TableSelector from './components/TableSelector';
 import CustomerPicker from './components/CustomerPicker';
@@ -17,9 +17,14 @@ import { isSellable } from '@/lib/product';
 
 interface CartItem {
   id: number; name: string; price: string; qty: number; notes: string;
+  discountType?: DiscountKind;
+  discountValue?: string;
   needs_cooking?: boolean;
   images?: { url: string; is_featured?: boolean }[];
 }
+/** Mirrors DiscountCalculator on the server - see App\Support\Sales. */
+type DiscountKind = 'flat' | 'percent';
+
 interface HeldOrder { id: number; items: CartItem[]; orderType: string; tableId: number | null; customerId: number | null; }
 
 export default function POSPage() {
@@ -73,6 +78,11 @@ function POS() {
   const [searchQuery, setSearchQuery] = useState('');
   const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
   const [editingNotes, setEditingNotes] = useState<number | null>(null);
+  const [editingDiscount, setEditingDiscount] = useState<number | null>(null);
+  // A reduction on the whole bill, on top of any coupon.
+  const [orderDiscountType, setOrderDiscountType] = useState<DiscountKind>('percent');
+  const [orderDiscountValue, setOrderDiscountValue] = useState('');
+  const [orderDiscountReason, setOrderDiscountReason] = useState('');
   const [showOrderConfig, setShowOrderConfig] = useState(true);
 
   const currency = settings.currency_symbol || '৳';
@@ -258,12 +268,32 @@ function POS() {
     setCart(prev => prev.map(item => item.id === id ? { ...item, notes } : item));
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + parseFloat(item.price || '0') * item.qty, 0);
-  const discountAmount = appliedDiscount
-    ? (appliedDiscount.discount_type === 'percentage'
-      ? subtotal * (parseFloat(appliedDiscount.value || '0') / 100)
-      : parseFloat(appliedDiscount.value || '0'))
+  /**
+   * The same arithmetic DiscountCalculator does on the server, so the cart
+   * shows the number the bill will. The server still decides - what it stores
+   * is computed from the lines, and anything posted here is overwritten - but
+   * a till that quotes one total and charges another is its own problem.
+   */
+  const reduce = (type: string | undefined | null, value: string | number | undefined | null, base: number) => {
+    const amount = parseFloat(String(value ?? '0'));
+    if (!(amount > 0) || base <= 0) return 0;
+    const off = (type === 'percent' || type === 'percentage') ? base * amount / 100 : amount;
+    return Math.min(off, base);
+  };
+
+  const lineGross = (item: CartItem) => parseFloat(item.price || '0') * item.qty;
+  const lineDiscount = (item: CartItem) => reduce(item.discountType, item.discountValue, lineGross(item));
+
+  const subtotal = cart.reduce((sum, item) => sum + lineGross(item), 0);
+  const itemDiscount = cart.reduce((sum, item) => sum + lineDiscount(item), 0);
+
+  const afterItems = subtotal - itemDiscount;
+  const couponDiscount = appliedDiscount
+    ? reduce(appliedDiscount.discount_type, appliedDiscount.value, afterItems)
     : 0;
+
+  const orderDiscount = reduce(orderDiscountType, orderDiscountValue, afterItems - couponDiscount);
+  const discountAmount = itemDiscount + couponDiscount + orderDiscount;
   const afterDiscount = subtotal - discountAmount;
   const tax = Number((afterDiscount * (taxRate / 100)).toFixed(2));
   const finalDeliveryCharge = orderType === 'delivery' ? deliveryCharge : 0;
@@ -279,6 +309,8 @@ function POS() {
     setSelectedCustomer(null);
     setServedBy('');
     setAppliedDiscount(null);
+    setOrderDiscountValue('');
+    setOrderDiscountReason('');
   };
 
   const recallOrder = (id: number) => {
@@ -330,8 +362,13 @@ function POS() {
         delivery_address: deliveryAddress || null,
         latitude: latitude ? parseFloat(latitude) : null,
         longitude: longitude ? parseFloat(longitude) : null,
+        discount_type: orderDiscountValue ? orderDiscountType : null,
+        discount_value: orderDiscountValue || null,
+        discount_reason: orderDiscountReason || null,
         items: cart.map(item => ({
           product_id: item.id, qty: item.qty, price: item.price, notes: item.notes || null,
+          discount_type: item.discountValue ? item.discountType : null,
+          discount_value: item.discountValue || null,
         })),
       };
 
@@ -360,6 +397,8 @@ function POS() {
       setServedBy('');
       setPartnerId('');
       setAppliedDiscount(null);
+      setOrderDiscountValue('');
+      setOrderDiscountReason('');
     } catch {
       alert(editMode ? 'Failed to update order. Please try again.' : 'Failed to place order. Please try again.');
     } finally {
@@ -667,6 +706,13 @@ function POS() {
                           <button onClick={() => updateQty(item.id, 1)} style={{ width: '24px', height: '24px', borderRadius: '6px', border: '1px solid #e5e7eb', background: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={11} /></button>
                         </div>
                         <span style={{ fontSize: '0.82rem', fontWeight: 600, width: '55px', textAlign: 'right' }}>{currency}{(parseFloat(item.price) * item.qty).toFixed(0)}</span>
+                        <button
+                          onClick={() => setEditingDiscount(editingDiscount === item.id ? null : item.id)}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.discountValue ? '#16a34a' : '#d1d5db', padding: '2px' }}
+                          title="Discount this item"
+                        >
+                          <Tag size={13} />
+                        </button>
                         <button onClick={() => setEditingNotes(editingNotes === item.id ? null : item.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: item.notes ? '#6366f1' : '#d1d5db', padding: '2px' }}>
                           <MessageSquare size={13} />
                         </button>
@@ -687,6 +733,35 @@ function POS() {
                           autoFocus
                         />
                       )}
+                      {editingDiscount === item.id && (
+                        <div style={{ display: 'flex', gap: '0.3rem', marginTop: '0.3rem', alignItems: 'center' }}>
+                          <select
+                            value={item.discountType || 'percent'}
+                            onChange={e => setCart(prev => prev.map(c => c.id === item.id ? { ...c, discountType: e.target.value as DiscountKind } : c))}
+                            style={{ padding: '0.25rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.7rem' }}
+                            aria-label={`Discount type for ${item.name}`}
+                          >
+                            <option value="percent">%</option>
+                            <option value="flat">{currency}</option>
+                          </select>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={item.discountValue || ''}
+                            onChange={e => setCart(prev => prev.map(c => c.id === item.id ? { ...c, discountValue: e.target.value } : c))}
+                            placeholder="Amount off"
+                            style={{ flex: 1, padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.7rem', outline: 'none' }}
+                            aria-label={`Discount for ${item.name}`}
+                            autoFocus
+                          />
+                        </div>
+                      )}
+                      {lineDiscount(item) > 0 && editingDiscount !== item.id && (
+                        <p style={{ fontSize: '0.65rem', color: '#16a34a', margin: '0.15rem 0 0' }}>
+                          -{currency}{lineDiscount(item).toFixed(2)} off this item
+                        </p>
+                      )}
                       {item.notes && editingNotes !== item.id && (
                         <p style={{ fontSize: '0.65rem', color: '#6366f1', margin: '0.15rem 0 0', fontStyle: 'italic' }}>📝 {item.notes}</p>
                       )}
@@ -703,10 +778,58 @@ function POS() {
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#6b7280' }}>
                 <span>Subtotal</span><span>{currency}{subtotal.toFixed(2)}</span>
               </div>
-              {discountAmount > 0 && (
+              {/* Broken out rather than one lump, because the three come from
+                  different decisions: a cook's mistake on one dish, a coupon
+                  the customer brought, and a call the manager made. */}
+              {itemDiscount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#16a34a' }}>
-                  <span>Discount</span><span>-{currency}{discountAmount.toFixed(2)}</span>
+                  <span>Item discounts</span><span>-{currency}{itemDiscount.toFixed(2)}</span>
                 </div>
+              )}
+              {couponDiscount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#16a34a' }}>
+                  <span>Coupon {appliedDiscount?.code ? `(${appliedDiscount.code})` : ''}</span>
+                  <span>-{currency}{couponDiscount.toFixed(2)}</span>
+                </div>
+              )}
+              {orderDiscount > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#16a34a' }}>
+                  <span>Bill discount</span><span>-{currency}{orderDiscount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* A reduction on the whole bill. Applies after item discounts
+                  and any coupon, which is the order the server uses too. */}
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', margin: '0.3rem 0' }}>
+                <Tag size={13} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                <select
+                  value={orderDiscountType}
+                  onChange={e => setOrderDiscountType(e.target.value as DiscountKind)}
+                  style={{ padding: '0.25rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.7rem' }}
+                  aria-label="Bill discount type"
+                >
+                  <option value="percent">%</option>
+                  <option value="flat">{currency}</option>
+                </select>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={orderDiscountValue}
+                  onChange={e => setOrderDiscountValue(e.target.value)}
+                  placeholder="Discount the bill"
+                  style={{ flex: 1, minWidth: 0, padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.7rem', outline: 'none' }}
+                  aria-label="Bill discount amount"
+                />
+              </div>
+              {orderDiscountValue !== '' && (
+                <input
+                  value={orderDiscountReason}
+                  onChange={e => setOrderDiscountReason(e.target.value)}
+                  placeholder="Why? (who approved it)"
+                  style={{ width: '100%', marginBottom: '0.3rem', padding: '0.25rem 0.4rem', borderRadius: '6px', border: '1px solid #e5e7eb', fontSize: '0.7rem', outline: 'none' }}
+                  aria-label="Reason for the bill discount"
+                />
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#6b7280' }}>
                 <span>Tax ({taxRate}%)</span><span>{currency}{tax.toFixed(2)}</span>
