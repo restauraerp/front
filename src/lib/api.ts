@@ -160,6 +160,50 @@ function abandonDeadSession(): void {
   window.location.replace(demo ? '/login?demo=true&expired=1' : '/login?expired=1');
 }
 
+/**
+ * Downloads a file from the API, carrying the same auth the JSON calls use.
+ *
+ * fetchApi cannot do this: it parses every response as JSON and would choke on
+ * a CSV. A plain <a href> cannot either - the download would go out without the
+ * bearer token and the tenant header, and come back 401. So the bytes are
+ * fetched like any other call and handed to the browser as a blob.
+ */
+export async function downloadApi(endpoint: string, filename: string): Promise<void> {
+  let token: string | undefined;
+
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(new RegExp('(^| )token=([^;]+)'));
+    if (match) token = match[2];
+  }
+
+  const headers: Record<string, string> = { Accept: 'text/csv' };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const tenant = getTenant();
+  if (tenant) headers['X-Tenant-ID'] = tenant;
+
+  const response = await fetch(`${API_BASE_URL}${endpoint}`, { cache: 'no-store', headers });
+
+  if (!response.ok) {
+    if (response.status === 401) abandonDeadSession();
+    throw new ApiError(response.status, null);
+  }
+
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  // Released on the next tick rather than immediately: revoking while the
+  // click is still being handled cancels the download in Safari.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 export async function fetchApi(
   endpoint: string,
   options: RequestInit = {},

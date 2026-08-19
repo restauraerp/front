@@ -19,6 +19,25 @@ interface CrudField {
   colSpan?: boolean;
 }
 
+/**
+ * A row as the API returned it. Loose in its values - every list has different
+ * ones - but an `id` is guaranteed, because that is what edit, delete and row
+ * navigation all address a record by.
+ */
+export interface CrudRow {
+  id: number;
+  [column: string]: unknown;
+}
+
+/** What the API said about the page it just returned. */
+interface PageMeta {
+  from: number | null;
+  to: number | null;
+  total: number;
+  /** The unfiltered size of the collection, when the endpoint reports one. */
+  overall?: number;
+}
+
 interface CrudPageProps {
   title: string;
   subtitle?: string;
@@ -28,9 +47,24 @@ interface CrudPageProps {
   defaultValues: Record<string, any>;
   addLabel?: string;
   initialFormOpen?: boolean;
+  /**
+   * Extra query parameters - sorting, filters - merged into every request and
+   * reset to page 1 when they change. Kept as a plain object so a caller can
+   * hold them in its own state without this component knowing what they mean.
+   */
+  extraParams?: Record<string, string>;
+  /** Controls rendered beside the search box, e.g. a sort picker or Export. */
+  toolbar?: React.ReactNode;
+  /**
+   * Where a row click goes. Rows stay unclickable when this is absent, so no
+   * existing list starts swallowing clicks meant for its Edit button.
+   */
+  onRowClick?: (row: CrudRow) => void;
+  /** Names the thing being counted in "Showing 1-15 of 213 customers". */
+  countLabel?: string;
 }
 
-export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, defaultValues, addLabel = '+ Add New', initialFormOpen = false }: CrudPageProps) {
+export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, defaultValues, addLabel = '+ Add New', initialFormOpen = false, extraParams, toolbar, onRowClick, countLabel }: CrudPageProps) {
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -40,6 +74,12 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
   const [totalPages, setTotalPages] = useState(1);
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [meta, setMeta] = useState<PageMeta | null>(null);
+
+  // Serialised, because a caller building this object inline hands us a new
+  // reference on every render - and an object in a dependency array compares
+  // by reference, so the effect below would refetch forever.
+  const paramsKey = JSON.stringify(extraParams ?? {});
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -51,7 +91,11 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  useEffect(() => { loadData(); }, [page, searchQuery]);
+  // Back to page 1 whenever the filters change: page 7 of the old result set
+  // is rarely a page of the new one, and is sometimes past its end.
+  useEffect(() => { setPage(1); }, [paramsKey]);
+
+  useEffect(() => { loadData(); }, [page, searchQuery, paramsKey]);
 
   const loadData = async () => {
     try {
@@ -61,6 +105,9 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
       if (searchQuery.trim()) {
         urlParams.append('search', searchQuery.trim());
       }
+      for (const [key, value] of Object.entries(extraParams ?? {})) {
+        if (value) urlParams.append(key, value);
+      }
       
       const separator = endpoint.includes('?') ? '&' : '?';
       const res = await fetchApi(`${endpoint}${separator}${urlParams.toString()}`);
@@ -69,12 +116,15 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
       if (res && res.data && Array.isArray(res.data)) {
          setData(res.data);
          setTotalPages(res.last_page || 1);
+         setMeta({ from: res.from ?? null, to: res.to ?? null, total: res.total ?? res.data.length, overall: res.total_customers });
       } else if (res && res.data && res.data.data && Array.isArray(res.data.data)) {
          setData(res.data.data);
          setTotalPages(res.data.last_page || 1);
+         setMeta({ from: res.data.from ?? null, to: res.data.to ?? null, total: res.data.total ?? res.data.data.length });
       } else {
          setData(res.data || res || []);
          setTotalPages(1);
+         setMeta(null);
       }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
@@ -147,6 +197,8 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
               />
             </div>
 
+            {toolbar}
+
             <Button
               onClick={() => {
                 setIsFormOpen(!isFormOpen);
@@ -218,7 +270,16 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
           ? <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>
           : (
             <>
-              <Table columns={tableColumns} data={data} onEdit={handleEdit} onDelete={handleDelete} />
+              <Table columns={tableColumns} data={data} onEdit={handleEdit} onDelete={handleDelete} onRowClick={onRowClick} />
+              {meta && meta.total > 0 && (
+                <div className="mt-4 text-sm text-base-content/60">
+                  Showing {meta.from}-{meta.to} of {meta.total}
+                  {countLabel ? ` ${countLabel}` : ''}
+                  {/* Only worth saying when a filter is narrowing things down;
+                      "213 of 213" is noise. */}
+                  {meta.overall !== undefined && meta.overall !== meta.total && ` (filtered from ${meta.overall})`}
+                </div>
+              )}
               {totalPages > 1 && (
                 <div className="flex justify-center mt-6 pb-2">
                   <div className="join">
