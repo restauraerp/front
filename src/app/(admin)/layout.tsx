@@ -3,6 +3,15 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import ConversionBanner from '@/components/layout/ConversionBanner';
+import dynamic from 'next/dynamic';
+
+/**
+ * Client-only, deliberately. The tour reads where somebody had got to straight
+ * from localStorage during its first render rather than in a mount effect - which
+ * is only safe because there is no server render to disagree with.
+ */
+const Walkthrough = dynamic(() => import('@/components/walkthrough/Walkthrough'), { ssr: false });
+import type { TourKind } from '@/lib/walkthrough/tours';
 import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import {
   LayoutDashboard,
@@ -76,6 +85,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [userPermissions, setUserPermissions] = useState<string[]>([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [subscription, setSubscription] = useState<SubscriptionStatus | null>(null);
+  // Whether /auth/me has answered. The tour waits on this - see where it is mounted.
+  const [identityLoaded, setIdentityLoaded] = useState(false);
 
   // Close the drawer whenever navigation happens, so links that don't manage
   // the drawer themselves (profile, breadcrumbs, back button) can't leave it
@@ -165,9 +176,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (res?.must_set_password && window.location.pathname !== '/admin/set-password') {
           router.replace('/admin/set-password');
         }
-      }).catch(console.error);
+      }).catch(console.error).finally(() => setIdentityLoaded(true));
     });
   }, [router]);
+
+  /**
+   * Which tour to run, decided here because this is the part that knows who is
+   * signed in.
+   *
+   * A trial gets its own tour, and gets it *after* the demo one rather than
+   * instead of it. They are separate lists with separate progress, so somebody
+   * who walked the demo is still shown around their own restaurant - which is a
+   * different restaurant, empty, and the one they have to actually set up.
+   *
+   * A paying restaurant gets no tour at all, and that is decided here rather
+   * than left to the tour's own demo detection. The detection reads a cookie,
+   * the cookie is cleared a moment later by the effect above, and those two
+   * race - so somebody who demoed and then subscribed in the same browser could
+   * be walked through the demo tour inside the restaurant they pay for. Saying
+   * "no tour" outright cannot race with anything.
+   *
+   * Only when we have no billing state at all does the tour fall back to
+   * recognising a demo visit itself, because a demo visitor is exactly who has
+   * no billing state.
+   */
+  const tour: { show: boolean; kind?: TourKind } = React.useMemo(() => {
+    if (subscription?.is_demo === true) return { show: true, kind: 'demo' };
+
+    if (subscription?.is_demo === false) {
+      return subscription.tenant_status === 'trialing' ? { show: true, kind: 'trial' } : { show: false };
+    }
+
+    return { show: true };
+  }, [subscription]);
 
   // isSuperAdmin is the platform role (tenant_id NULL), held by RestoraERP
   // staff rather than by any restaurant - a restaurant owner is
@@ -214,6 +255,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <li key={href}>
                 <Link
                   href={href}
+                  // The guided tour anchors on this rather than on a class or a
+                  // position, so restyling the sidebar cannot silently break a
+                  // tour. Derived from the href so a new nav item is taggable
+                  // without anybody remembering to.
+                  data-tour={`nav-${href.replace('/admin', '').replace(/^\//, '') || 'dashboard'}`}
                   onClick={() => setDrawerOpen(false)}
                   className={`flex items-center transition-all duration-300 ease-in-out ${
                     collapsed
@@ -292,6 +338,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             scroll container, so sitting above it keeps the banner in view
             without ever overlaying a control. */}
         <ConversionBanner status={subscription} />
+
+        {/* The guided tour. Mounted here rather than per page because it walks
+            between pages: it has to survive the navigation its own steps cause.
+            It renders nothing at all unless this is a demo visit or a trial tour
+            has been asked for, and nothing again once it is dismissed.
+
+            Held until /auth/me answers: somebody who came straight from the demo
+            still carries the demo cookie for a moment, and starting them on the
+            demo tour inside their own restaurant is worse than starting a beat
+            late. */}
+        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} />}
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">

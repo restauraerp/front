@@ -37,6 +37,18 @@ export const FBC_COOKIE = 'demo_fbc';
  */
 export const LEAD_COOKIE = 'demo_lead_ref';
 
+/**
+ * The language the visitor was reading the marketing site in.
+ *
+ * Carried across rather than guessed. This app has no i18n of its own and the
+ * browser's language setting is a poor substitute: plenty of people in
+ * Bangladesh run an English-language phone and still want to read Bengali. What
+ * the marketing site was showing them is the one thing we actually know.
+ */
+export const LANG_COOKIE = 'demo_lang';
+
+export type Language = 'en' | 'bn';
+
 /** Reads a cookie by name. Client-side only. */
 export function readCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
@@ -75,4 +87,9 @@ export function clearDemoSession(): void {
   for (const name of [DEMO_COOKIE, FBP_COOKIE, FBC_COOKIE, LEAD_COOKIE, 'demo_lead_reported']) {
     document.cookie = `${name}=; path=/; max-age=0; SameSite=Lax`;
   }
+}
+
+/** The language carried over from the marketing site, English otherwise. */
+export function readLanguage(): Language {
+  return readCookie(LANG_COOKIE) === 'bn' ? 'bn' : 'en';
 }

@@ -1,4 +1,5 @@
-import { getTenant } from './tenant';
+import { isDemoSession } from './demo';
+import { clearTenant, getTenant } from './tenant';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8029/api/v1';
 
@@ -117,6 +118,48 @@ export async function fetchOptional<T>(
   }
 }
 
+/**
+ * Set once a dead session has been noticed.
+ *
+ * A dashboard fires a dozen requests at once, and every one of them comes back
+ * 401 together. Without this the first sets the redirect going and the rest keep
+ * re-triggering it.
+ */
+let abandoning = false;
+
+/**
+ * Throws away credentials the API has stopped recognising, and starts again.
+ *
+ * The case this exists for: the demo restaurant gets rebuilt. Its data is
+ * dropped and reseeded and its password is rotated, but the browser still holds
+ * the token and restaurant code from before. Every request then 401s while the
+ * app carries on as though signed in - which rendered a dashboard with an empty
+ * sidebar, zeroes in every card and a spinner that never stopped. Nothing said
+ * "log in again", because nothing was watching for it.
+ *
+ * Demo visitors are sent back with `?demo=true` on purpose. That makes the login
+ * page re-fetch the credentials from the API, so they arrive with the *current*
+ * password rather than the one that was rotated away - which is the difference
+ * between this being self-healing and being a dead end.
+ */
+function abandonDeadSession(): void {
+  if (typeof window === 'undefined' || abandoning) return;
+
+  // Already at the door. Redirecting again would be a loop, and the login page
+  // legitimately calls the API before anybody is signed in.
+  if (window.location.pathname.startsWith('/login')) return;
+
+  abandoning = true;
+
+  document.cookie = 'token=; path=/; max-age=0; SameSite=Lax';
+  clearTenant();
+
+  const demo = isDemoSession();
+
+  // `replace`, not `assign`: Back should not return to a page that cannot load.
+  window.location.replace(demo ? '/login?demo=true&expired=1' : '/login?expired=1');
+}
+
 export async function fetchApi(
   endpoint: string,
   options: RequestInit = {},
@@ -168,6 +211,10 @@ export async function fetchApi(
       // Non-JSON error (a proxy timeout, an HTML error page). Leave body null;
       // the message below still says what happened.
     }
+
+    // A session the API no longer recognises is not an error a screen can
+    // recover from, so it is handled here rather than left to every caller.
+    if (response.status === 401) abandonDeadSession();
 
     // The body used to be logged and thrown away, so a caller only ever saw
     // "API Request Failed: 403 Forbidden". The API answers a refused write with
