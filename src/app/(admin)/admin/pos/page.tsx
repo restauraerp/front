@@ -54,6 +54,10 @@ function POS() {
   // which is very often shared - see the served_by_user_id migration.
   const [employees, setEmployees] = useState<any[]>([]);
   const [servedBy, setServedBy] = useState<number | ''>('');
+  // A third party that sent this order in. Their cut is worked out server-side
+  // from their own rate - the till never prices it.
+  const [partners, setPartners] = useState<any[]>([]);
+  const [partnerId, setPartnerId] = useState<number | ''>('');
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -85,8 +89,9 @@ function POS() {
       fetchApi('/tax-rules'),
       fetchApi('/locations'),
       fetchOptional<any>('/users?nopaginate=1', []),
+      fetchOptional<any>('/partners?nopaginate=1&active_only=1', []),
     ])
-      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes]) => {
+      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes, partnerRes]) => {
         setProducts(prodRes.data || prodRes || []);
         const map: Record<string, string> = {};
         (setRes.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -103,6 +108,7 @@ function POS() {
         const locs = locRes.data || locRes || [];
         setLocations(locs);
         setEmployees(staffRes?.data || staffRes || []);
+        setPartners(partnerRes?.data || partnerRes || []);
 
         let savedLoc = null;
         if (typeof window !== 'undefined') {
@@ -306,6 +312,7 @@ function POS() {
         total: total.toFixed(2),
         table_id: orderType === 'dine_in' ? selectedTable : null,
         served_by_user_id: servedBy === '' ? null : servedBy,
+        partner_id: partnerId === '' ? null : partnerId,
         customer_id: selectedCustomer,
         discount_id: appliedDiscount?.id || null,
         delivery_time: deliveryTime || null,
@@ -340,6 +347,7 @@ function POS() {
       // necessarily served by the same person, and a sticky value would
       // quietly credit them anyway.
       setServedBy('');
+      setPartnerId('');
       setAppliedDiscount(null);
     } catch {
       alert(editMode ? 'Failed to update order. Please try again.' : 'Failed to place order. Please try again.');
@@ -494,6 +502,28 @@ function POS() {
                   </select>
                 </div>
               )}
+              {/* Only shown once a partner exists, and only for the order types
+                  an aggregator actually sends. */}
+              {partners.length > 0 && ['delivery', 'takeaway'].includes(orderType) && (
+                <div>
+                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>CAME THROUGH (OPTIONAL)</p>
+                  <select
+                    className="select select-bordered select-sm w-full"
+                    style={{ fontSize: '0.8rem' }}
+                    value={partnerId}
+                    onChange={(e) => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+                    aria-label="Third party that sent this order"
+                  >
+                    <option value="">Direct — not through a partner</option>
+                    {partners.map((partner: any) => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name} ({Number(partner.commission_rate).toFixed(0)}%)
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {orderType === 'dine_in' && (
                 <div>
                   <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SELECT TABLE</p>

@@ -10,6 +10,7 @@ const tabs = [
   { href: '/admin/reporting/products', label: 'Products' },
   { href: '/admin/reporting/time', label: 'Time Analysis' },
   { href: '/admin/reporting/staff', label: 'Staff' },
+  { href: '/admin/reporting/partners', label: 'Partners' },
   { href: '/admin/reporting/inventory', label: 'Inventory Health' },
   { href: '/admin/reporting/stock-value', label: 'Stock Value' },
   { href: '/admin/reporting/expenses', label: 'All Expenses' },
