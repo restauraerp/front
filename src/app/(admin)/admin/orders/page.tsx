@@ -2,8 +2,8 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
-import DiscountInput from '../pos/components/DiscountInput';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Tag, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
+import { SettleDueModal } from '@/components/orders/SettleDueModal';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 
 /** The fields the row actions read off an order. */
@@ -96,9 +96,19 @@ export default function OrdersPage() {
   const [completedSort, setCompletedSort] = useState('recent');
   const [completedMethod, setCompletedMethod] = useState('');
   const [processing, setProcessing] = useState(false);
-  const [taxRate, setTaxRate] = useState(0);
-  const [discounts, setDiscounts] = useState<any[]>([]);
-  const [appliedDiscount, setAppliedDiscount] = useState<any>(null);
+  /**
+   * Which of the two things the payment popup is doing.
+   *
+   * Collecting now and letting an order leave on account are both answers to
+   * "how is this being settled?", asked at the same moment by the same person.
+   * On account used to live only in the details modal, which is reachable from
+   * the Completed tab - so the one screen where a waiter decides was the one
+   * screen that did not offer it.
+   */
+  const [payMode, setPayMode] = useState<'collect' | 'account'>('collect');
+  const [dueNote, setDueNote] = useState('');
+  /** The due order being collected against, if any. */
+  const [settlingOrder, setSettlingOrder] = useState<any>(null);
 
   const [completedOrders, setCompletedOrders] = useState<any[]>([]);
   // Owed money. Server-paginated like Completed rather than filtered from the
@@ -148,11 +158,6 @@ export default function OrdersPage() {
       if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
         setIsAdmin(true);
       }
-    }).catch(console.error);
-    fetchApi('/discounts').then(res => setDiscounts(res.data || res || [])).catch(console.error);
-    fetchApi('/tax-rules').then(res => {
-      const rules = res?.data || res || [];
-      setTaxRate(rules.filter((r: any) => r.is_active).reduce((sum: number, r: any) => sum + Number(r.percentage || 0), 0));
     }).catch(console.error);
     fetchApi('/locations').then(res => {
       const locs = res.data || res || [];
@@ -307,9 +312,9 @@ export default function OrdersPage() {
   const handleUpdateStatus = async (order: any, newStatus: string) => {
     if (newStatus === 'pay_modal') {
       setPaymentMethod('cash');
+      setPayMode('collect');
+      setDueNote('');
       setPaymentOrder(order);
-      const existingDiscount = order.discount_id ? discounts.find(d => d.id === order.discount_id) : null;
-      setAppliedDiscount(existingDiscount || null);
       (document.getElementById('payment_modal') as HTMLDialogElement)?.showModal();
       return;
     }
@@ -352,32 +357,17 @@ export default function OrdersPage() {
     }
   };
 
-  /** Records money collected against a due order, in part or in full. */
-  const handleSettle = async (order: OrderRow) => {
-    const outstanding = Number(order.amount_outstanding ?? order.total ?? 0);
-    const amount = prompt(
-      `Settle order #${order.id}\n\n৳${outstanding.toFixed(2)} outstanding. How much is being paid now?`,
-      outstanding.toFixed(2),
-    );
-
-    if (amount === null) return;
-
-    const method = prompt('Paid by? (cash, card, bkash, nagad…)', 'cash');
-    if (method === null) return;
-
-    const note = prompt('Reference or note (optional) — transaction id, who paid', '') ?? '';
-
-    try {
-      await fetchApi(`/orders/${order.id}/settle`, {
-        method: 'POST',
-        body: JSON.stringify({ amount, method, note: note || null }),
-      });
-      setDetailOrder(null);
-      setDueReloadKey(k => k + 1);
-    } catch (err) {
-      alert(apiErrorMessage(err, 'Could not record this payment.'));
-    }
-  };
+  /**
+   * Collecting against a due order goes through its own screen, not the
+   * payment popup.
+   *
+   * A due order can already have been settled in part, and "Pay" on it used to
+   * open the ordinary popup - which quotes the whole bill and, because a
+   * completed payment already existed, flipped the order to paid without
+   * recording the balance at all. The money left the customer and never
+   * reached the books.
+   */
+  const handleSettle = (order: OrderRow) => setSettlingOrder(order);
 
   const handleShareInvoice = async (order: OrderRow) => {
     setSharingId(order.id);
@@ -448,15 +438,53 @@ export default function OrdersPage() {
     }
   };
 
-  const modalSubtotal = paymentOrder ? parseFloat(paymentOrder.subtotal) : 0;
-  const modalDiscountAmt = appliedDiscount
-    ? (appliedDiscount.discount_type === 'percentage' ? modalSubtotal * (parseFloat(appliedDiscount.value || '0') / 100) : parseFloat(appliedDiscount.value || '0'))
-    : 0;
-  const modalAfterDiscount = modalSubtotal - modalDiscountAmt;
-  const modalTax = Number((modalAfterDiscount * (taxRate / 100)).toFixed(2));
-  const modalDelivery = paymentOrder ? parseFloat(paymentOrder.delivery_charge || '0') : 0;
-  const modalTotal = modalAfterDiscount + modalTax + modalDelivery;
+  /**
+   * What the till asks for: the order's own figures, read rather than redone.
+   *
+   * Everything that came off this bill was priced by the server when the order
+   * was placed and is stored on it - a cook's mistake taken off one dish, a
+   * coupon the customer brought, a reduction the manager decided on. This
+   * modal used to rebuild the total from the subtotal and whatever coupon was
+   * typed here, which quietly dropped all three: an order discounted at the
+   * POS came back up at full price, and confirming it posted that figure back
+   * and erased the discount from the order as well.
+   */
+  const figure = (value: unknown) => Number(value ?? 0);
+  const modalSubtotal = figure(paymentOrder?.subtotal);
+  const modalDiscountAmt = figure(paymentOrder?.discount_amount);
+  const modalTax = figure(paymentOrder?.tax_amount);
+  const modalDelivery = figure(paymentOrder?.delivery_charge);
+  const modalTotal = figure(paymentOrder?.total);
 
+  /**
+   * Lets the order leave without being paid for, to be collected later.
+   *
+   * The customer is the whole point rather than a formality - a debt nobody is
+   * named on cannot be chased, and the order then shows up on that customer's
+   * record, which is where somebody eventually collects it.
+   */
+  const submitOnAccount = async () => {
+    if (!paymentOrder) return;
+    setProcessing(true);
+    try {
+      await fetchApi(`/orders/${paymentOrder.id}/due`, {
+        method: 'POST',
+        body: JSON.stringify({ due_note: dueNote }),
+      });
+      (document.getElementById('payment_modal') as HTMLDialogElement)?.close();
+      setPaymentOrder(null);
+      setDueNote('');
+      loadOrders();
+      setDueReloadKey(k => k + 1);
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not put this order on account.'));
+    } finally { setProcessing(false); }
+  };
+
+  /**
+   * Taking payment records how the money arrived, and nothing else. The totals
+   * are the order's already; re-posting them here is how they got lost.
+   */
   const submitPayment = async () => {
     if (!paymentOrder) return;
     setProcessing(true);
@@ -464,18 +492,16 @@ export default function OrdersPage() {
       await fetchApi(`/orders/${paymentOrder.id}`, {
         method: 'PUT',
         body: JSON.stringify({
-          payment_method: paymentMethod, payment_note: paymentNote || null,
-          discount_id: appliedDiscount?.id || null,
-          discount_amount: modalDiscountAmt.toFixed(2), delivery_charge: modalDelivery.toFixed(2),
-          tax_amount: modalTax.toFixed(2), total: modalTotal.toFixed(2)
+          payment_method: paymentMethod,
+          payment_note: paymentNote || null,
         })
       });
       (document.getElementById('payment_modal') as HTMLDialogElement)?.close();
       setPaymentOrder(null);
       setPaymentNote('');
       loadOrders();
-    } catch {
-      alert('Failed to process payment');
+    } catch (err) {
+      alert(apiErrorMessage(err, 'Could not record this payment.'));
     } finally { setProcessing(false); }
   };
 
@@ -493,7 +519,12 @@ export default function OrdersPage() {
             </button>
           );
         })}
-        {!isEditing && order.payment_status !== 'paid' && (
+        {!isEditing && order.payment_status === 'due' && (
+          <button className="btn btn-xs btn-warning gap-1" onClick={() => handleSettle(order)}>
+            <Banknote size={12} /> Collect ৳{Number(order.amount_outstanding ?? order.total ?? 0).toFixed(2)}
+          </button>
+        )}
+        {!isEditing && !['paid', 'due'].includes(order.payment_status) && (
           <button className="btn btn-xs btn-success gap-1" onClick={() => handleUpdateStatus(order, 'pay_modal')}>
             <DollarSign size={12} /> Pay
           </button>
@@ -1054,18 +1085,90 @@ export default function OrdersPage() {
                 <p className="text-4xl font-extrabold text-base-content">৳{modalTotal.toFixed(2)}</p>
                 <div className="mt-4 pt-3 border-t border-base-300/50 flex flex-wrap justify-center gap-x-4 gap-y-1 text-xs text-base-content/60 px-2">
                   <span>Sub: ৳{modalSubtotal.toFixed(2)}</span>
-                  {modalDiscountAmt > 0 && <span className="text-success font-semibold">-৳{modalDiscountAmt.toFixed(2)}</span>}
+                  {/* Spelled out rather than folded into the total: a cashier
+                      being told 900 for a 1,000 bill needs to see why. */}
+                  {modalDiscountAmt > 0 && <span className="text-success font-semibold">Discount: -৳{modalDiscountAmt.toFixed(2)}</span>}
                   <span>Tax: ৳{modalTax.toFixed(2)}</span>
                   {modalDelivery > 0 && <span>Del: ৳{modalDelivery.toFixed(2)}</span>}
                 </div>
               </div>
             )}
 
-            <div className="mb-6 bg-base-100 p-4 rounded-xl border border-base-200 shadow-sm">
-              <label className="label px-0 pt-0 pb-2 flex items-center gap-2"><Tag size={14} className="text-primary" /><span className="label-text font-bold text-base-content/80">Apply Coupon</span></label>
-              <DiscountInput discounts={discounts} appliedDiscount={appliedDiscount} onApply={setAppliedDiscount} subtotal={modalSubtotal} />
+            {/* Two ways to settle, offered side by side. A waiter deciding
+                whether the money comes now or goes on a room is deciding it
+                here, so both answers belong on this screen. */}
+            <div role="tablist" className="tabs tabs-boxed mb-6 bg-base-200/60">
+              <button
+                role="tab"
+                className={`tab flex-1 gap-2 ${payMode === 'collect' ? 'tab-active' : ''}`}
+                onClick={() => setPayMode('collect')}
+              >
+                <DollarSign size={14} /> Collect now
+              </button>
+              <button
+                role="tab"
+                className={`tab flex-1 gap-2 ${payMode === 'account' ? 'tab-active' : ''}`}
+                onClick={() => setPayMode('account')}
+              >
+                <Clock size={14} /> On account
+              </button>
             </div>
 
+            {payMode === 'account' ? (
+              <>
+                {paymentOrder?.customer ? (
+                  <>
+                    <div className="mb-5 bg-warning/10 border border-warning/30 rounded-xl p-4 text-sm">
+                      <p className="font-semibold flex items-center gap-2">
+                        <Clock size={14} className="text-warning" />
+                        {paymentOrder.customer.name} will owe ৳{modalTotal.toFixed(2)}
+                      </p>
+                      <p className="text-base-content/70 mt-1">
+                        The order moves to the Due tab and onto this customer&apos;s record, where it can
+                        be collected later — in one go or in instalments.
+                      </p>
+                    </div>
+
+                    <div className="form-control w-full mb-6">
+                      <label className="label py-1" htmlFor="due-note">
+                        <span className="label-text font-bold text-base-content/80">What is it owed against? *</span>
+                      </label>
+                      <input
+                        id="due-note"
+                        value={dueNote}
+                        onChange={(e) => setDueNote(e.target.value)}
+                        placeholder="e.g. Room 402, checks out Sunday"
+                        className="input input-bordered w-full"
+                      />
+                      {/* Required by the API, and rightly: this is the only
+                          record of the arrangement once the shift ends. */}
+                      <p className="text-xs text-base-content/60 mt-1">
+                        A room number, a company account, or who agreed to it.
+                      </p>
+                    </div>
+
+                    <button
+                      className="btn btn-warning w-full btn-lg rounded-xl shadow-lg"
+                      onClick={submitOnAccount}
+                      disabled={processing || dueNote.trim() === ''}
+                    >
+                      {processing ? <span className="loading loading-spinner" /> : `Put ৳${modalTotal.toFixed(2)} on account`}
+                    </button>
+                  </>
+                ) : (
+                  /* Caught here rather than at the API, which refuses the same
+                     thing a moment later and after the note has been typed. */
+                  <div className="bg-base-200/60 border border-base-300 rounded-xl p-5 text-sm">
+                    <p className="font-semibold mb-1">This order has no customer on it.</p>
+                    <p className="text-base-content/70">
+                      An unnamed debt cannot be collected. Attach a customer under
+                      <span className="font-semibold"> Edit in POS</span>, then put the order on account.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+            <>
             <div className="mb-8">
               <label className="label px-0 pt-0"><span className="label-text font-bold text-base-content/80">Select Payment Method</span></label>
               <div className="grid grid-cols-3 gap-3">
@@ -1097,12 +1200,26 @@ export default function OrdersPage() {
             <button className="btn btn-primary w-full btn-lg rounded-xl shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all" onClick={submitPayment} disabled={processing}>
               {processing ? <span className="loading loading-spinner"></span> : `Confirm ৳${modalTotal.toFixed(2)}`}
             </button>
+            </>
+            )}
           </div>
         </div>
         <form method="dialog" className="modal-backdrop">
           <button>close</button>
         </form>
       </dialog>
+
+      {settlingOrder && (
+        <SettleDueModal
+          order={settlingOrder}
+          onClose={() => setSettlingOrder(null)}
+          onSettled={() => {
+            setDetailOrder(null);
+            loadOrders();
+            setDueReloadKey(k => k + 1);
+          }}
+        />
+      )}
 
       {/* Order details modal (completed orders) */}
       {detailOrder && (
