@@ -39,6 +39,16 @@ export default function ReceiptPage() {
 
   return (
     <div id="receipt" style={{ width: '100%', maxWidth: '300px', margin: '0 auto', padding: '10px', fontFamily: 'monospace', color: '#000', backgroundColor: '#fff' }}>
+      {/* The day's counter number, first thing on the slip. It leads because
+          it is the only line anyone reads from across a room; the order id
+          below is unique forever but far too long to call out. Orders taken
+          before token numbers existed have none, and get no banner. */}
+      {order.token_number != null && (
+        <div style={{ textAlign: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '2px solid #000' }}>
+          <div style={{ fontSize: '0.75rem', letterSpacing: '0.15em' }}>TOKEN</div>
+          <div style={{ fontSize: '2.6rem', fontWeight: 'bold', lineHeight: 1 }}>{order.token_number}</div>
+        </div>
+      )}
       {/* The restaurant's own name, address and phone, from Settings. This was
           hardcoded to "RESTORA ERP", "123 Restaurant Street" and a made-up
           phone number, and every customer of every restaurant was handed it. */}
