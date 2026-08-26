@@ -5,12 +5,11 @@ import { fetchApi } from '@/lib/api';
 import { useLocations } from '@/hooks/useLocations';
 import { sendGTMEvent } from '@next/third-parties/google';
 
-export default function ExpensesPage() {
-  // At one outlet "Generic (All Branches)" and the branch itself are the same
-  // place, so the field is dropped - but the expense is still attributed to
-  // that outlet rather than left generic. Attributed is the recoverable
-  // choice: if a second branch opens later, the existing spend already sits
-  // where it happened instead of in an unassignable pile.
+export default function IncomesPage() {
+  // Same branch reasoning as the expenses screen: at one outlet "Generic (All
+  // Branches)" and the branch itself are the same place, so the field is
+  // dropped - but the income is still attributed to that outlet, so a second
+  // branch opening later does not inherit an unassignable pile of takings.
   const { single, only, loaded: outletsLoaded } = useLocations();
 
   const [locations, setLocations] = useState<{value: string, label: string}[]>([
@@ -21,7 +20,7 @@ export default function ExpensesPage() {
   ]);
 
   useEffect(() => {
-    sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/expenses' });
+    sendGTMEvent({ event: 'page_view', page_path: '/admin/accounting/incomes' });
   }, []);
 
   useEffect(() => {
@@ -36,7 +35,7 @@ export default function ExpensesPage() {
       setLocations([{ value: '', label: 'Generic (All Branches)' }, ...locs]);
 
       const hdrs = (headerRes.data || headerRes.data?.data || headerRes || [])
-        .filter((h: any) => h.type === 'expense' && h.is_active)
+        .filter((h: any) => h.type === 'income' && h.is_active)
         .map((h: any) => ({ value: h.id.toString(), label: h.name }));
       setHeaders([{ value: '', label: '— No Header —' }, ...hdrs]);
     }).catch(console.error);
@@ -44,17 +43,17 @@ export default function ExpensesPage() {
 
   // CrudPage reads defaultValues once into useState, so the outlet has to be
   // known before it mounts - arriving a moment later would leave location_id
-  // empty and quietly file every expense as generic.
+  // empty and quietly file every income as generic.
   if (!outletsLoaded) {
     return <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>;
   }
 
   return (
     <CrudPage
-      title="Expenses"
-      subtitle={single ? "Log and track operational expenses." : "Log and track operational expenses across your branches."}
-      endpoint="/expenses"
-      addLabel="+ Log Expense"
+      title="Income"
+      subtitle={single ? "Log income that arrives outside the till." : "Log income that arrives outside the till, across your branches."}
+      endpoint="/incomes"
+      addLabel="+ Log Income"
       tableColumns={[
         { key: 'id', label: 'ID' },
         {
@@ -89,7 +88,7 @@ export default function ExpensesPage() {
       formFields={[
         { key: 'header_id', label: 'Accounting Header', options: headers },
         ...(single ? [] : [{ key: 'location_id', label: 'Branch / Location', options: locations }]),
-        { key: 'category', label: 'Category (e.g. Utility, Maintenance)' },
+        { key: 'category', label: 'Category (e.g. Hall Rental, Scrap Sale)' },
         { key: 'amount', label: 'Amount', type: 'number', step: '0.01' },
       ]}
       defaultValues={{
