@@ -21,6 +21,7 @@ interface Invoice {
   };
   order: {
     id: number;
+    token_number: number | null;
     created_at: string;
     order_type: string | null;
     status_label?: string;
@@ -115,6 +116,15 @@ export default function PublicInvoicePage() {
   return (
     <main style={styles.page}>
       <div style={styles.sheet}>
+        {/* The counter number this order was called by, kept at the top so a
+            customer holding the printed slip and the customer holding this link
+            are looking at the same number. */}
+        {order.token_number != null && (
+          <div style={{ textAlign: 'center', marginBottom: 20, paddingBottom: 14, borderBottom: '2px solid #111827' }}>
+            <div style={{ fontSize: '0.75rem', letterSpacing: '0.15em', color: '#6b7280' }}>TOKEN</div>
+            <div style={{ fontSize: '2.6rem', fontWeight: 700, lineHeight: 1.1 }}>{order.token_number}</div>
+          </div>
+        )}
         <header style={{ textAlign: 'center', marginBottom: 24 }}>
           <h1 style={styles.name}>{restaurant.name}</h1>
           {restaurant.address && <p style={styles.muted}>{restaurant.address}</p>}
