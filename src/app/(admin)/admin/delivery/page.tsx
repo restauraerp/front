@@ -302,7 +302,16 @@ export default function DeliveryPage() {
                       const isAssigned = deliveries.some(d => d.order_id === order.id);
                       return (
                         <tr key={order.id}>
-                          <td className="font-semibold">#{order.id}</td>
+                          <td className="font-semibold">
+                            <div className="flex items-center gap-1.5">
+                              <span>#{order.id}</span>
+                              {order.token_number != null && (
+                                <span className="badge badge-secondary badge-xs font-extrabold" title="Token Number">
+                                  T#{order.token_number}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td>{order.customer?.name || 'Walk-in'}</td>
                           <td className="max-w-xs truncate" title={order.delivery_address || (order.customer ? order.customer.address : '')}>
                             {order.delivery_address || (order.customer ? order.customer.address : 'No address provided')}

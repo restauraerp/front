@@ -249,10 +249,19 @@ function Ticket({ order, tone, now, processing, onAdvance }: any) {
     <div className={`flex flex-col bg-base-100 p-5 rounded-2xl shadow-md border-t-4 transition-all ${border} ${tone === 'muted' ? 'opacity-75' : ''}`}>
       <div className="flex justify-between items-start mb-4 pb-3 border-b border-base-200">
         <div>
-          <h3 className="text-xl font-black text-base-content">
-            {order.table?.name || (order.order_type || '').replace('_', ' ').toUpperCase()}
-          </h3>
-          <p className="text-sm opacity-60">Order #{order.id}</p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <h3 className="text-xl font-black text-base-content">
+              {order.table?.name || (order.order_type || '').replace('_', ' ').toUpperCase()}
+            </h3>
+            {order.token_number != null && (
+              <span className="badge badge-secondary font-black text-xs">
+                Token #{order.token_number}
+              </span>
+            )}
+          </div>
+          <p className="text-sm opacity-60">
+            Order #{order.id} {order.token_number != null ? `(Token #${order.token_number})` : ''}
+          </p>
         </div>
         <div className="text-right">
           <span className={`badge font-bold ${order.status === 'cooking' ? 'badge-info text-white' : overdue ? 'badge-error text-white' : 'badge-warning'}`}>

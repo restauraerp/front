@@ -46,7 +46,7 @@ function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [checkingOut, setCheckingOut] = useState(false);
-  const [lastOrderId, setLastOrderId] = useState<number | null>(null);
+  const [lastOrder, setLastOrder] = useState<any>(null);
   const [settings, setSettings] = useState<Record<string, string>>({});
 
   // New state for restaurant features
@@ -386,7 +386,7 @@ function POS() {
         body: JSON.stringify(payload),
       });
       const newOrder = res.data || res;
-      setLastOrderId(newOrder.id);
+      setLastOrder(newOrder);
       (document.getElementById('checkout_success') as HTMLDialogElement)?.showModal();
       setCart([]);
       setSelectedTable(null);
@@ -867,11 +867,21 @@ function POS() {
         <div className="modal-box text-center">
           <div className="text-5xl mb-3">🎉</div>
           <h3 className="font-bold text-lg">Order Placed!</h3>
+          {lastOrder && (
+            <div className="my-2">
+              {lastOrder.token_number != null && (
+                <div className="inline-block bg-secondary text-secondary-content px-4 py-1.5 rounded-full text-base font-extrabold shadow-sm mb-1">
+                  Token #{lastOrder.token_number}
+                </div>
+              )}
+              <p className="text-sm opacity-70">Order #{lastOrder.id}</p>
+            </div>
+          )}
           <p className="py-2 text-base-content/60">The order has been submitted successfully.</p>
           <div className="modal-action justify-center gap-2">
-            {lastOrderId && (
+            {lastOrder?.id && (
               <>
-                <button className="btn btn-outline btn-sm gap-1" onClick={() => window.open(`/kitchen-print/${lastOrderId}`, '_blank')}>
+                <button className="btn btn-outline btn-sm gap-1" onClick={() => window.open(`/kitchen-print/${lastOrder.id}`, '_blank')}>
                   <ChefHat size={14} /> Print Chef Slip
                 </button>
                 <button className="btn btn-outline btn-sm gap-1" onClick={() => window.location.href = '/admin/orders'}>
@@ -880,7 +890,7 @@ function POS() {
               </>
             )}
             <form method="dialog">
-              <button className="btn btn-primary btn-sm gap-2" onClick={() => setLastOrderId(null)}>
+              <button className="btn btn-primary btn-sm gap-2" onClick={() => setLastOrder(null)}>
                 <RefreshCw size={14} /> New Order
               </button>
             </form>
