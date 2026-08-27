@@ -26,7 +26,7 @@ interface InventoryReportData {
   data: InventoryItem[];
 }
 
-export default function InventoryReportPrintPage() {
+function InventoryReportPrintContent() {
   const searchParams = useSearchParams();
   const branch = searchParams.get('branch') || '';
   const mode = searchParams.get('mode') || 'a4'; // 'a4' or 'thermal'
@@ -301,5 +301,13 @@ export default function InventoryReportPrintPage() {
         }
       ` }} />
     </div>
+  );
+}
+
+export default function InventoryReportPrintPage() {
+  return (
+    <React.Suspense fallback={<div className="p-10 text-center font-mono">Loading print view...</div>}>
+      <InventoryReportPrintContent />
+    </React.Suspense>
   );
 }
