@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { ImageUpload } from '@/components/ui/ImageUpload';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { BRANDING_KEYS, clearBrandingCache } from '@/hooks/useBranding';
 
@@ -37,9 +38,13 @@ const FIELDS: { key: string; label: string; placeholder: string; hint?: string }
 export default function RestaurantIdentityCard({ onSaved }: { onSaved?: () => void }) {
   const [stored, setStored] = useState<StoredSetting[] | null>(null);
   const [values, setValues] = useState<Record<string, string>>({});
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const currentLogoPath = stored?.find((r) => r.key === BRANDING_KEYS.logo)?.value;
+  const currentLogoUrl = currentLogoPath ? `/storage/${currentLogoPath}` : undefined;
 
   useEffect(() => {
     let active = true;
@@ -84,9 +89,13 @@ export default function RestaurantIdentityCard({ onSaved }: { onSaved?: () => vo
         }
       }
 
-      // The receipt and the slip read through a shared cache; without this a
-      // freshly renamed restaurant would keep printing the old name until the
-      // tab was reloaded.
+      if (logoFile) {
+        const form = new FormData();
+        form.append('logo', logoFile);
+        await fetchApi('/website-settings/logo', { method: 'POST', body: form });
+        setLogoFile(null);
+      }
+
       clearBrandingCache();
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
@@ -118,6 +127,17 @@ export default function RestaurantIdentityCard({ onSaved }: { onSaved?: () => vo
       {error && <div role="alert" className="alert alert-error mb-4 text-sm"><span>{error}</span></div>}
 
       <form onSubmit={handleSave}>
+        <div className="mb-6">
+          <ImageUpload
+            label="Restaurant logo"
+            currentUrl={currentLogoUrl}
+            file={logoFile}
+            onFileChange={setLogoFile}
+            maxSizeMb={2}
+            hint="PNG, JPG or WEBP · up to 2 MB · printed on customer receipts"
+          />
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {FIELDS.map((field) => (
             <div key={field.key}>
