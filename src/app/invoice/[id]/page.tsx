@@ -126,6 +126,13 @@ export default function PublicInvoicePage() {
           </div>
         )}
         <header style={{ textAlign: 'center', marginBottom: 24 }}>
+          {restaurant.logo_url && (
+            <img
+              src={`/storage/${restaurant.logo_url}`}
+              alt=""
+              style={{ maxWidth: 140, maxHeight: 90, margin: '0 auto 10px', display: 'block', objectFit: 'contain' }}
+            />
+          )}
           <h1 style={styles.name}>{restaurant.name}</h1>
           {restaurant.address && <p style={styles.muted}>{restaurant.address}</p>}
           {restaurant.phone && <p style={styles.muted}>{restaurant.phone}</p>}

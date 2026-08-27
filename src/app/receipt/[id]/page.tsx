@@ -49,10 +49,14 @@ export default function ReceiptPage() {
           <div style={{ fontSize: '2.6rem', fontWeight: 'bold', lineHeight: 1 }}>{order.token_number}</div>
         </div>
       )}
-      {/* The restaurant's own name, address and phone, from Settings. This was
-          hardcoded to "RESTORA ERP", "123 Restaurant Street" and a made-up
-          phone number, and every customer of every restaurant was handed it. */}
       <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        {branding.logo && (
+          <img
+            src={`/storage/${branding.logo}`}
+            alt=""
+            style={{ maxWidth: '120px', maxHeight: '80px', margin: '0 auto 8px', display: 'block', objectFit: 'contain' }}
+          />
+        )}
         <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: '0 0 5px 0' }}>
           {(branding.name || 'Receipt').toUpperCase()}
         </h1>
