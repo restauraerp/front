@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Info, Search } from 'lucide-react';
+import { Info, Search, Printer, Receipt } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { useReport, useReportFilters } from '@/hooks/useReport';
@@ -40,6 +40,7 @@ export default function InventoryReportPage() {
   );
 
   const [search, setSearch] = React.useState('');
+  const [printScope, setPrintScope] = React.useState<'all' | 'low'>('all');
 
   const allRows = React.useMemo(() => data?.data ?? [], [data]);
 
@@ -47,14 +48,18 @@ export default function InventoryReportPage() {
   // item a restaurant stocks in one response, so a round trip per keystroke
   // would buy nothing and cost the wait.
   const rows = React.useMemo(() => {
+    let list = allRows;
+    if (printScope === 'low') {
+      list = list.filter((row) => row.is_low);
+    }
     const term = search.trim().toLowerCase();
-    if (!term) return allRows;
+    if (!term) return list;
 
-    return allRows.filter((row) =>
+    return list.filter((row) =>
       (row.name ?? '').toLowerCase().includes(term)
       || (row.sku ?? '').toLowerCase().includes(term)
       || (row.unit ?? '').toLowerCase().includes(term));
-  }, [allRows, search]);
+  }, [allRows, search, printScope]);
 
   const pager = useTablePagination(rows, 10);
 
@@ -126,16 +131,60 @@ export default function InventoryReportPage() {
       </div>
 
       <Card title="Inventory Stock Report (Low Stock First)">
-        <div className="relative flex items-center w-full sm:w-72 mb-4">
-          <Search size={16} className="absolute left-3 text-base-content/40 pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search by name, SKU or unit…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="input input-bordered input-sm w-full pl-9"
-            aria-label="Search inventory"
-          />
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
+          <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
+            <div className="relative flex items-center w-full sm:w-64">
+              <Search size={16} className="absolute left-3 text-base-content/40 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Search by name, SKU or unit…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="input input-bordered input-sm w-full pl-9"
+                aria-label="Search inventory"
+              />
+            </div>
+            <select
+              value={printScope}
+              onChange={(e) => setPrintScope(e.target.value as 'all' | 'low')}
+              className="select select-bordered select-sm w-full sm:w-auto"
+              aria-label="Filter items scope"
+            >
+              <option value="all">All Products</option>
+              <option value="low">Only Low Stock Products</option>
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                const query = new URLSearchParams();
+                if (branch) query.set('branch', branch);
+                query.set('mode', 'a4');
+                if (printScope === 'low') query.set('low_only', 'true');
+                window.open(`/inventory-print?${query.toString()}`, '_blank');
+              }}
+              className="btn btn-outline btn-sm gap-1.5 flex-1 md:flex-initial"
+            >
+              <Printer size={15} />
+              <span>Print A4</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const query = new URLSearchParams();
+                if (branch) query.set('branch', branch);
+                query.set('mode', 'thermal');
+                if (printScope === 'low') query.set('low_only', 'true');
+                window.open(`/inventory-print?${query.toString()}`, '_blank');
+              }}
+              className="btn btn-outline btn-sm gap-1.5 flex-1 md:flex-initial"
+            >
+              <Receipt size={15} />
+              <span>POS Thermal</span>
+            </button>
+          </div>
         </div>
 
         {allRows.length > 0 && rows.length === 0 ? (
