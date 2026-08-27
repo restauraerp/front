@@ -229,6 +229,7 @@ export default function OrdersPage() {
         const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
         if (activeLocationId) params.set('location_id', String(activeLocationId));
         if (completedSort === 'payment_method') params.set('sort', 'payment_method');
+        if (completedSort === 'token') params.set('sort', 'token');
         if (completedMethod) params.set('payment_method', completedMethod);
 
         const res = await fetchApi(`/orders?${params.toString()}`);
@@ -573,10 +574,17 @@ export default function OrdersPage() {
       <div key={order.id} className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
         <div className="flex justify-between items-start mb-2">
           <div>
-            <div className="font-extrabold text-lg text-primary mb-0.5">
-              {order.table?.name || (order.order_type ? order.order_type.replace('_', ' ').toUpperCase() : 'NO TABLE')}
+            <div className="font-extrabold text-lg text-primary mb-0.5 flex items-center gap-2">
+              <span>{order.table?.name || (order.order_type ? order.order_type.replace('_', ' ').toUpperCase() : 'NO TABLE')}</span>
+              {order.token_number != null && (
+                <span className="badge badge-secondary badge-sm font-extrabold" title="Token Number">
+                  Token #{order.token_number}
+                </span>
+              )}
             </div>
-            <div className="text-xs text-base-content/60">Order #{order.id} • {order.customer?.name || 'Walk-in'}</div>
+            <div className="text-xs text-base-content/60">
+              Order #{order.id} {order.token_number != null ? `(Token #${order.token_number}) ` : ''}• {order.customer?.name || 'Walk-in'}
+            </div>
           </div>
           <div className="flex flex-col items-end gap-1">
             <span className={`badge ${s.badge} badge-sm font-bold shadow-sm`}>{s.label}</span>
@@ -694,31 +702,32 @@ export default function OrdersPage() {
   };
 
   const filteredOrders = useMemo(() => {
-    if (activeTab === 'due') return dueOrders;
-    if (activeTab === 'completed') return completedOrders;
-    if (activeTab === 'trashed') return trashedOrders;
-
-    let current = orders.filter(o => {
-      if (activeLocationId && o.location_id !== activeLocationId) return false;
-      if (activeTab === 'active_orders') return true;
-      const isCompleted = isFinished(o) && o.payment_status === 'paid';
-      return o.order_type === activeTab && !isCompleted;
-    });
+    let list = activeTab === 'due' ? [...dueOrders]
+             : activeTab === 'completed' ? [...completedOrders]
+             : activeTab === 'trashed' ? [...trashedOrders]
+             : orders.filter(o => {
+                 if (activeLocationId && o.location_id !== activeLocationId) return false;
+                 if (activeTab === 'active_orders') return true;
+                 const isCompleted = isFinished(o) && o.payment_status === 'paid';
+                 return o.order_type === activeTab && !isCompleted;
+               });
 
     if (activeTab === 'dine_in') {
-      current.sort((a, b) => {
+      list.sort((a, b) => {
+        if (sortDineIn === 'token') return (a.token_number ?? 0) - (b.token_number ?? 0);
         if (sortDineIn === 'table') return (a.table?.name || '').localeCompare(b.table?.name || '');
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
     } else {
-      current.sort((a, b) => {
+      list.sort((a, b) => {
+        if (sortOthers === 'token') return (a.token_number ?? 0) - (b.token_number ?? 0);
         if (sortOthers === 'delivery_time' && a.delivery_time && b.delivery_time) {
           return new Date(a.delivery_time).getTime() - new Date(b.delivery_time).getTime();
         }
         return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
       });
     }
-    return current;
+    return list;
   }, [orders, completedOrders, dueOrders, trashedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
   const tabLabels: Record<string, string> = {
@@ -829,22 +838,31 @@ export default function OrdersPage() {
                   aria-label="Sort completed orders"
                 >
                   <option value="recent">Newest first</option>
+                  <option value="token">Sort by Token</option>
                   <option value="payment_method">Group by payment method</option>
                 </select>
               </>
             ) : activeTab === 'due' || activeTab === 'trashed' ? (
-              <span className="text-base-content/60">Newest first</span>
+              <>
+                <span className="text-base-content/60">Sort by:</span>
+                <select className="select select-bordered select-sm" value={sortOthers} onChange={e => setSortOthers(e.target.value)}>
+                  <option value="time">Placement Time</option>
+                  <option value="token">Token Number</option>
+                </select>
+              </>
             ) : (
               <>
                 <span className="text-base-content/60">Sort by:</span>
                 {activeTab === 'dine_in' ? (
                   <select className="select select-bordered select-sm" value={sortDineIn} onChange={e => setSortDineIn(e.target.value)}>
                     <option value="time">Placement Time</option>
+                    <option value="token">Token Number</option>
                     <option value="table">Table Number</option>
                   </select>
                 ) : (
                   <select className="select select-bordered select-sm" value={sortOthers} onChange={e => setSortOthers(e.target.value)}>
                     <option value="time">Placement Time</option>
+                    <option value="token">Token Number</option>
                     <option value="delivery_time">Delivery/Event Time</option>
                   </select>
                 )}
@@ -897,7 +915,14 @@ export default function OrdersPage() {
                       return (
                         <tr key={order.id} className="hover">
                           <td>
-                            <div className="font-bold">#{order.id}</div>
+                            <div className="font-bold flex items-center gap-1.5">
+                              <span>#{order.id}</span>
+                              {order.token_number != null && (
+                                <span className="badge badge-secondary badge-xs font-extrabold" title="Token Number">
+                                  T#{order.token_number}
+                                </span>
+                              )}
+                            </div>
                             <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                             {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
                           </td>
@@ -1226,11 +1251,21 @@ export default function OrdersPage() {
         <dialog className="modal modal-open">
           <div className="modal-box max-w-lg">
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-bold text-lg">Order #{detailOrder.id} Details</h3>
+              <div>
+                <h3 className="font-bold text-lg flex items-center gap-2">
+                  <span>Order #{detailOrder.id} Details</span>
+                  {detailOrder.token_number != null && (
+                    <span className="badge badge-secondary font-extrabold text-xs">
+                      Token #{detailOrder.token_number}
+                    </span>
+                  )}
+                </h3>
+              </div>
               <button className="btn btn-sm btn-circle btn-ghost" onClick={() => setDetailOrder(null)}>✕</button>
             </div>
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2 bg-base-200/50 p-3 rounded-lg">
+                <div><span className="opacity-60">Token Number:</span> <span className="font-bold text-secondary">{detailOrder.token_number != null ? `#${detailOrder.token_number}` : 'N/A'}</span></div>
                 <div><span className="opacity-60">Status:</span> <span className="font-semibold capitalize">{detailOrder.status}</span></div>
                 <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : detailOrder.payment_status === 'due' ? 'text-warning' : 'text-error'}`}>{paymentBadge(detailOrder.payment_status).label}</span></div>
                 {detailOrder.payments?.[0]?.note && (
