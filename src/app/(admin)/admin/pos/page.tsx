@@ -499,7 +499,12 @@ function POS() {
                   onMouseOut={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = '#e5e7eb'; }}
                   className="active:scale-95"
                 >
-                  <div style={{ height: '110px', width: '100%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <div style={{ height: '110px', width: '100%', backgroundColor: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', position: 'relative' }}>
+                    {p.type === 'combo' && (
+                      <span className="absolute top-1.5 left-1.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-[10px] font-extrabold px-2 py-0.5 rounded-full shadow-sm">
+                        🎁 Set Menu
+                      </span>
+                    )}
                     {p.images && p.images.length > 0 ? (
                       <img src={`/storage/${p.images[0].url}`} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : (
@@ -508,6 +513,11 @@ function POS() {
                   </div>
                   <div style={{ padding: '0.65rem 0.75rem' }}>
                     <p style={{ fontWeight: 600, fontSize: '0.82rem', lineHeight: 1.2, marginBottom: '0.15rem', color: '#1f2937' }}>{p.name}</p>
+                    {p.type === 'combo' && p.combo_items && p.combo_items.length > 0 && (
+                      <p style={{ fontSize: '0.68rem', color: '#6b7280', marginBottom: '0.2rem', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        Includes: {p.combo_items.map((ci: any) => ci.product?.name || ci.inventory_item?.title || ci.inventory_item?.description || 'Item').join(', ')}
+                      </p>
+                    )}
                     <p style={{ color: '#6366f1', fontWeight: 700, fontSize: '0.95rem' }}>{currency}{p.price}</p>
                   </div>
                 </button>

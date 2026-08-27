@@ -53,6 +53,10 @@ export default function ProductsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [productRecipes, setProductRecipes] = useState<any[]>([]);
 
+  const [comboItems, setComboItems] = useState<{ product_id?: number | null, inventory_item_id?: number | null, quantity: number }[]>([]);
+  const [allProductsList, setAllProductsList] = useState<any[]>([]);
+  const [inventoryItemsList, setInventoryItemsList] = useState<any[]>([]);
+
   const buildQuery = useCallback(() => {
     const q = new URLSearchParams({ page: String(page) });
     if (search) q.set('search', search);
@@ -68,11 +72,13 @@ export default function ProductsPage() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodRes, catRes, setRes, locRes] = await Promise.all([
+      const [prodRes, catRes, setRes, locRes, allProdRes, invRes] = await Promise.all([
         fetchApi(`/products?${buildQuery()}`),
         fetchApi('/product-categories?nopaginate=1'),
         fetchApi('/website-settings'),
         fetchApi('/locations'),
+        fetchApi('/products?nopaginate=1'),
+        fetchApi('/inventory-items?nopaginate=1'),
       ]);
 
       if (prodRes?.data && Array.isArray(prodRes.data)) {
@@ -94,6 +100,8 @@ export default function ProductsPage() {
 
       setCategories(catRes?.data || catRes || []);
       setLocations(locRes?.data || locRes || []);
+      setAllProductsList(allProdRes?.data || allProdRes || []);
+      setInventoryItemsList(invRes?.data || invRes || []);
 
       const map: Record<string, string> = {};
       (setRes?.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -118,6 +126,7 @@ export default function ProductsPage() {
     setFeaturedNewIndex(null);
     setEditingId(null);
     setProductRecipes([]);
+    setComboItems([]);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -166,6 +175,14 @@ export default function ProductsPage() {
         fd.append(`locations[${i}][is_available]`, loc.is_available ? '1' : '0');
       });
 
+      if (formData.type === 'combo') {
+        comboItems.forEach((ci, i) => {
+          if (ci.product_id) fd.append(`combo_items[${i}][product_id]`, String(ci.product_id));
+          if (ci.inventory_item_id) fd.append(`combo_items[${i}][inventory_item_id]`, String(ci.inventory_item_id));
+          fd.append(`combo_items[${i}][quantity]`, String(ci.quantity));
+        });
+      }
+
       newImageFiles.forEach((file, i) => fd.append(`images[${i}]`, file));
       removedImageIds.forEach((id, i) => fd.append(`remove_images[${i}]`, String(id)));
 
@@ -208,6 +225,16 @@ export default function ProductsPage() {
         is_available: loc.pivot ? loc.pivot.is_available === 1 || loc.pivot.is_available === true : true,
       })),
     });
+
+    if (row.type === 'combo' && row.combo_items) {
+      setComboItems(row.combo_items.map((ci: any) => ({
+        product_id: ci.product_id || null,
+        inventory_item_id: ci.inventory_item_id || null,
+        quantity: ci.quantity || 1,
+      })));
+    } else {
+      setComboItems([]);
+    }
 
     const imgs: ExistingImage[] = (row.images || []).map((img: any) => ({
       id: img.id,
@@ -280,7 +307,15 @@ export default function ProductsPage() {
         <span style={{ cursor: 'pointer' }} onClick={() => handleSort('price')}>{row.price}</span>
       ),
     },
-    { key: 'type', label: 'Type' },
+    { key: 'type', label: 'Type', render: (row: any) => (
+      row.type === 'combo' ? (
+        <span className="badge badge-secondary font-bold text-white px-2.5 py-1 h-auto rounded-full">
+          🎁 Combo / Set Menu
+        </span>
+      ) : (
+        <span className="capitalize">{row.type}</span>
+      )
+    )},
     {
       key: 'needs_cooking',
       label: 'Cookable',
@@ -337,8 +372,118 @@ export default function ProductsPage() {
                 <option value="food">Food</option>
                 <option value="beverage">Beverage</option>
                 <option value="merchandise">Merchandise</option>
+                <option value="combo">🎁 Combo / Set Menu</option>
               </select>
             </div>
+
+            {formData.type === 'combo' && (
+              <div className="sm:col-span-2 bg-base-200/50 border border-base-300 rounded-xl p-4 space-y-3">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h4 className="font-bold text-sm flex items-center gap-1.5">
+                      🎁 Set Menu / Combo Items Builder
+                    </h4>
+                    <p className="text-xs text-base-content/60">
+                      Group cookable products and direct sellable inventory items together into a single set menu product.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-primary gap-1"
+                    onClick={() => setComboItems(prev => [...prev, { product_id: null, inventory_item_id: null, quantity: 1 }])}
+                  >
+                    + Add Item to Combo
+                  </button>
+                </div>
+
+                {comboItems.length === 0 ? (
+                  <div className="text-center py-4 text-xs opacity-60 border border-dashed border-base-300 rounded-lg">
+                    No items added to this combo yet. Click "+ Add Item to Combo" to begin grouping.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {comboItems.map((item, idx) => {
+                      const itemType = item.inventory_item_id ? 'inventory' : 'product';
+                      return (
+                        <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-base-100 p-2.5 rounded-lg border border-base-200">
+                          <select
+                            className="select select-sm select-bordered w-32 text-xs"
+                            value={itemType}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setComboItems(prev => prev.map((ci, i) => i === idx ? (
+                                val === 'product'
+                                  ? { product_id: allProductsList[0]?.id || null, inventory_item_id: null, quantity: ci.quantity }
+                                  : { product_id: null, inventory_item_id: inventoryItemsList[0]?.id || null, quantity: ci.quantity }
+                              ) : ci));
+                            }}
+                          >
+                            <option value="product">🍳 Menu Product</option>
+                            <option value="inventory">📦 Stock Item</option>
+                          </select>
+
+                          {itemType === 'product' ? (
+                            <SearchSelect
+                              label=""
+                              value={item.product_id || ''}
+                              onChange={(v) => {
+                                setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, product_id: Number(v), inventory_item_id: null } : ci));
+                              }}
+                              options={allProductsList.filter(p => p.id !== editingId).map(p => ({
+                                value: p.id,
+                                label: p.name,
+                                hint: `৳${p.price}${p.needs_cooking ? ' • Cookable' : ''}`,
+                              }))}
+                              placeholder="Select Product"
+                              searchPlaceholder="Search product..."
+                            />
+                          ) : (
+                            <SearchSelect
+                              label=""
+                              value={item.inventory_item_id || ''}
+                              onChange={(v) => {
+                                setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, inventory_item_id: Number(v), product_id: null } : ci));
+                              }}
+                              options={inventoryItemsList.map(inv => ({
+                                value: inv.id,
+                                label: inv.title || inv.description || `Item #${inv.id}`,
+                                hint: inv.unit ? `Unit: ${inv.unit}` : '',
+                              }))}
+                              placeholder="Select Inventory Item"
+                              searchPlaceholder="Search inventory item..."
+                            />
+                          )}
+
+                          <div className="flex items-center gap-1.5 w-32 shrink-0">
+                            <span className="text-xs font-medium opacity-70">Qty:</span>
+                            <input
+                              type="number"
+                              min="0.1"
+                              step="0.1"
+                              className="input input-sm input-bordered w-full text-xs"
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const q = parseFloat(e.target.value) || 1;
+                                setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, quantity: q } : ci));
+                              }}
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            className="btn btn-xs btn-ghost text-error"
+                            onClick={() => setComboItems(prev => prev.filter((_, i) => i !== idx))}
+                            title="Remove item"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="form-control w-full sm:col-span-2">
               <label className="label"><span className="label-text font-medium">Description</span></label>
