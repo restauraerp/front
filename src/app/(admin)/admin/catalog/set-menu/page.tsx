@@ -6,12 +6,11 @@ import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { MultiImageUpload, ExistingImage } from '@/components/ui/MultiImageUpload';
-import styles from '@/components/ui/ui.module.css';
 import { Star } from 'lucide-react';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
-export default function ProductsPage() {
-  const [products, setProducts] = useState<any[]>([]);
+export default function SetMenuPage() {
+  const [combos, setCombos] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,9 +21,7 @@ export default function ProductsPage() {
   const [totalItems, setTotalItems] = useState(0);
   const [perPage, setPerPage] = useState(15);
 
-  // Search / filter / sort state
   const [search, setSearch] = useState('');
-  const [filterCookable, setFilterCookable] = useState('');
   const [filterActive, setFilterActive] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [sortField, setSortField] = useState('');
@@ -35,66 +32,72 @@ export default function ProductsPage() {
     name: '',
     description: '',
     price: '',
+    sale_price: '',
     category_id: '',
-    type: 'food',
-    needs_cooking: false,
     is_active: 1,
-    locations: [] as { location_id: number, is_available: boolean }[],
+    locations: [] as { location_id: number; is_available: boolean }[],
   });
 
-  // Multi-image state
   const [existingImages, setExistingImages] = useState<ExistingImage[]>([]);
   const [removedImageIds, setRemovedImageIds] = useState<number[]>([]);
   const [newImageFiles, setNewImageFiles] = useState<File[]>([]);
-  const [featuredImageId, setFeaturedImageId] = useState<number | null>(null); // existing image id
-  const [featuredNewIndex, setFeaturedNewIndex] = useState<number | null>(null); // index in newImageFiles
+  const [featuredImageId, setFeaturedImageId] = useState<number | null>(null);
+  const [featuredNewIndex, setFeaturedNewIndex] = useState<number | null>(null);
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [productRecipes, setProductRecipes] = useState<any[]>([]);
 
+  const [comboItems, setComboItems] = useState<{ product_id?: number | null; inventory_item_id?: number | null; quantity: number }[]>([]);
+  const [allProductsList, setAllProductsList] = useState<any[]>([]);
+  const [inventoryItemsList, setInventoryItemsList] = useState<any[]>([]);
 
   const buildQuery = useCallback(() => {
-    const q = new URLSearchParams({ page: String(page), exclude_type: 'combo' });
+    const q = new URLSearchParams({ page: String(page), type: 'combo' });
     if (search) q.set('search', search);
-    if (filterCookable !== '') q.set('needs_cooking', filterCookable);
     if (filterActive !== '') q.set('is_active', filterActive);
     if (filterCategory) q.set('category_id', filterCategory);
     if (sortField) { q.set('sort', sortField); q.set('direction', sortDir); }
     return q.toString();
-  }, [page, search, filterCookable, filterActive, filterCategory, sortField, sortDir]);
+  }, [page, search, filterActive, filterCategory, sortField, sortDir]);
 
   useEffect(() => { loadData(); }, [buildQuery]);
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [prodRes, catRes, setRes, locRes] = await Promise.all([
+      const [prodRes, catRes, setRes, locRes, allProdRes, invRes] = await Promise.all([
         fetchApi(`/products?${buildQuery()}`),
         fetchApi('/product-categories?nopaginate=1'),
         fetchApi('/website-settings'),
         fetchApi('/locations'),
+        fetchApi('/products?nopaginate=1'),
+        fetchApi('/inventory-items?nopaginate=1&is_sellable=1'),
       ]);
 
       if (prodRes?.data && Array.isArray(prodRes.data)) {
-        setProducts(prodRes.data);
+        setCombos(prodRes.data);
         setTotalPages(prodRes.last_page || 1);
         setTotalItems(prodRes.total || prodRes.data.length);
         setPerPage(prodRes.per_page || 15);
       } else if (prodRes?.data?.data && Array.isArray(prodRes.data.data)) {
-        setProducts(prodRes.data.data);
+        setCombos(prodRes.data.data);
         setTotalPages(prodRes.data.last_page || 1);
         setTotalItems(prodRes.data.total || prodRes.data.data.length);
         setPerPage(prodRes.data.per_page || 15);
       } else {
-        setProducts(prodRes?.data || prodRes || []);
+        setCombos(prodRes?.data || prodRes || []);
         setTotalPages(1);
         setTotalItems((prodRes?.data || prodRes || []).length);
         setPerPage(15);
       }
 
-      setCategories(catRes?.data || catRes || []);
-      setLocations(locRes?.data || locRes || []);
+      const cats = catRes?.data || catRes || [];
+      const locs = locRes?.data || locRes || [];
+      setCategories(cats);
+      setLocations(locs);
+      setAllProductsList((allProdRes?.data || allProdRes || []).filter((p: any) => p.type !== 'combo'));
+      const invData = invRes?.data || invRes || [];
+      setInventoryItemsList(Array.isArray(invData) ? invData.filter((i: any) => i.is_sellable === 1 || i.is_sellable === true) : []);
 
       const map: Record<string, string> = {};
       (setRes?.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -108,8 +111,8 @@ export default function ProductsPage() {
 
   const resetForm = (locs: any[] = locations) => {
     setFormData({
-      name: '', description: '', price: '', category_id: '', type: 'food',
-      needs_cooking: false, is_active: 1,
+      name: '', description: '', price: '', sale_price: '', category_id: '',
+      is_active: 1,
       locations: locs.map(l => ({ location_id: l.id, is_available: true })),
     });
     setExistingImages([]);
@@ -118,7 +121,7 @@ export default function ProductsPage() {
     setFeaturedImageId(null);
     setFeaturedNewIndex(null);
     setEditingId(null);
-    setProductRecipes([]);
+    setComboItems([{ product_id: null, inventory_item_id: null, quantity: 1 }]);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -157,14 +160,20 @@ export default function ProductsPage() {
       fd.append('name', formData.name);
       fd.append('description', formData.description);
       fd.append('price', formData.price);
+      if (formData.sale_price) fd.append('sale_price', formData.sale_price);
       if (formData.category_id) fd.append('category_id', formData.category_id);
-      fd.append('type', formData.type);
-      fd.append('needs_cooking', formData.needs_cooking ? '1' : '0');
+      fd.append('type', 'combo');
       fd.append('is_active', String(formData.is_active));
 
       formData.locations.forEach((loc, i) => {
         fd.append(`locations[${i}][location_id]`, loc.location_id.toString());
         fd.append(`locations[${i}][is_available]`, loc.is_available ? '1' : '0');
+      });
+
+      comboItems.forEach((ci, i) => {
+        if (ci.product_id) fd.append(`combo_items[${i}][product_id]`, String(ci.product_id));
+        if (ci.inventory_item_id) fd.append(`combo_items[${i}][inventory_item_id]`, String(ci.inventory_item_id));
+        fd.append(`combo_items[${i}][quantity]`, String(ci.quantity));
       });
 
       newImageFiles.forEach((file, i) => fd.append(`images[${i}]`, file));
@@ -188,7 +197,7 @@ export default function ProductsPage() {
       loadData();
     } catch (err) {
       console.error(err);
-      alert('Failed to save product');
+      alert('Failed to save set menu');
     } finally {
       setSubmitting(false);
     }
@@ -200,15 +209,24 @@ export default function ProductsPage() {
       name: row.name || '',
       description: row.description || '',
       price: row.price || '',
+      sale_price: row.sale_price || '',
       category_id: row.category_id || '',
-      type: row.type || 'food',
-      needs_cooking: Boolean(row.needs_cooking),
       is_active: row.is_active !== undefined ? row.is_active : 1,
       locations: (row.locations || []).map((loc: any) => ({
         location_id: loc.id,
         is_available: loc.pivot ? loc.pivot.is_available === 1 || loc.pivot.is_available === true : true,
       })),
     });
+
+    if (row.combo_items && row.combo_items.length > 0) {
+      setComboItems(row.combo_items.map((ci: any) => ({
+        product_id: ci.product_id || null,
+        inventory_item_id: ci.inventory_item_id || null,
+        quantity: ci.quantity || 1,
+      })));
+    } else {
+      setComboItems([{ product_id: null, inventory_item_id: null, quantity: 1 }]);
+    }
 
     const imgs: ExistingImage[] = (row.images || []).map((img: any) => ({
       id: img.id,
@@ -223,29 +241,24 @@ export default function ProductsPage() {
     setFeaturedNewIndex(null);
 
     setIsFormOpen(true);
-
-    try {
-      const res = await fetchApi(`/recipes?product_id=${row.id}`);
-      setProductRecipes(res.data?.data || res.data || res || []);
-    } catch (err) {
-      console.error('Failed to load recipes', err);
-    }
   };
 
   const handleDelete = async (row: any) => {
-    if (confirm(`Are you sure you want to delete ${row.name}?`)) {
+    if (confirm(`Are you sure you want to delete "${row.name}"?`)) {
       try {
         await fetchApi(`/products/${row.id}`, { method: 'DELETE' });
         loadData();
       } catch (err) {
         console.error(err);
-        alert('Failed to delete product');
+        alert('Failed to delete set menu');
       }
     }
   };
 
   const sortIndicator = (field: string) =>
     sortField === field ? (sortDir === 'asc' ? ' ▲' : ' ▼') : '';
+
+  const currency = settings.currency_symbol || '৳';
 
   const columns = [
     { key: 'id', label: 'ID' },
@@ -275,24 +288,41 @@ export default function ProductsPage() {
       ),
     },
     {
-      key: 'price',
-      label: `Price (${settings.currency_symbol || '৳'})${sortIndicator('price')}`,
-      render: (row: any) => (
-        <span style={{ cursor: 'pointer' }} onClick={() => handleSort('price')}>{row.price}</span>
-      ),
+      key: 'combo_items',
+      label: 'Includes',
+      render: (row: any) => {
+        const items = row.combo_items || [];
+        if (items.length === 0) return <span className="text-base-content/40 text-sm">No items</span>;
+        return (
+          <div className="space-y-0.5">
+            {items.map((ci: any, i: number) => (
+              <div key={i} className="text-xs text-base-content/70">
+                {ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}
+              </div>
+            ))}
+          </div>
+        );
+      },
     },
     {
-      key: 'needs_cooking',
-      label: 'Cookable',
+      key: 'price',
+      label: `Price${sortIndicator('price')}`,
       render: (row: any) => (
-        <span className={`badge ${row.needs_cooking ? 'badge-info text-white' : 'badge-ghost'} px-3 py-1 h-auto rounded-full`}>
-          {row.needs_cooking ? 'Yes' : 'No'}
+        <span style={{ cursor: 'pointer' }} onClick={() => handleSort('price')}>
+          {row.sale_price && Number(row.sale_price) < Number(row.price) ? (
+            <>
+              <span className="line-through text-base-content/40 mr-1">{currency}{row.price}</span>
+              <span className="font-semibold text-success">{currency}{row.sale_price}</span>
+            </>
+          ) : (
+            <span>{currency}{row.price}</span>
+          )}
         </span>
       ),
     },
     {
       key: 'is_active',
-      label: 'Active',
+      label: 'Status',
       render: (row: any) => (
         <span className={`badge ${row.is_active ? 'badge-success text-white' : 'badge-ghost'} px-3 py-1 h-auto rounded-full`}>
           {row.is_active ? 'Active' : 'Inactive'}
@@ -301,26 +331,24 @@ export default function ProductsPage() {
     },
   ];
 
-  // Derived list of kept existing images for featured picker
   const keptExisting = existingImages.filter(img => !removedImageIds.includes(img.id));
 
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
-        <h1>Product Management</h1>
+        <h1>Set Menu / Combos</h1>
         <Button onClick={() => {
           if (isFormOpen) { setIsFormOpen(false); resetForm(); }
           else { resetForm(); setIsFormOpen(true); }
         }}>
-          {isFormOpen ? 'Close Form' : '+ New Product'}
+          {isFormOpen ? 'Close Form' : '+ New Set Menu'}
         </Button>
       </div>
 
       {isFormOpen && (
-        <Card title={editingId ? 'Edit Product' : 'New Product'} style={{ marginBottom: '2rem' }}>
+        <Card title={editingId ? 'Edit Set Menu' : 'New Set Menu'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
-            <Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />
+            <Input label="Set Menu Name" name="name" value={formData.name} onChange={handleInputChange} required />
 
             <SearchSelect
               label="Category"
@@ -331,13 +359,116 @@ export default function ProductsPage() {
               searchPlaceholder="Search categories…"
             />
 
-            <div className="form-control w-full">
-              <label className="label"><span className="label-text font-medium">Type</span></label>
-              <select className="select select-bordered w-full" name="type" value={formData.type} onChange={handleInputChange}>
-                <option value="food">Food</option>
-                <option value="beverage">Beverage</option>
-                <option value="merchandise">Merchandise</option>
-              </select>
+            <Input label={`Price (${currency})`} name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />
+            <Input label={`Sale Price (${currency})`} name="sale_price" type="number" step="0.01" value={formData.sale_price} onChange={handleInputChange} />
+
+            {/* Combo items builder */}
+            <div className="sm:col-span-2 bg-base-200/50 border border-base-300 rounded-xl p-4 space-y-3">
+              <div>
+                <h4 className="font-bold text-sm flex items-center gap-1.5">
+                  Items in this Set Menu
+                </h4>
+                <p className="text-xs text-base-content/60">
+                  Add the products and inventory items that make up this set menu. Customers will see these as the combo breakdown.
+                </p>
+              </div>
+
+              {comboItems.length === 0 ? (
+                <div className="text-center py-4 text-xs opacity-60 border border-dashed border-base-300 rounded-lg">
+                  No items added yet. Click &quot;+ Add Item&quot; below to start building the set menu.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {comboItems.map((item, idx) => {
+                    const itemType = item.inventory_item_id ? 'inventory' : 'product';
+                    return (
+                      <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-base-100 p-2.5 rounded-lg border border-base-200">
+                        <select
+                          className="select select-sm select-bordered w-28 text-xs"
+                          value={itemType}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setComboItems(prev => prev.map((ci, i) => i === idx ? (
+                              val === 'product'
+                                ? { product_id: allProductsList[0]?.id || null, inventory_item_id: null, quantity: ci.quantity }
+                                : { product_id: null, inventory_item_id: inventoryItemsList[0]?.id || null, quantity: ci.quantity }
+                            ) : ci));
+                          }}
+                        >
+                          <option value="product">Product</option>
+                          <option value="inventory">Stock Item</option>
+                        </select>
+
+                        {itemType === 'product' ? (
+                          <SearchSelect
+                            label=""
+                            value={item.product_id || ''}
+                            onChange={(v) => {
+                              setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, product_id: Number(v), inventory_item_id: null } : ci));
+                            }}
+                            options={allProductsList.filter(p => p.id !== editingId).map(p => ({
+                              value: p.id,
+                              label: p.name,
+                              hint: `${currency}${p.price}${p.needs_cooking ? ' · Cookable' : ''}`,
+                            }))}
+                            placeholder="Select Product"
+                            searchPlaceholder="Search product..."
+                          />
+                        ) : (
+                          <SearchSelect
+                            label=""
+                            value={item.inventory_item_id || ''}
+                            onChange={(v) => {
+                              setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, inventory_item_id: Number(v), product_id: null } : ci));
+                            }}
+                            options={inventoryItemsList.map(inv => ({
+                              value: inv.id,
+                              label: inv.title || inv.description || `Item #${inv.id}`,
+                              hint: inv.unit ? `Unit: ${inv.unit}` : '',
+                            }))}
+                            placeholder="Select Inventory Item"
+                            searchPlaceholder="Search inventory item..."
+                          />
+                        )}
+
+                        <div className="flex items-center gap-1.5 w-32 shrink-0">
+                          <span className="text-xs font-medium opacity-70">Qty:</span>
+                          <input
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                            className="input input-sm input-bordered w-full text-xs"
+                            value={item.quantity}
+                            onChange={(e) => {
+                              const q = parseFloat(e.target.value) || 1;
+                              setComboItems(prev => prev.map((ci, i) => i === idx ? { ...ci, quantity: q } : ci));
+                            }}
+                          />
+                        </div>
+
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost text-error"
+                          onClick={() => setComboItems(prev => prev.filter((_, i) => i !== idx))}
+                          title="Remove item"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline btn-primary gap-1"
+                  onClick={() => setComboItems(prev => [...prev, { product_id: allProductsList[0]?.id || null, inventory_item_id: null, quantity: 1 }])}
+                >
+                  + Add Item
+                </button>
+              </div>
             </div>
 
             <div className="form-control w-full sm:col-span-2">
@@ -348,13 +479,14 @@ export default function ProductsPage() {
                 value={formData.description}
                 onChange={handleInputChange}
                 rows={3}
+                placeholder="Describe what this set menu includes and any special notes…"
               />
             </div>
 
             {/* Multi-image upload */}
             <div style={{ gridColumn: '1 / -1' }}>
               <MultiImageUpload
-                label="Product Images"
+                label="Set Menu Images"
                 existing={existingImages}
                 removedIds={removedImageIds}
                 onRemoveExisting={(id) => {
@@ -364,13 +496,12 @@ export default function ProductsPage() {
                 files={newImageFiles}
                 onFilesChange={setNewImageFiles}
                 disabled={submitting}
-                hint="Drag product photos here · PNG, JPG or WEBP · up to 5 MB each"
+                hint="Drag set menu photos here · PNG, JPG or WEBP · up to 5 MB each"
               />
 
-              {/* Featured image picker */}
               {(keptExisting.length + newImageFiles.length) > 0 && (
                 <div className="mt-3">
-                  <p className="text-sm font-medium mb-2">Featured image <span className="text-base-content/50 font-normal">(shown in POS and product list)</span></p>
+                  <p className="text-sm font-medium mb-2">Featured image <span className="text-base-content/50 font-normal">(shown in POS and menu)</span></p>
                   <div className="flex flex-wrap gap-2">
                     {keptExisting.map(img => {
                       const isFeatured = featuredImageId === img.id && featuredNewIndex === null;
@@ -416,26 +547,6 @@ export default function ProductsPage() {
               )}
             </div>
 
-            <div className="rounded-[var(--radius-field)] border border-base-300 p-4 sm:col-span-2">
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  type="checkbox"
-                  className="checkbox checkbox-primary mt-0.5"
-                  checked={formData.needs_cooking}
-                  onChange={(e) => setFormData(prev => ({ ...prev, needs_cooking: e.target.checked }))}
-                  disabled={submitting}
-                />
-                <span>
-                  <span className="font-medium">Needs to cook</span>
-                  <span className="block text-sm text-content-muted">
-                    Dishes prepared to order go to the kitchen display and start at Cooking. Leave this unticked for
-                    anything handed over as it is — bottled drinks, packaged snacks — and orders made only of those
-                    skip the kitchen and open at Ready to Serve.
-                  </span>
-                </span>
-              </label>
-            </div>
-
             <div className="form-control w-full">
               <label className="label"><span className="label-text font-medium">Status</span></label>
               <select className="select select-bordered w-full" name="is_active" value={formData.is_active} onChange={handleInputChange}>
@@ -467,36 +578,9 @@ export default function ProductsPage() {
               </div>
             )}
 
-            {editingId && (
-              <div className="form-control w-full" style={{ gridColumn: '1 / -1', marginTop: '0.5rem', borderTop: '1px solid #e5e7eb', paddingTop: '1rem' }}>
-                <label className="label" style={{ marginBottom: '0.75rem', display: 'flex', justifyContent: 'space-between', fontWeight: 600 }}>
-                  <span>Recipe</span>
-                  <a href={`/admin/inventory/recipes?product_id=${editingId}&action=new`} target="_blank" style={{ color: 'var(--primary)', fontSize: '0.8rem', fontWeight: 'normal' }}>Manage Recipes →</a>
-                </label>
-                {productRecipes.length > 0 ? (
-                  <ul style={{ listStyle: 'disc', paddingLeft: '1.5rem', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                    {productRecipes.map(r => (
-                      <li key={r.id}>
-                        {r.inventory_item?.images?.[0] && (
-                          <img
-                            src={r.inventory_item.images[0].url?.startsWith('http') ? r.inventory_item.images[0].url : `/storage/${r.inventory_item.images[0].url}`}
-                            alt=""
-                            style={{ width: 20, height: 20, objectFit: 'cover', borderRadius: 3, display: 'inline-block', marginRight: 6, verticalAlign: 'middle' }}
-                          />
-                        )}
-                        {r.inventory_item?.title} — {r.quantity_required} {r.inventory_item?.unit}
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p style={{ fontSize: '0.9rem', color: 'gray' }}>No recipe defined for this product.</p>
-                )}
-              </div>
-            )}
-
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '1rem', marginTop: '1rem' }}>
               <Button type="submit" variant="primary" disabled={submitting}>
-                {submitting ? 'Saving...' : (editingId ? 'Update Product' : 'Create Product')}
+                {submitting ? 'Saving...' : (editingId ? 'Update Set Menu' : 'Create Set Menu')}
               </Button>
               <Button type="button" variant="secondary" onClick={() => { setIsFormOpen(false); resetForm(); }} disabled={submitting}>Cancel</Button>
             </div>
@@ -504,7 +588,7 @@ export default function ProductsPage() {
         </Card>
       )}
 
-      {/* Search + Filter + Sort bar */}
+      {/* Search + Filter bar */}
       <div className="flex flex-wrap gap-3 mb-4 items-end">
         <div className="flex-1 min-w-[180px]">
           <Input
@@ -513,15 +597,6 @@ export default function ProductsPage() {
             value={search}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => { setSearch(e.target.value); setPage(1); }}
           />
-        </div>
-
-        <div className="form-control">
-          <label className="label py-1"><span className="label-text text-xs">Cookable</span></label>
-          <select className="select select-bordered select-sm" value={filterCookable} onChange={e => { setFilterCookable(e.target.value); setPage(1); }}>
-            <option value="">All</option>
-            <option value="1">Yes</option>
-            <option value="0">No</option>
-          </select>
         </div>
 
         <div className="form-control">
@@ -567,12 +642,12 @@ export default function ProductsPage() {
       <Card>
         {loading ? <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div> : (
           <>
-            <Table columns={columns} data={products} onEdit={handleEdit} onDelete={handleDelete} />
+            <Table columns={columns} data={combos} onEdit={handleEdit} onDelete={handleDelete} />
             <div className="flex flex-col sm:flex-row items-center justify-between mt-4 pb-2 gap-3">
               <span className="text-sm text-base-content/50">
                 {totalItems > 0
-                  ? `Showing ${(page - 1) * perPage + 1}–${Math.min(page * perPage, totalItems)} of ${totalItems} products`
-                  : 'No products found'}
+                  ? `Showing ${(page - 1) * perPage + 1}–${Math.min(page * perPage, totalItems)} of ${totalItems} set menus`
+                  : 'No set menus found'}
               </span>
               {totalPages > 1 && (
                 <div className="join">

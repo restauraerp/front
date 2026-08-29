@@ -68,8 +68,8 @@ export default function Catalog() {
               <div className="text-3xl font-bold text-primary">{stats.combos} <span className="text-sm font-normal text-base-content/60">Combos</span></div>
             )}
           </div>
-          <Link href="/admin/catalog/products?type=combo" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
-            Create Set Menu &rarr;
+          <Link href="/admin/catalog/set-menu" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+            Manage Set Menus &rarr;
           </Link>
         </Card>
         <Card title={<div className="flex items-center gap-2"><Layers className="text-primary" size={20} /> Categories</div>}>
