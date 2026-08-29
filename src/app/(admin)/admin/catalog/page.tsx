@@ -7,26 +7,28 @@ import { fetchApi } from '@/lib/api';
 import { Package, Layers, Tag } from 'lucide-react';
 
 export default function Catalog() {
-  const [stats, setStats] = useState({ products: 0, categories: 0, tags: 0 });
+  const [stats, setStats] = useState({ products: 0, combos: 0, categories: 0, tags: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
       try {
-        const [prodRes, catRes, tagRes] = await Promise.all([
+        const [prodRes, comboRes, catRes, tagRes] = await Promise.all([
           fetchApi('/products?per_page=1'),
+          fetchApi('/products?type=combo&per_page=1'),
           fetchApi('/product-categories?nopaginate=1'),
           fetchApi('/tags')
         ]);
 
-        // Safely extract the total count from paginated responses or arrays
         const prodCount = prodRes?.total || prodRes?.meta?.total || (Array.isArray(prodRes?.data) ? prodRes.data.length : 0) || 0;
+        const comboCount = comboRes?.total || comboRes?.meta?.total || (Array.isArray(comboRes?.data) ? comboRes.data.length : 0) || 0;
         
         const catArray = Array.isArray(catRes) ? catRes : (Array.isArray(catRes?.data) ? catRes.data : []);
         const tagArray = Array.isArray(tagRes) ? tagRes : (Array.isArray(tagRes?.data) ? tagRes.data : []);
 
         setStats({
           products: prodCount,
+          combos: comboCount,
           categories: catArray.length,
           tags: tagArray.length
         });
@@ -43,7 +45,7 @@ export default function Catalog() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-8">Catalog Management</h1>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <Card title={<div className="flex items-center gap-2"><Package className="text-primary" size={20} /> Products</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">Manage all sellable items on your menu.</p>
@@ -55,6 +57,19 @@ export default function Catalog() {
           </div>
           <Link href="/admin/catalog/products" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
             Manage Products &rarr;
+          </Link>
+        </Card>
+        <Card title={<div className="flex items-center gap-2"><Layers className="text-primary" size={20} /> Set Menu / Combos</div>}>
+          <div className="mb-4">
+            <p className="text-base-content/70 mb-2">Group cookable products & inventory into combo packages.</p>
+            {loading ? (
+              <div className="skeleton h-8 w-24"></div>
+            ) : (
+              <div className="text-3xl font-bold text-primary">{stats.combos} <span className="text-sm font-normal text-base-content/60">Combos</span></div>
+            )}
+          </div>
+          <Link href="/admin/catalog/products?type=combo" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+            Create Set Menu &rarr;
           </Link>
         </Card>
         <Card title={<div className="flex items-center gap-2"><Layers className="text-primary" size={20} /> Categories</div>}>

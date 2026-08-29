@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
@@ -11,6 +12,9 @@ import { Star } from 'lucide-react';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
 export default function ProductsPage() {
+  const searchParams = useSearchParams();
+  const initialTypeParam = searchParams.get('type');
+
   const [products, setProducts] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -78,7 +82,7 @@ export default function ProductsPage() {
         fetchApi('/website-settings'),
         fetchApi('/locations'),
         fetchApi('/products?nopaginate=1'),
-        fetchApi('/inventory-items?nopaginate=1'),
+        fetchApi('/inventory-items?nopaginate=1&is_sellable=1'),
       ]);
 
       if (prodRes?.data && Array.isArray(prodRes.data)) {
@@ -101,7 +105,9 @@ export default function ProductsPage() {
       setCategories(catRes?.data || catRes || []);
       setLocations(locRes?.data || locRes || []);
       setAllProductsList(allProdRes?.data || allProdRes || []);
-      setInventoryItemsList(invRes?.data || invRes || []);
+      const invData = invRes?.data || invRes || [];
+      const sellableOnly = Array.isArray(invData) ? invData.filter((i: any) => i.is_sellable === 1 || i.is_sellable === true) : [];
+      setInventoryItemsList(sellableOnly);
 
       const map: Record<string, string> = {};
       (setRes?.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -113,9 +119,18 @@ export default function ProductsPage() {
     }
   };
 
-  const resetForm = (locs: any[] = locations) => {
+  useEffect(() => {
+    if (initialTypeParam === 'combo') {
+      setIsFormOpen(true);
+      setFormData(prev => ({ ...prev, type: 'combo' }));
+      setComboItems([{ product_id: null, inventory_item_id: null, quantity: 1 }]);
+    }
+  }, [initialTypeParam]);
+
+  const resetForm = (locs: any[] = locations, initialType: string = 'food') => {
+    const isCombo = initialType === 'combo' || initialTypeParam === 'combo';
     setFormData({
-      name: '', description: '', price: '', category_id: '', type: 'food',
+      name: '', description: '', price: '', category_id: '', type: isCombo ? 'combo' : 'food',
       needs_cooking: false, is_active: 1,
       locations: locs.map(l => ({ location_id: l.id, is_available: true })),
     });
@@ -126,7 +141,7 @@ export default function ProductsPage() {
     setFeaturedNewIndex(null);
     setEditingId(null);
     setProductRecipes([]);
-    setComboItems([]);
+    setComboItems(isCombo ? [{ product_id: null, inventory_item_id: null, quantity: 1 }] : []);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -378,27 +393,18 @@ export default function ProductsPage() {
 
             {formData.type === 'combo' && (
               <div className="sm:col-span-2 bg-base-200/50 border border-base-300 rounded-xl p-4 space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h4 className="font-bold text-sm flex items-center gap-1.5">
-                      🎁 Set Menu / Combo Items Builder
-                    </h4>
-                    <p className="text-xs text-base-content/60">
-                      Group cookable products and direct sellable inventory items together into a single set menu product.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-xs btn-primary gap-1"
-                    onClick={() => setComboItems(prev => [...prev, { product_id: null, inventory_item_id: null, quantity: 1 }])}
-                  >
-                    + Add Item to Combo
-                  </button>
+                <div>
+                  <h4 className="font-bold text-sm flex items-center gap-1.5">
+                    🎁 Set Menu / Combo Items Builder
+                  </h4>
+                  <p className="text-xs text-base-content/60">
+                    Group cookable products and direct sellable inventory items together into a single set menu product.
+                  </p>
                 </div>
 
                 {comboItems.length === 0 ? (
                   <div className="text-center py-4 text-xs opacity-60 border border-dashed border-base-300 rounded-lg">
-                    No items added to this combo yet. Click "+ Add Item to Combo" to begin grouping.
+                    No items added to this combo yet. Click "+ Add Another Product" below to begin grouping.
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -407,7 +413,7 @@ export default function ProductsPage() {
                       return (
                         <div key={idx} className="flex flex-wrap sm:flex-nowrap items-center gap-2 bg-base-100 p-2.5 rounded-lg border border-base-200">
                           <select
-                            className="select select-sm select-bordered w-32 text-xs"
+                            className="select select-sm select-bordered w-28 text-xs"
                             value={itemType}
                             onChange={(e) => {
                               const val = e.target.value;
@@ -418,8 +424,8 @@ export default function ProductsPage() {
                               ) : ci));
                             }}
                           >
-                            <option value="product">🍳 Menu Product</option>
-                            <option value="inventory">📦 Stock Item</option>
+                            <option value="product">Product</option>
+                            <option value="inventory">Stock Item</option>
                           </select>
 
                           {itemType === 'product' ? (
@@ -482,6 +488,16 @@ export default function ProductsPage() {
                     })}
                   </div>
                 )}
+
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline btn-primary gap-1"
+                    onClick={() => setComboItems(prev => [...prev, { product_id: allProductsList[0]?.id || null, inventory_item_id: null, quantity: 1 }])}
+                  >
+                    + Add Another Product
+                  </button>
+                </div>
               </div>
             )}
 
