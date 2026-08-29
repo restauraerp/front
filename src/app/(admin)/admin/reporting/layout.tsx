@@ -40,7 +40,14 @@ function ReportingLayoutInner({ children }: { children: React.ReactNode }) {
           const isActive = pathname.startsWith(tab.href);
           const hrefWithParams = `${tab.href}?${searchParams.toString()}`;
           return (
-            <Link key={tab.href} href={hrefWithParams} className={`tab font-medium ${isActive ? 'tab-active bg-primary text-primary-content rounded-xl' : 'rounded-xl'}`}>
+            <Link
+              key={tab.href}
+              href={hrefWithParams}
+              // The walkthrough's anchor, derived from the route rather than the
+              // label - a tab renamed for the reader must not break the tour.
+              data-tour={`report-tab-${tab.href.split('/').pop()}`}
+              className={`tab font-medium ${isActive ? 'tab-active bg-primary text-primary-content rounded-xl' : 'rounded-xl'}`}
+            >
               {tab.label}
             </Link>
           );

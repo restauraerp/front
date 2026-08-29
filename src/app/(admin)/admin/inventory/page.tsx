@@ -91,7 +91,7 @@ export default function InventoryDashboard() {
               <div className="text-3xl font-bold text-primary">{stats.purchaseOrders} <span className="text-sm font-normal text-base-content/60">Orders</span></div>
             )}
           </div>
-          <Link href="/admin/inventory/purchase-orders" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Orders &rarr;</Link>
+          <Link href="/admin/inventory/purchase-orders" data-tour="inventory-purchase-orders" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Orders &rarr;</Link>
         </Card>
 
         <Card title={<div className="flex items-center gap-2"><MapPin className="text-primary" size={20} /> Storage Locations</div>}>

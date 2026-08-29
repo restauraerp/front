@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/Card';
 import SubscriptionCard from '@/components/billing/SubscriptionCard';
+import WalkthroughCard from '@/components/walkthrough/WalkthroughCard';
 import type { SubscriptionStatus } from '@/components/layout/SubscriptionBanner';
 import { fetchApi } from '@/lib/api';
 import { clearTenant } from '@/lib/tenant';
@@ -84,6 +85,11 @@ export default function ProfilePage() {
           </div>
         </div>
       </Card>
+
+      {/* Restarting the guided tour, for a demo visitor or a trial. Renders
+          nothing for a paying restaurant - the same billing block that decides
+          which tour to run decides whether to offer one at all. */}
+      <WalkthroughCard status={user?.subscription ?? null} />
 
       {/* /auth/me carries the billing block alongside the user, so this needs
           no second request. */}

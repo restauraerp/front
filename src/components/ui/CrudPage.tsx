@@ -218,6 +218,7 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
             {toolbar}
 
             <Button
+              data-tour="crud-add"
               onClick={() => {
                 setIsFormOpen(!isFormOpen);
                 setEditingId(null);
@@ -239,7 +240,7 @@ export function CrudPage({ title, subtitle, endpoint, tableColumns, formFields, 
       />
 
       {isFormOpen && (
-        <Card title={editingId ? `Edit Record` : addLabel}>
+        <Card tour="crud-form" title={editingId ? `Edit Record` : addLabel}>
           <form onSubmit={handleSubmit}>
             {formError && (
               <div role="alert" className="alert alert-error mb-4 text-sm">

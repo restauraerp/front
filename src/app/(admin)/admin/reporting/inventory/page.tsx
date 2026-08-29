@@ -122,15 +122,16 @@ export default function InventoryReportPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <StatTile label="Items Tracked" value={formatCount(data.summary.items_count)} tone="info" />
         <StatTile
+          tour="inventory-low-stock"
           label="At or Below Reorder Level"
           value={formatCount(data.summary.low_stock_count)}
           sub={data.summary.low_stock_count > 0 ? 'Needs restocking' : 'All items above reorder level'}
           tone={data.summary.low_stock_count > 0 ? 'warning' : 'success'}
         />
-        <StatTile label="Total Stock Value" value={formatTaka(data.summary.total_value)} tone="primary" />
+        <StatTile tour="inventory-stock-value" label="Total Stock Value" value={formatTaka(data.summary.total_value)} tone="primary" />
       </div>
 
-      <Card title="Inventory Stock Report (Low Stock First)">
+      <Card tour="inventory-table" title="Inventory Stock Report (Low Stock First)">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3 mb-4">
           <div className="flex flex-col sm:flex-row items-center gap-2 w-full md:w-auto">
             <div className="relative flex items-center w-full sm:w-64">

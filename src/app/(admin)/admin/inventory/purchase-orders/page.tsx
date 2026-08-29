@@ -293,7 +293,7 @@ export default function PurchaseOrdersPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
         <h1>Purchase Orders</h1>
-        <Button onClick={() => (isFormOpen ? setIsFormOpen(false) : openCreateForm())}>
+        <Button data-tour="po-create" onClick={() => (isFormOpen ? setIsFormOpen(false) : openCreateForm())}>
           {isFormOpen ? 'Close Form' : '+ Create PO'}
         </Button>
       </div>
@@ -301,6 +301,10 @@ export default function PurchaseOrdersPage() {
       {isFormOpen && (
         <Card title={editingId ? `Edit Purchase Order #${editingId}` : 'Create Purchase Order'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {/* A plain wrapper, not `display: contents` - the walkthrough measures
+                this element to draw a ring around it, and a contents box has no
+                measurements. It occupies the one grid cell SearchSelect did. */}
+            <div data-tour="po-supplier">
             <SearchSelect
               label="Supplier"
               required
@@ -312,6 +316,7 @@ export default function PurchaseOrdersPage() {
               emptyText="No supplier matches that search."
               disabled={submitting}
             />
+            </div>
 
             {/* One outlet means one possible answer, and resetForm has
                 already filled it in - asking is busywork. The field returns by
@@ -336,7 +341,7 @@ export default function PurchaseOrdersPage() {
               {/* Laid out as a grid rather than a <table>: a table needs a
                   horizontal scroll container on small screens, and that
                   container clips the item dropdown the moment it opens. */}
-              <div className="rounded-[var(--radius-field)] border border-base-300">
+              <div data-tour="po-lines" className="rounded-[var(--radius-field)] border border-base-300">
                 <div className={`${LINE_GRID} hidden border-b border-base-200 px-3 py-2 sm:grid`}>
                   <span className="text-xs font-semibold uppercase text-base-content/60">Inventory item</span>
                   <span className="text-xs font-semibold uppercase text-base-content/60">Quantity</span>

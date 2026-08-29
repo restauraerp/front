@@ -291,6 +291,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="border-t border-base-300 p-3">
         <Link
           href="/admin/profile"
+          data-tour="nav-profile"
           onClick={() => setDrawerOpen(false)}
           className={`flex items-center transition-all duration-300 ease-in-out ${
             collapsed

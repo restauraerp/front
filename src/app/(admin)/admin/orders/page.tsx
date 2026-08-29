@@ -547,10 +547,10 @@ export default function OrdersPage() {
 
     return (
       <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-        {!isEditing && actions.map((action: any) => {
+        {!isEditing && actions.map((action: any, position: number) => {
           const Icon = action.icon;
           return (
-            <button key={action.status} className={`btn btn-xs gap-1 ${action.color}`} onClick={() => handleUpdateStatus(order, action.status)}>
+            <button key={action.status} data-tour={position === 0 ? 'order-advance' : undefined} className={`btn btn-xs gap-1 ${action.color}`} onClick={() => handleUpdateStatus(order, action.status)}>
               <Icon size={12} /> {action.label}
             </button>
           );
@@ -561,7 +561,7 @@ export default function OrdersPage() {
           </button>
         )}
         {!isEditing && !['paid', 'due'].includes(order.payment_status) && (
-          <button className="btn btn-xs btn-success gap-1" onClick={() => handleUpdateStatus(order, 'pay_modal')}>
+          <button data-tour="order-pay" className="btn btn-xs btn-success gap-1" onClick={() => handleUpdateStatus(order, 'pay_modal')}>
             <DollarSign size={12} /> Pay
           </button>
         )}
@@ -606,7 +606,7 @@ export default function OrdersPage() {
     const displayItems = isEditing ? editedItems : (order.items || []);
 
     return (
-      <div key={order.id} className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
+      <div key={order.id} data-tour="orders-board" className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
         <div className="flex justify-between items-start mb-2">
           <div>
             <div className="font-extrabold text-lg text-primary mb-0.5 flex items-center gap-2">
@@ -1202,7 +1202,7 @@ export default function OrdersPage() {
 
       {/* Payment modal */}
       <dialog id="payment_modal" className="modal">
-        <div className="modal-box p-0 overflow-hidden max-w-md bg-base-100">
+        <div data-tour="order-payment-modal" className="modal-box p-0 overflow-hidden max-w-md bg-base-100">
           <div className="bg-gradient-to-r from-primary to-secondary p-6 text-primary-content text-center relative">
             <button className="btn btn-sm btn-circle btn-ghost absolute right-3 top-3 text-white" onClick={() => (document.getElementById('payment_modal') as HTMLDialogElement)?.close()}>✕</button>
             <h3 className="font-bold text-xl mb-1 flex items-center justify-center gap-2">

@@ -3,6 +3,7 @@
 import React from 'react';
 import { ArrowRight, Clock, Sparkles } from 'lucide-react';
 import type { SubscriptionStatus } from './SubscriptionBanner';
+import { verifyUrl } from '@/lib/marketing';
 
 /**
  * The standing prompt to buy, shown to demo visitors and trial owners.
@@ -17,8 +18,6 @@ import type { SubscriptionStatus } from './SubscriptionBanner';
  *   - demo visitors, who should start a trial
  *   - trial owners, who should upgrade before the trial runs out
  */
-
-const WEBSITE_URL = process.env.NEXT_PUBLIC_WEBSITE_URL || '';
 
 export default function ConversionBanner({ status }: { status: SubscriptionStatus | null }) {
   const [upgrading, setUpgrading] = React.useState(false);
@@ -50,10 +49,9 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
   // A subscribed account is neither, and gets nothing at all.
   const audience = isTrial ? 'trial' : isDemo ? 'demo' : null;
 
-  if (!audience || !WEBSITE_URL) return null;
+  const trialLink = verifyUrl('trial');
 
-  const verifyUrl = (action: 'subscription' | 'trial') =>
-    `${WEBSITE_URL.replace(/\/$/, '')}/verify?action=${action}`;
+  if (!audience || !trialLink) return null;
 
   /**
    * Upgrading has to prove which restaurant is asking, so the API mints a
@@ -93,7 +91,7 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
           </span>
 
           <a
-            href={verifyUrl('trial')}
+            href={trialLink}
             className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
           >
             Start your 7-day free trial

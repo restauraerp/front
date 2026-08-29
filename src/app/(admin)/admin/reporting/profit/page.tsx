@@ -44,6 +44,7 @@ export default function ProfitReportPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatTile
+          tour="profit-total-income"
           label="Total Income"
           value={formatTaka(summary.total_income)}
           sub={summary.other_income > 0
@@ -52,12 +53,14 @@ export default function ProfitReportPage() {
           tone="success"
         />
         <StatTile
+          tour="profit-total-expenses"
           label="Total Expenses"
           value={formatTaka(summary.total_expenses)}
           sub="Operational + purchases"
           tone="warning"
         />
         <StatTile
+          tour="profit-net"
           label="Net Profit"
           value={formatTaka(summary.net_profit)}
           sub={isProfit ? 'Profitable period' : 'Operating at a loss'}
@@ -70,7 +73,7 @@ export default function ProfitReportPage() {
         />
       </div>
 
-      <Card title="Breakdown">
+      <Card tour="profit-breakdown" title="Breakdown">
         <MetricNote>
           Revenue counts only paid orders; income logged under Accounting &rarr; Income is
           added on top. Expenses include manually-logged operational expenses and purchase
