@@ -151,6 +151,14 @@ export default function OrdersPage() {
   const [trashedTotal, setTrashedTotal] = useState(0);
   const [trashedLoading, setTrashedLoading] = useState(true);
 
+  // 3rd-party orders (partner orders from aggregators like Foodpanda, Pathao, etc.)
+  const [partnerOrders, setPartnerOrders] = useState<any[]>([]);
+  const [partnerPage, setPartnerPage] = useState(1);
+  const [partnerTotalPages, setPartnerTotalPages] = useState(1);
+  const [partnerTotal, setPartnerTotal] = useState(0);
+  const [partnerLoading, setPartnerLoading] = useState(true);
+  const [partnerReloadKey, setPartnerReloadKey] = useState(0);
+
   useEffect(() => {
     loadOrders();
     fetchApi('/auth/me').then(res => {
@@ -276,6 +284,33 @@ export default function OrdersPage() {
 
     return () => { cancelled = true; };
   }, [activeTab, trashedPage, activeLocationId, isAdmin, trashedReloadKey]);
+
+  useEffect(() => {
+    if (activeTab !== 'third_party') return;
+
+    let cancelled = false;
+    setPartnerLoading(true);
+
+    (async () => {
+      try {
+        const params = new URLSearchParams({ partner_only: '1', page: String(partnerPage) });
+        if (activeLocationId) params.set('location_id', String(activeLocationId));
+
+        const res = await fetchApi(`/orders?${params.toString()}`);
+        if (cancelled) return;
+
+        setPartnerOrders(res.data || []);
+        setPartnerTotalPages(res.last_page || 1);
+        setPartnerTotal(res.total ?? 0);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (!cancelled) setPartnerLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [activeTab, partnerPage, activeLocationId, partnerReloadKey]);
 
   const handleTrashOrder = (orderId: number) => {
     setConfirmModal({ type: 'trash', orderId });
@@ -681,7 +716,7 @@ export default function OrdersPage() {
               </button>
             </div>
           </div>
-        ) : activeTab === 'completed' ? (
+        ) : activeTab === 'completed' || activeTab === 'third_party' ? (
           <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
             <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
               <ChefHat size={12} />
@@ -711,6 +746,7 @@ export default function OrdersPage() {
     let list = activeTab === 'due' ? [...dueOrders]
              : activeTab === 'completed' ? [...completedOrders]
              : activeTab === 'trashed' ? [...trashedOrders]
+             : activeTab === 'third_party' ? [...partnerOrders]
              : orders.filter(o => {
                  if (activeLocationId && o.location_id !== activeLocationId) return false;
                  if (activeTab === 'active_orders') return true;
@@ -734,7 +770,7 @@ export default function OrdersPage() {
       });
     }
     return list;
-  }, [orders, completedOrders, dueOrders, trashedOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
+  }, [orders, completedOrders, dueOrders, trashedOrders, partnerOrders, activeTab, sortDineIn, sortOthers, activeLocationId]);
 
   const tabLabels: Record<string, string> = {
     active_orders: 'Active Orders',
@@ -742,6 +778,7 @@ export default function OrdersPage() {
     takeaway: 'Takeaway',
     delivery: 'Delivery',
     catering: 'Catering',
+    third_party: '3rd Party',
     due: 'Due',
     completed: 'Completed',
     ...(isAdmin ? { trashed: 'Trashed' } : {}),
@@ -785,7 +822,7 @@ export default function OrdersPage() {
         </div>
         <button
           className="btn btn-ghost btn-sm gap-2 self-start md:self-auto"
-          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : activeTab === 'due' ? setDueReloadKey(k => k + 1) : activeTab === 'trashed' ? setTrashedReloadKey(k => k + 1) : loadOrders())}
+          onClick={() => (activeTab === 'completed' ? setCompletedReloadKey(k => k + 1) : activeTab === 'due' ? setDueReloadKey(k => k + 1) : activeTab === 'trashed' ? setTrashedReloadKey(k => k + 1) : activeTab === 'third_party' ? setPartnerReloadKey(k => k + 1) : loadOrders())}
         >
           <RefreshCw size={14} /> Refresh
         </button>
@@ -793,7 +830,7 @@ export default function OrdersPage() {
 
       <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
         {Object.entries(tabLabels).map(([key, label]) => {
-          const count = key !== 'completed' && key !== 'trashed' ? (tabCounts as any)[key] : null;
+          const count = key !== 'completed' && key !== 'trashed' && key !== 'third_party' ? (tabCounts as any)[key] : null;
           return (
             <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => setActiveTab(key)}>
               {label}
@@ -817,6 +854,9 @@ export default function OrdersPage() {
             )}
             {activeTab === 'trashed' && trashedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({trashedTotal.toLocaleString()})</span>
+            )}
+            {activeTab === 'third_party' && partnerTotal > 0 && (
+              <span className="ml-2 text-sm font-normal text-base-content/50">({partnerTotal.toLocaleString()})</span>
             )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -848,7 +888,7 @@ export default function OrdersPage() {
                   <option value="payment_method">Group by payment method</option>
                 </select>
               </>
-            ) : activeTab === 'due' || activeTab === 'trashed' ? (
+            ) : activeTab === 'due' || activeTab === 'trashed' || activeTab === 'third_party' ? (
               <>
                 <span className="text-base-content/60">Sort by:</span>
                 <select className="select select-bordered select-sm" value={sortOthers} onChange={e => setSortOthers(e.target.value)}>
@@ -877,7 +917,7 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {(activeTab === 'completed' ? completedLoading : activeTab === 'due' ? dueLoading : activeTab === 'trashed' ? trashedLoading : loading) ? (
+        {(activeTab === 'completed' ? completedLoading : activeTab === 'due' ? dueLoading : activeTab === 'trashed' ? trashedLoading : activeTab === 'third_party' ? partnerLoading : loading) ? (
           <div className="flex justify-center py-16"><span className="loading loading-spinner loading-lg text-primary" /></div>
         ) : filteredOrders.length === 0 ? (
           <div className="text-center py-16 text-base-content/40 bg-base-200/50 rounded-xl border border-dashed border-base-300">
@@ -889,6 +929,8 @@ export default function OrdersPage() {
                 ? 'Nothing is owed. Orders put on account appear here until they are settled.'
                 : activeTab === 'trashed'
                 ? 'No trashed orders.'
+                : activeTab === 'third_party'
+                ? 'No 3rd party orders. Orders from delivery partners appear here.'
                 : `No active ${tabLabels[activeTab]?.toLowerCase() || activeTab} orders.`}
             </p>
           </div>
@@ -907,10 +949,18 @@ export default function OrdersPage() {
                   <thead>
                     <tr>
                       <th>Order Info</th>
-                      {['active_orders', 'completed', 'due', 'trashed'].includes(activeTab) && <th>Type</th>}
+                      {['active_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && <th>Type</th>}
                       {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
+                      <th>Date</th>
                       <th>Items</th>
                       <th>Total</th>
+                      {activeTab === 'due' ? (
+                        <th>Due Note</th>
+                      ) : activeTab === 'third_party' ? (
+                        <th>Partner / Ref</th>
+                      ) : (
+                        <th>Payment Method</th>
+                      )}
                       <th>Status</th>
                       <th>Actions</th>
                     </tr>
@@ -932,7 +982,7 @@ export default function OrdersPage() {
                             <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                             {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
                           </td>
-                          {['active_orders', 'completed', 'due', 'trashed'].includes(activeTab) && (
+                          {['active_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && (
                             <td className="font-medium text-base-content/80">{tabLabels[order.order_type] || order.order_type?.replace('_', ' ')}</td>
                           )}
                           {['delivery', 'catering'].includes(activeTab) && (
@@ -952,6 +1002,10 @@ export default function OrdersPage() {
                               )}
                             </td>
                           )}
+                          <td className="text-xs whitespace-nowrap">
+                            <div>{new Date(order.created_at).toLocaleDateString()}</div>
+                            <div className="opacity-70">{new Date(order.created_at).toLocaleTimeString()}</div>
+                          </td>
                           <td>
                             <div className="space-y-0.5 text-xs max-w-[180px]">
                               {(order.items || []).map((item: any) => (
@@ -971,6 +1025,27 @@ export default function OrdersPage() {
                             </div>
                           </td>
                           <td className="font-bold text-primary">৳{order.total}</td>
+                          {activeTab === 'due' ? (
+                            <td className="text-xs max-w-[160px]">
+                              <span className="line-clamp-2">{order.due_note || <span className="opacity-40">—</span>}</span>
+                            </td>
+                          ) : activeTab === 'third_party' ? (
+                            <td className="text-xs max-w-[160px]">
+                              <div className="font-semibold">{order.partner?.name || '—'}</div>
+                              {order.partner_commission_rate != null && (
+                                <div className="opacity-60">{order.partner_commission_rate}% commission</div>
+                              )}
+                            </td>
+                          ) : (
+                            <td className="text-xs">
+                              {(() => {
+                                const method = order.payments?.[0]?.method;
+                                if (!method) return <span className="opacity-40">—</span>;
+                                const labels: Record<string, string> = { cash: 'Cash', card: 'Card', mfs: 'Mobile Money' };
+                                return <span className="font-medium">{labels[method] || method}</span>;
+                              })()}
+                            </td>
+                          )}
                           <td>
                             <div className="flex flex-col gap-1">
                               <span className={`badge badge-sm ${s.badge}`}>{s.label}</span>
@@ -997,7 +1072,7 @@ export default function OrdersPage() {
                                   <RotateCcw size={14} />
                                 </button>
                               </div>
-                            ) : activeTab === 'completed' ? (
+                            ) : activeTab === 'completed' || activeTab === 'third_party' ? (
                               <div className="flex items-center gap-1">
                                 <button
                                   className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10"
@@ -1096,6 +1171,26 @@ export default function OrdersPage() {
                       className="join-item btn btn-sm"
                       onClick={() => setTrashedPage(p => Math.min(trashedTotalPages, p + 1))}
                       disabled={trashedPage === trashedTotalPages || trashedLoading}
+                    >»</button>
+                  </div>
+                </div>
+              )}
+
+              {activeTab === 'third_party' && partnerTotalPages > 1 && (
+                <div className="flex justify-center mt-6">
+                  <div className="join">
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setPartnerPage(p => Math.max(1, p - 1))}
+                      disabled={partnerPage === 1 || partnerLoading}
+                    >«</button>
+                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                      Page {partnerPage} of {partnerTotalPages}
+                    </button>
+                    <button
+                      className="join-item btn btn-sm"
+                      onClick={() => setPartnerPage(p => Math.min(partnerTotalPages, p + 1))}
+                      disabled={partnerPage === partnerTotalPages || partnerLoading}
                     >»</button>
                   </div>
                 </div>
