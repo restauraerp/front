@@ -638,7 +638,13 @@ export default function OrdersPage() {
                   <div className="flex items-center gap-1 min-w-0">
                     <span className="truncate text-xs font-semibold">{product.name || `Item #${item.product_id}`}</span>
                     {needsCooking && <span title="Needs cooking"><ChefHat size={11} className="text-amber-500 flex-shrink-0" /></span>}
+                    {product.type === 'combo' && <span className="badge badge-xs bg-purple-100 text-purple-700 border-0">Combo</span>}
                   </div>
+                  {product.type === 'combo' && product.combo_items?.length > 0 && (
+                    <div className="mt-0.5 text-[10px] text-base-content/50 truncate">
+                      {product.combo_items.map((ci: any) => ci.product?.name || ci.inventory_item?.title || 'Item').join(', ')}
+                    </div>
+                  )}
                 </div>
                 {isEditing ? (
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -949,10 +955,17 @@ export default function OrdersPage() {
                           <td>
                             <div className="space-y-0.5 text-xs max-w-[180px]">
                               {(order.items || []).map((item: any) => (
-                                <div key={item.id} className="flex items-center gap-1">
-                                  <span className="badge badge-ghost badge-xs">×{item.quantity ?? item.qty}</span>
-                                  <span className="truncate">{item.product?.name || `#${item.product_id}`}</span>
-                                  {item.product?.needs_cooking && <ChefHat size={10} className="text-amber-500 flex-shrink-0" />}
+                                <div key={item.id}>
+                                  <div className="flex items-center gap-1">
+                                    <span className="badge badge-ghost badge-xs">×{item.quantity ?? item.qty}</span>
+                                    <span className="truncate">{item.product?.name || `#${item.product_id}`}</span>
+                                    {item.product?.needs_cooking && <ChefHat size={10} className="text-amber-500 flex-shrink-0" />}
+                                  </div>
+                                  {item.product?.type === 'combo' && item.product?.combo_items?.length > 0 && (
+                                    <div className="ml-5 text-[10px] text-base-content/50 truncate">
+                                      {item.product.combo_items.map((ci: any) => ci.product?.name || ci.inventory_item?.title || 'Item').join(', ')}
+                                    </div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -1283,13 +1296,25 @@ export default function OrdersPage() {
                 <p className="font-semibold mb-2">Items</p>
                 <div className="space-y-1">
                   {(detailOrder.items || []).map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center p-2 bg-base-200/50 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <span className="badge badge-ghost badge-sm">×{item.quantity ?? item.qty}</span>
-                        <span>{item.product?.name || `Product #${item.product_id}`}</span>
-                        {item.product?.needs_cooking && <ChefHat size={12} className="text-amber-500" />}
+                    <div key={item.id} className="p-2 bg-base-200/50 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <span className="badge badge-ghost badge-sm">×{item.quantity ?? item.qty}</span>
+                          <span>{item.product?.name || `Product #${item.product_id}`}</span>
+                          {item.product?.needs_cooking && <ChefHat size={12} className="text-amber-500" />}
+                          {item.product?.type === 'combo' && <span className="badge badge-xs bg-purple-100 text-purple-700 border-0">Combo</span>}
+                        </div>
+                        <span className="font-semibold">৳{(parseFloat(item.price) * (item.quantity ?? item.qty ?? 1)).toFixed(2)}</span>
                       </div>
-                      <span className="font-semibold">৳{(parseFloat(item.price) * (item.quantity ?? item.qty ?? 1)).toFixed(2)}</span>
+                      {item.product?.type === 'combo' && item.product?.combo_items?.length > 0 && (
+                        <div className="ml-8 mt-1 space-y-0.5">
+                          {item.product.combo_items.map((ci: any, i: number) => (
+                            <p key={i} className="text-xs text-base-content/50">
+                              ↳ {ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}
+                            </p>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

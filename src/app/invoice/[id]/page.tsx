@@ -8,6 +8,8 @@ interface InvoiceItem {
   quantity: number;
   price: string;
   notes?: string | null;
+  is_combo?: boolean;
+  combo_items?: { name: string; quantity: number }[] | null;
 }
 
 interface Invoice {
@@ -162,6 +164,15 @@ export default function PublicInvoicePage() {
               <tr key={index}>
                 <td style={styles.td}>
                   {item.name}
+                  {item.is_combo && item.combo_items && item.combo_items.length > 0 && (
+                    <div style={{ paddingLeft: 8, marginTop: 2 }}>
+                      {item.combo_items.map((ci, i) => (
+                        <div key={i} style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                          ↳ {ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {item.notes && <div style={styles.note}>{item.notes}</div>}
                 </td>
                 <td style={{ ...styles.td, textAlign: 'center' }}>{item.quantity}</td>

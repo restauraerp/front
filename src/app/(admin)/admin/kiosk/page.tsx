@@ -305,6 +305,16 @@ function Ticket({ order, tone, now, processing, onAdvance }: any) {
               </div>
               <div className="min-w-0 flex-1">
                 <span className="font-semibold text-base block truncate">{item.product?.name || `Item #${item.product_id}`}</span>
+                {item.product?.type === 'combo' && item.product?.combo_items?.length > 0 && (
+                  <div className="mt-1 ml-1 space-y-0.5">
+                    {item.product.combo_items.map((ci: any, i: number) => (
+                      <p key={i} className="text-xs text-base-content/60 flex items-center gap-1">
+                        <span className="opacity-50">↳</span>
+                        <span className="font-medium">{ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}</span>
+                      </p>
+                    ))}
+                  </div>
+                )}
                 {item.notes && <p className="text-sm text-error mt-0.5 italic font-medium break-words">* {item.notes}</p>}
               </div>
             </div>

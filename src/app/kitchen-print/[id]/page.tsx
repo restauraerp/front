@@ -82,6 +82,15 @@ export default function KitchenPrintPage() {
               <td style={{ padding: '10px 0', fontWeight: 'bold' }}>
                 <span style={{ opacity: 0.7, fontSize: '0.9rem', marginRight: '6px' }}>#{item.product_id}</span>
                 {item.product?.name || 'Unknown Item'}
+                {item.product?.type === 'combo' && item.product?.combo_items?.length > 0 && (
+                  <div style={{ marginTop: '4px', paddingLeft: '8px' }}>
+                    {item.product.combo_items.map((ci: any, i: number) => (
+                      <div key={i} style={{ fontSize: '0.85rem', fontWeight: 'normal' }}>
+                        ↳ {ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {item.notes && (
                   <div style={{ fontSize: '0.85rem', fontStyle: 'italic', fontWeight: 'normal', marginTop: '4px' }}>
                     * Note: {item.notes}
