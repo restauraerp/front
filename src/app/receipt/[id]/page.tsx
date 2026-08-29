@@ -89,6 +89,15 @@ export default function ReceiptPage() {
               <td style={{ padding: '5px 0' }}>
                 <span style={{ opacity: 0.7, marginRight: '4px', fontSize: '0.8rem' }}>#{item.product_id}</span>
                 {item.product?.name || 'Unknown Item'}
+                {item.product?.type === 'combo' && item.product?.combo_items?.length > 0 && (
+                  <div style={{ paddingLeft: '6px', marginTop: '2px' }}>
+                    {item.product.combo_items.map((ci: any, i: number) => (
+                      <div key={i} style={{ fontSize: '0.7rem', color: '#555' }}>
+                        ↳ {ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {item.notes && <div style={{ fontSize: '0.75rem', fontStyle: 'italic' }}>* {item.notes}</div>}
               </td>
               <td style={{ textAlign: 'center', padding: '5px 0' }}>{item.quantity}</td>
