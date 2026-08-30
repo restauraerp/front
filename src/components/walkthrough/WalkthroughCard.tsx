@@ -58,8 +58,8 @@ const copy = {
   trial: {
     title: { en: 'Setup walkthrough', bn: 'সেটআপ ওয়াকথ্রু' },
     blurb: {
-      en: 'The shortest route to a working restaurant - menu, tables, first sale.',
-      bn: 'রেস্টুরেন্ট চালু করার দ্রুততম পথ — মেনু, টেবিল, প্রথম বিক্রি।',
+      en: 'Set your own restaurant up, one step at a time - a dish, its recipe, stock in and a first sale.',
+      bn: 'ধাপে ধাপে নিজের রেস্টুরেন্ট সাজিয়ে নিন — একটি খাবার, তার রেসিপি, মাল কেনা আর প্রথম বিক্রি।',
     },
   },
 } as const;

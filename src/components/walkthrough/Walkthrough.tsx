@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { isDemoSession, readLanguage, type Language } from '@/lib/demo';
 import { indexOfKey, knowsTheWayBack, percentAt, tours, type TourKind, type TourStep } from '@/lib/walkthrough/tours';
 import { GUIDE_AVATAR, GUIDE_INITIAL, GUIDE_NAME } from '@/lib/walkthrough/guide';
-import { verifyUrl } from '@/lib/marketing';
+import { offerPrice, verifyUrl } from '@/lib/marketing';
 import {
   TOUR_COMMAND,
   announceTourEnd,
@@ -87,6 +87,64 @@ function isOnScreen(el: HTMLElement): boolean {
   return rect.right > 0 && rect.left < window.innerWidth;
 }
 
+/**
+ * What to press to bring a hidden target into view.
+ *
+ * The admin menu is a rail on a desktop and a drawer on a phone, and every
+ * step that says "open Reporting" points at the same anchor on both. On a
+ * phone that anchor is parked off the left edge until somebody opens the
+ * drawer, so the step used to arrive with no ring, no tap and an instruction
+ * naming a menu that is not on the screen - the tour simply stopped, on the
+ * device most people meet it on.
+ *
+ * Rather than a second set of steps for narrow screens, the layout says which
+ * region a target lives in and which control reveals that region, and the tour
+ * opens it on the person's behalf. What they then do is what a desktop visitor
+ * does: press the item the ring is around. One tour, one set of words, one
+ * click - the drawer is machinery, not a lesson.
+ *
+ * The opener has to be on screen itself, which is what keeps this from firing
+ * on a desktop: the hamburger is `lg:hidden`, so above that width there is
+ * nothing to press and nothing to reveal.
+ */
+function revealerFor(el: HTMLElement): HTMLElement | null {
+  const region = el.closest('[data-tour-region]')?.getAttribute('data-tour-region');
+
+  if (!region) return null;
+
+  const opener = document.querySelector<HTMLElement>(`[data-tour-reveal="${region}"]`);
+
+  return opener !== null && isOnScreen(opener) ? opener : null;
+}
+
+/**
+ * One reading of a step's target: where it is, and whether it drops a list.
+ *
+ * Kept as a single object with the step key in it so a measurement can never be
+ * applied to the step after the one it was taken for - the ring would jump to
+ * the previous page's button for a frame, which is the sort of flicker that
+ * reads as a bug rather than as a transition.
+ */
+type Measurement = { key: string; rect: DOMRect | null; listy: boolean };
+
+/**
+ * Whether pressing this opens a list underneath it.
+ *
+ * The space below a select belongs to the select. Options are drawn there the
+ * moment it is pressed, they are drawn *over* everything including a fixed card
+ * at z-index 9999, and the tour has no way to know how tall the list will be -
+ * so the only safe answer is not to put the card there in the first place.
+ *
+ * Checked on the element and inside it, because a tour anchors to whatever
+ * wrapper carries the data-tour attribute, and the actual control is usually a
+ * field or two down from it.
+ */
+const DROPS_A_LIST = 'select, [role="combobox"], [role="listbox"], [aria-haspopup="listbox"], input[list], .dropdown';
+
+function opensDownward(el: HTMLElement): boolean {
+  return el.matches(DROPS_A_LIST) || el.querySelector(DROPS_A_LIST) !== null;
+}
+
 /** Keeps the card on screen whatever it was asked to sit beside. */
 function clampLeft(left: number, width: number): number {
   return Math.max(EDGE, Math.min(left, window.innerWidth - width - EDGE));
@@ -116,9 +174,19 @@ type Props = {
    * guess from a browser setting.
    */
   lang?: Language;
+  /**
+   * How to reach us, as the account itself reports it.
+   *
+   * Only the closing card uses it, and only for the WhatsApp number: somebody
+   * who wants to ask a person before paying should not have to go and find the
+   * website. Passed down rather than fetched here because the layout has
+   * already asked - and left out, the card simply makes the offer without the
+   * second way to answer it.
+   */
+  contact?: { whatsapp?: string } | null;
 };
 
-export default function Walkthrough({ kind, lang }: Props) {
+export default function Walkthrough({ kind, lang, contact }: Props) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -168,7 +236,7 @@ export default function Walkthrough({ kind, lang }: Props) {
    * otherwise survive a render into the next one and draw the ring in the wrong
    * place.
    */
-  const [found, setFound] = useState<{ key: string; rect: DOMRect | null }>({ key: '', rect: null });
+  const [found, setFound] = useState<Measurement>({ key: '', rect: null, listy: false });
 
   // The step whose wait has gone on long enough to offer a way past. Held as a
   // key rather than a flag so moving on clears it by no longer matching, rather
@@ -176,6 +244,27 @@ export default function Walkthrough({ kind, lang }: Props) {
   const [stuckAt, setStuckAt] = useState<string | null>(null);
 
   const [avatarBroken, setAvatarBroken] = useState(false);
+
+  // Waiting on the checkout link at the very end of the trial tour. Only the
+  // closing card can set it, and it exists so that card's button can go quiet
+  // rather than look unpressed while the server issues a URL.
+  const [upgrading, setUpgrading] = useState(false);
+
+  /*
+   * The screen, and the card on it, as they actually are.
+   *
+   * Both were constants until a phone got hold of the tour. The card's height
+   * was a guess of 300, which is close enough on a desktop and nowhere near it
+   * when the same paragraph wraps to nine lines in a 343px column; the screen
+   * was read straight off `window` during layout, which is right until it turns
+   * sideways. Measuring both is what lets the placement arithmetic below be
+   * about the card being drawn rather than a card of average size.
+   */
+  const [cardHeight, setCardHeight] = useState(CARD_HEIGHT);
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window === 'undefined' ? 1280 : window.innerWidth,
+    height: typeof window === 'undefined' ? 800 : window.innerHeight,
+  }));
 
   const cardRef = useRef<HTMLDivElement | null>(null);
   // The furthest step reported, so a tour reopened from the start does not report
@@ -190,6 +279,10 @@ export default function Walkthrough({ kind, lang }: Props) {
   // that opens looking for a dialog that has not rendered yet would count that
   // as the dialog having been closed and move straight past itself.
   const arrivedRef = useRef<string | null>(null);
+  // The step whose hidden target the tour has already opened a drawer for. The
+  // control that reveals a region is the control that hides it again, so this
+  // is what keeps a reveal from becoming a toggle.
+  const revealedRef = useRef<string | null>(null);
 
   const step: TourStep | undefined = steps[index];
   const stage = step?.stage ?? 'explain';
@@ -204,6 +297,9 @@ export default function Walkthrough({ kind, lang }: Props) {
   // Both read through the step they were recorded against, so neither can carry
   // over into a step it was not meant for.
   const rect = step !== undefined && found.key === step.key ? found.rect : null;
+  // Whether the thing being pointed at drops a list out of itself when opened.
+  // Read the same guarded way, for the same reason.
+  const listy = step !== undefined && found.key === step.key && found.listy;
   const stuck = step !== undefined && stuckAt === step.key;
 
   /* ---------------------------------------------------------------- controls */
@@ -289,6 +385,42 @@ export default function Walkthrough({ kind, lang }: Props) {
     writeState(resolvedKind, { completed: true, index });
     announceTourEnd(resolvedKind);
   }, [resolvedKind, index]);
+
+  /**
+   * Taking the offer at the end of the trial tour, which is a different ask.
+   *
+   * Not a link, because there is nowhere to link to: the checkout URL is issued
+   * per account and has to be asked for. So the button waits on the server, and
+   * says so while it does - a button that looks unpressed for two seconds gets
+   * pressed twice, and the second press is a second checkout.
+   *
+   * The tour is marked finished only once there is somewhere to go. Marking it
+   * on the click would lose the last card to a failed request, and the last
+   * card is the only place the offer is made.
+   */
+  const subscribe = useCallback(async () => {
+    if (upgrading || !resolvedKind) return;
+
+    setUpgrading(true);
+
+    try {
+      const { fetchApi } = await import('@/lib/api');
+      const res = await fetchApi('/billing/upgrade-link', { method: 'POST' });
+
+      if (res?.url) {
+        writeState(resolvedKind, { completed: true, index });
+        announceTourEnd(resolvedKind);
+        window.location.href = res.url;
+
+        return;
+      }
+
+      throw new Error('No upgrade URL returned');
+    } catch (error) {
+      console.error('Could not start the subscription', error);
+      setUpgrading(false);
+    }
+  }, [upgrading, resolvedKind, index]);
 
   /* ------------------------------------------------------- picking it back up */
 
@@ -484,16 +616,44 @@ export default function Walkthrough({ kind, lang }: Props) {
 
       if (el && visible) {
         el.scrollIntoView({ block: 'center', behavior: 'smooth' });
-        setFound({ key: step.key, rect: el.getBoundingClientRect() });
+        setFound({ key: step.key, rect: el.getBoundingClientRect(), listy: opensDownward(el) });
 
         return;
       }
 
-      if (present) {
-        // There, but off-canvas: the sidebar on a narrow screen, most often. The
-        // step still has something to say and the page it wanted is already open,
-        // so it is shown without a ring rather than skipped.
-        setFound({ key: step.key, rect: null });
+      if (present && el) {
+        /*
+         * There, but off-canvas: the menu drawer on a phone, almost always.
+         *
+         * Opened once per step rather than every hundred milliseconds, because
+         * the control that opens a drawer is the same control that closes it -
+         * polling it would hold the menu in a fight with itself. Once is also
+         * enough to respect somebody who shuts it again on purpose: the card
+         * still says what to do, and the way past appears as it does anywhere
+         * else the tour is waiting.
+         */
+        if (revealedRef.current !== step.key) {
+          const opener = revealerFor(el);
+
+          if (opener) {
+            revealedRef.current = step.key;
+            opener.click();
+            window.setTimeout(find, 120);
+
+            return;
+          }
+        }
+
+        /*
+         * Nothing could reveal it. The step still has something to say and the
+         * page it wanted is already open, so it is shown without a ring rather
+         * than skipped - but a step that waits for a click on something nobody
+         * can reach would wait for ever, so keep looking while it waits: a
+         * drawer the person opens themselves is the target arriving.
+         */
+        setFound({ key: step.key, rect: null, listy: false });
+
+        if (step.awaitClick || step.untilGone) window.setTimeout(find, 300);
 
         return;
       }
@@ -501,7 +661,7 @@ export default function Walkthrough({ kind, lang }: Props) {
       if (Date.now() - startedAt > TARGET_TIMEOUT_MS) {
         // Gone. Skip rather than block - a tour with a gap still works, a tour
         // stuck on a missing button does not.
-        setFound({ key: step.key, rect: null });
+        setFound({ key: step.key, rect: null, listy: false });
         advance();
 
         return;
@@ -537,7 +697,9 @@ export default function Walkthrough({ kind, lang }: Props) {
       const next = el && visible ? el.getBoundingClientRect() : null;
 
       setFound((held) =>
-        held.key === step.key && sameBox(held.rect, next) ? held : { key: step.key, rect: next },
+        held.key === step.key && sameBox(held.rect, next)
+          ? held
+          : { key: step.key, rect: next, listy: el !== null && opensDownward(el) },
       );
 
       if (!step.untilGone) return;
@@ -631,6 +793,43 @@ export default function Walkthrough({ kind, lang }: Props) {
     if (open) cardRef.current?.focus();
   }, [open, index, leaving]);
 
+  // Rotating a phone changes which side of a target has room on it.
+  useEffect(() => {
+    const measure = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+
+    return () => {
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, []);
+
+  /*
+   * Watches the card's own height.
+   *
+   * Re-observed per step because the card is a different element in the leaving
+   * branch, and because the height that matters is this step's - the objective
+   * card and the one-line "press this" card differ by two hundred pixels, which
+   * is the difference between a card above the target and a card on it.
+   */
+  useEffect(() => {
+    const el = cardRef.current;
+
+    if (!el || typeof ResizeObserver === 'undefined') return;
+
+    const observer = new ResizeObserver(() => {
+      const height = el.getBoundingClientRect().height;
+
+      setCardHeight((held) => (Math.abs(held - height) < 1 ? held : height));
+    });
+
+    observer.observe(el);
+
+    return () => observer.disconnect();
+  }, [open, index, leaving]);
+
   if (!open || !resolvedKind || !step) return null;
 
   const words = SPEECH[language];
@@ -640,9 +839,28 @@ export default function Walkthrough({ kind, lang }: Props) {
   // Without somewhere to send them the offer is just a card with no answer on
   // it, so it falls back to the ordinary footer and its Finish button.
   const offering = step.cta === 'trial' && trialLink !== null;
-  const width = centred || leaving ? BRIEFING_WIDTH : CARD_WIDTH;
+  // The trial tour's closing card. Unlike the demo's, this one always has an
+  // answer to give - the checkout is asked for rather than linked to - so it
+  // never falls back to an ordinary Finish.
+  const subscribing = step.cta === 'subscribe';
+  // Both optional, and the card reads sensibly without either: no figure means
+  // the offer without a price on it, no number means no second way to ask.
+  const price = subscribing ? offerPrice() : null;
+  const whatsapp = subscribing && contact?.whatsapp
+    ? `https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`
+    : null;
+  /*
+   * The width the card will actually take, not the one it asked for.
+   *
+   * The element is capped at `calc(100vw - 32px)`, and on a phone that cap is
+   * what wins - a briefing asks for 420 and gets 343. Placement worked from the
+   * asked-for number, so every calculation about whether the card fits beside
+   * something was answered for a card 77px wider than the one being drawn.
+   */
+  const asked = centred || leaving ? BRIEFING_WIDTH : CARD_WIDTH;
+  const width = Math.min(asked, viewport.width - EDGE * 2);
   const ringed = rect !== null && !centred && !leaving;
-  const card = leaving || centred ? MIDDLE : cardPosition(rect, step.placement, width);
+  const card = leaving || centred ? MIDDLE : cardPosition(rect, step.placement, width, listy, cardHeight);
 
   const avatar = (
     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
@@ -683,11 +901,18 @@ export default function Walkthrough({ kind, lang }: Props) {
   if (leaving) {
     return (
       <Shell>
+        <Scrim hole={null} />
+
         <div ref={cardRef} tabIndex={-1} style={{ ...CARD_BASE, ...card, width, maxWidth: 'calc(100vw - 32px)' }}>
           {avatar}
 
           <h2 id="walkthrough-title" style={TITLE}>{words.leaveTitle}</h2>
-          <p id="walkthrough-body" style={BODY}>{words.leaveBody}</p>
+          {/* The demo is somewhere to press things; a trial is somewhere to
+              build something. Same promise either way - your place is kept -
+              but told about the restaurant they are actually in. */}
+          <p id="walkthrough-body" style={BODY}>
+            {resolvedKind === 'trial' ? words.leaveBodySetup : words.leaveBody}
+          </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 18 }}>
             <button type="button" onClick={close} style={{ ...BUTTON, background: '#F2F5F4', color: '#1A1D1F' }}>
@@ -709,10 +934,13 @@ export default function Walkthrough({ kind, lang }: Props) {
 
   return (
     <Shell>
-      {/* The cut-out. A ring around the target rather than a dimmed overlay with a
-          hole in it: the product stays readable and clickable, which matters when
-          the step is asking somebody to look at live numbers - and doubly when it
-          is asking them to press the thing inside the ring. */}
+      {/* Everything but the target, dimmed - and the whole screen when there is
+          no target, which is what a briefing, a debrief, the closing offer and
+          the are-you-sure card all are. Those used to arrive on a fully lit
+          screen, and read as a different kind of thing rather than as the same
+          tour with nothing to point at. */}
+      <Scrim hole={ringed ? rect : null} strong={waiting} />
+
       {ringed && rect && (
         <div
           aria-hidden
@@ -725,11 +953,57 @@ export default function Walkthrough({ kind, lang }: Props) {
             height: rect.height + 12,
             border: `2px solid ${BRAND}`,
             borderRadius: 10,
-            boxShadow: `0 0 0 9999px ${waiting ? 'rgba(10, 78, 66, 0.45)' : 'rgba(10, 78, 66, 0.35)'}`,
+            // A short glow, not the old page-wide one. Softens the square
+            // corners of the scrim's hole and gives the ring some weight.
+            boxShadow: '0 0 0 4px rgba(15, 110, 92, 0.16)',
             transition: 'all 150ms ease',
             pointerEvents: 'none',
           }}
         />
+      )}
+
+      {/* "Press this", drawn rather than written.
+
+          The ring alone says *where*; it does not say what to do there, and on a
+          step that is waiting for a click that is the whole instruction. The
+          ripple reads as a tap at a glance and in any language, which the card's
+          sentence does not - somebody scanning the screen for what to press is
+          not reading the paragraph.
+
+          Anchored to the bottom-right of the target rather than its centre: the
+          middle of a button is where its label is, and a pointer sitting on the
+          word is a pointer covering the word. */}
+      {ringed && rect && waiting && (
+        <div
+          aria-hidden
+          className="walkthrough-tap"
+          style={{
+            position: 'fixed',
+            left: rect.right - Math.min(26, rect.width / 2),
+            top: rect.bottom - Math.min(14, rect.height / 3),
+            width: 0,
+            height: 0,
+            pointerEvents: 'none',
+          }}
+        >
+          <span className="walkthrough-tap__ripple" />
+          <span className="walkthrough-tap__ripple walkthrough-tap__ripple--late" />
+          <svg
+            className="walkthrough-tap__pointer"
+            width="40"
+            height="40"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M5 3.5 L5 17.2 L8.6 14 L11 19.8 L13.9 18.6 L11.5 13 L16.2 12.6 Z"
+              fill={TAP}
+              stroke="#fff"
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </div>
       )}
 
       <div ref={cardRef} tabIndex={-1} style={{ ...CARD_BASE, ...card, width, maxWidth: 'calc(100vw - 32px)' }}>
@@ -769,10 +1043,104 @@ export default function Walkthrough({ kind, lang }: Props) {
 
         <p id="walkthrough-body" style={BODY}>{step.body[language]}</p>
 
+        {/* The figure, said plainly and once.
+
+            Set apart from the paragraph rather than written into it because a
+            price buried in a sentence reads as a hedge, and because the copy
+            has to survive the number changing. The struck-through list price
+            is the one nobody is charged; the one beside it is the one on the
+            invoice. */}
+        {price && (
+          <div
+            style={{
+              display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', gap: 8,
+              marginTop: 4, marginBottom: 2,
+            }}
+          >
+            {price.was !== null && (
+              <span style={{ fontSize: 15, color: '#9AA3A1', textDecoration: 'line-through' }}>
+                ৳{price.was.toLocaleString('en-US')}
+              </span>
+            )}
+            <span style={{ fontSize: 26, fontWeight: 700, color: BRAND, lineHeight: 1.1 }}>
+              ৳{price.now.toLocaleString('en-US')}
+            </span>
+            <span style={{ fontSize: 13, color: '#78807F' }}>{words.perMonth}</span>
+            <span style={{ fontSize: 13, color: '#78807F' }}>·</span>
+            <span style={{ fontSize: 13, color: '#78807F' }}>{words.noSetupFee}</span>
+          </div>
+        )}
+
         {/* Nothing to press. Every control out here is inert while the dialog
             is up, so a row of dead buttons would only be something to blame
             oneself for. The line below says what does move the tour on. */}
-        {offering ? (
+        {subscribing ? (
+          /* Two answers on the card, in the order they are wanted: the button
+             for somebody ready, WhatsApp for somebody who wants to ask a person
+             first, and a way past for somebody who wants neither. */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }}>
+            <button
+              type="button"
+              onClick={subscribe}
+              disabled={upgrading}
+              style={{
+                ...BUTTON,
+                background: BRAND,
+                color: '#fff',
+                display: 'block',
+                width: '100%',
+                textAlign: 'center',
+                padding: '11px 18px',
+                opacity: upgrading ? 0.7 : 1,
+                cursor: upgrading ? 'default' : 'pointer',
+              }}
+            >
+              {upgrading ? words.opening : words.subscribeNow}
+            </button>
+
+            {whatsapp !== null && (
+              <a
+                href={whatsapp}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  ...BUTTON,
+                  background: 'transparent',
+                  color: BRAND,
+                  border: `1px solid ${BRAND}`,
+                  textDecoration: 'none',
+                  display: 'block',
+                  textAlign: 'center',
+                  padding: '10px 18px',
+                }}
+              >
+                {words.whatsappUs}
+              </a>
+            )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {index > 0 && (
+                <button
+                  type="button"
+                  onClick={back}
+                  style={{ ...BUTTON, background: 'transparent', color: '#78807F', paddingInline: 0 }}
+                >
+                  {words.back}
+                </button>
+              )}
+
+              <span style={{ flex: 1 }} />
+
+              <button
+                type="button"
+                onClick={advance}
+                style={{ ...BUTTON, background: 'transparent', color: '#78807F', paddingInline: 0 }}
+              >
+                {words.later}
+              </button>
+            </div>
+          </div>
+        ) : offering ? (
           /* The offer gets its own footer rather than a fourth button in the
              ordinary row: four controls on a 380px card wrap, and the one that
              matters ends up sharing a line with the one that declines it. The
@@ -876,6 +1244,78 @@ export default function Walkthrough({ kind, lang }: Props) {
 
 const BRAND = '#0F6E5C';
 
+/**
+ * The colour of "press this".
+ *
+ * Deliberately not the brand green. The tap sits on top of a dark green scrim
+ * and next to a green ring, and a green hand inside all that is a shape you
+ * have to look for rather than one that arrives on its own. Amber is the one
+ * hue in the palette that is loud against both the dimmed page and the lit
+ * target, and it is not used anywhere else in the tour, so it never has to be
+ * told apart from something.
+ */
+const TAP = '#FF7A18';
+const TAP_WASH = 'rgba(255, 122, 24, 0.18)';
+
+/**
+ * What the tour dims the rest of the screen with.
+ *
+ * The same value the ring throws out through its enormous box-shadow, kept in
+ * one place so a card with nothing to point at and a card with something to
+ * point at cannot end up sitting on two different shades of the same product.
+ */
+const SCRIM = 'rgba(10, 78, 66, 0.55)';
+/**
+ * Darker again while a step is waiting to be pressed.
+ *
+ * Both of these are heavier than they were, because the old pair were not
+ * actually doing the job on a light page: over white, a 0.35 wash of this green
+ * reads as a faint tint rather than as a screen with one live thing on it, and
+ * "the Create PO button is not indicated" was somebody looking straight at a
+ * ringed button and not seeing an indication.
+ */
+const SCRIM_WAITING = 'rgba(10, 78, 66, 0.68)';
+
+/**
+ * Dims the page, leaving a hole where the tour is pointing.
+ *
+ * Four bands rather than the obvious one-element trick - a small box with an
+ * enormous `box-shadow` spread, which is what this used to be. That trick works
+ * until it does not: on a long page Chrome silently declines to paint a
+ * 9999px-spread shadow on a fixed element, and the result is a ring around the
+ * button with the entire screen still lit behind it. It looked like the step
+ * had failed to fire. The purchase orders list is one of the pages it happens
+ * on, which is why the Create PO step read as un-indicated.
+ *
+ * Four ordinary rectangles cannot fail that way, cost nothing, and dim every
+ * card identically whether or not it has something to point at.
+ *
+ * The hole has square corners where the ring is rounded. Nobody sees it: the
+ * ring's own two-pixel border is drawn over that exact edge.
+ */
+function Scrim({ hole, strong = false }: { hole: DOMRect | null; strong?: boolean }) {
+  const tint = strong ? SCRIM_WAITING : SCRIM;
+  const band: React.CSSProperties = { position: 'fixed', background: tint, pointerEvents: 'none' };
+
+  if (!hole) return <div aria-hidden style={{ ...band, inset: 0 }} />;
+
+  // Matched to the ring, so the lit patch is the ring's interior rather than the
+  // element's - a button whose glow sits on a dimmed background looks bruised.
+  const top = hole.top - 6;
+  const left = hole.left - 6;
+  const right = hole.right + 6;
+  const bottom = hole.bottom + 6;
+
+  return (
+    <div aria-hidden>
+      <div style={{ ...band, top: 0, left: 0, right: 0, height: Math.max(0, top) }} />
+      <div style={{ ...band, top: bottom, left: 0, right: 0, bottom: 0 }} />
+      <div style={{ ...band, top, left: 0, width: Math.max(0, left), height: Math.max(0, bottom - top) }} />
+      <div style={{ ...band, top, left: right, right: 0, height: Math.max(0, bottom - top) }} />
+    </div>
+  );
+}
+
 /** The fixed, click-through layer both the ring and the card live in. */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
@@ -894,8 +1334,46 @@ function Shell({ children }: { children: React.ReactNode }) {
           50% { transform: scale(1.02); }
         }
         .walkthrough-ring--waiting { animation: walkthrough-pulse 1.6s ease-in-out infinite; }
+
+        @keyframes walkthrough-ripple {
+          0% { transform: translate(-50%, -50%) scale(0.3); opacity: 0.85; }
+          70% { opacity: 0; }
+          100% { transform: translate(-50%, -50%) scale(1); opacity: 0; }
+        }
+        @keyframes walkthrough-tap {
+          0%, 62%, 100% { transform: scale(1); }
+          72% { transform: scale(0.78); }
+          84% { transform: scale(1.04); }
+        }
+        .walkthrough-tap__ripple {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 104px;
+          height: 104px;
+          margin: 0;
+          border-radius: 50%;
+          border: 3px solid ${TAP};
+          background: ${TAP_WASH};
+          transform: translate(-50%, -50%) scale(0.35);
+          animation: walkthrough-ripple 1.8s ease-out infinite;
+        }
+        .walkthrough-tap__ripple--late { animation-delay: 0.9s; }
+        .walkthrough-tap__pointer {
+          position: absolute;
+          left: -4px;
+          top: -4px;
+          transform-origin: 20% 15%;
+          filter: drop-shadow(0 2px 5px rgba(0, 0, 0, 0.45));
+          animation: walkthrough-tap 1.8s ease-in-out infinite;
+        }
+
         @media (prefers-reduced-motion: reduce) {
           .walkthrough-ring--waiting { animation: none; }
+          /* The pointer stays - it is the instruction, not the decoration - and
+             only stops moving. The ripples are pure motion, so they go. */
+          .walkthrough-tap__ripple { display: none; }
+          .walkthrough-tap__pointer { animation: none; }
         }
       `}</style>
       {children}
@@ -960,11 +1438,18 @@ const SPEECH = {
     close: 'Close',
     offer: 'One last thing',
     startTrial: 'Start my free trial',
+    subscribeNow: 'Subscribe now',
+    opening: 'Opening…',
+    whatsappUs: 'Ask us on WhatsApp',
+    perMonth: 'per month',
+    noSetupFee: 'no set-up cost',
     later: 'Maybe later',
     closeToGoOn: 'Take the payment, or close this box - the tour picks up either way.',
     leaveTitle: 'Your place is saved',
     leaveBody:
       'Go and press things - that is what the demo is for. When you want the tour back, open My Profile at the bottom of the menu on the left and press Continue on the walkthrough card. It reopens at this exact step.',
+    leaveBodySetup:
+      'Go and set the rest up yourself - that is what the trial is for. When you want the tour back, open My Profile at the bottom of the menu on the left and press Continue on the walkthrough card. It reopens at this exact step.',
     leaveConfirm: 'Close the tour',
     leaveCancel: 'Keep going',
   },
@@ -983,11 +1468,18 @@ const SPEECH = {
     close: 'বন্ধ করুন',
     offer: 'শেষ একটি কথা',
     startTrial: 'আমার ফ্রি ট্রায়াল শুরু করুন',
+    subscribeNow: 'এখনই সাবস্ক্রাইব করুন',
+    opening: 'খোলা হচ্ছে…',
+    whatsappUs: 'হোয়াটসঅ্যাপে জিজ্ঞাসা করুন',
+    perMonth: 'প্রতি মাসে',
+    noSetupFee: 'কোনো সেটআপ খরচ নেই',
     later: 'পরে দেখব',
     closeToGoOn: 'টাকা নিন, কিংবা বাক্সটি বন্ধ করুন — দুভাবেই গাইড এগিয়ে যাবে।',
     leaveTitle: 'আপনার জায়গা সংরক্ষিত আছে',
     leaveBody:
       'ঘুরে দেখুন, নিজে চাপ দিন — ডেমো তো এজন্যই। গাইড আবার চাইলে বাঁ পাশের মেনুর নিচে "My Profile" খুলে ওয়াকথ্রু কার্ডের "Continue"-তে চাপ দিন। ঠিক এই ধাপ থেকেই আবার শুরু হবে।',
+    leaveBodySetup:
+      'বাকিটা নিজেই সাজিয়ে নিন — ট্রায়াল তো এজন্যই। গাইড আবার চাইলে বাঁ পাশের মেনুর নিচে "My Profile" খুলে ওয়াকথ্রু কার্ডের "Continue"-তে চাপ দিন। ঠিক এই ধাপ থেকেই আবার শুরু হবে।',
     leaveConfirm: 'গাইড বন্ধ করুন',
     leaveCancel: 'চালিয়ে যান',
   },
@@ -1011,20 +1503,65 @@ function cardPosition(
   rect: DOMRect | null,
   placement: TourStep['placement'] = 'bottom',
   width: number,
+  listy = false,
+  height = CARD_HEIGHT,
 ): React.CSSProperties {
   if (!rect) return MIDDLE;
 
   const gap = 14;
 
+  /** Whether a card of this width fits between the target and that edge. */
+  const roomRight = rect.right + gap + width + EDGE <= window.innerWidth;
+  const roomLeft = rect.left - gap - width >= EDGE;
+
+  /*
+   * A step whose target drops a list keeps its card out of the drop.
+   *
+   * The author asked for 'bottom' - or said nothing and got it - without
+   * knowing the field would be a select, and the card lands exactly where the
+   * options will. Moved to whichever side has room for it, and above the field
+   * when neither side does, all of which leave the list clear.
+   *
+   * Only 'bottom' is overridden. 'left', 'right' and 'top' were chosen against
+   * this particular screen, and second-guessing a placement somebody picked on
+   * purpose is how a card ends up somewhere worse than where it was put.
+   */
+  if (listy && placement === 'bottom') {
+    if (roomRight) return { top: clampTop(rect.top, height), left: clampLeft(rect.right + gap, width) };
+    if (roomLeft) return { top: clampTop(rect.top, height), left: clampLeft(rect.left - width - gap, width) };
+
+    return { top: stacked(rect, 'above', height), left: clampLeft(rect.left, width) };
+  }
+
+  /*
+   * A side placement only survives while there is a side to put it on.
+   *
+   * On a desktop there always is, which is why 'left' and 'right' were written
+   * against one. A phone is 375 across and the card is 340 of it, so the clamp
+   * that keeps a card on screen used to drop it straight on top of the thing it
+   * was pointing at - the menu item the step is asking somebody to press, with
+   * the ring around it, underneath the card telling them to press it.
+   *
+   * So a side that has no room is not clamped, it is given up: the other side
+   * if that has room, and otherwise above or below, which any screen has room
+   * for. The placement in the step stays a preference about a wide screen
+   * rather than an instruction that goes wrong on a narrow one.
+   */
   switch (placement) {
     case 'right':
-      return { top: clampTop(rect.top), left: clampLeft(rect.right + gap, width) };
+      if (roomRight) return { top: clampTop(rect.top, height), left: clampLeft(rect.right + gap, width) };
+      if (roomLeft) return { top: clampTop(rect.top, height), left: clampLeft(rect.left - width - gap, width) };
+
+      return { top: stacked(rect, 'below', height), left: clampLeft(rect.left, width) };
     case 'left':
-      return { top: clampTop(rect.top), left: clampLeft(rect.left - width - gap, width) };
+      if (roomLeft) return { top: clampTop(rect.top, height), left: clampLeft(rect.left - width - gap, width) };
+      if (roomRight) return { top: clampTop(rect.top, height), left: clampLeft(rect.right + gap, width) };
+
+      return { top: stacked(rect, 'below', height), left: clampLeft(rect.left, width) };
     case 'top':
-      return { top: stacked(rect, 'above'), left: clampLeft(rect.left, width) };
+      return { top: stacked(rect, 'above', height), left: clampLeft(rect.left, width) };
     default:
-      return { top: stacked(rect, 'below'), left: clampLeft(rect.left, width) };
+      return { top: stacked(rect, 'below', height), left: clampLeft(rect.left, width) };
   }
 }
 
@@ -1037,16 +1574,16 @@ function cardPosition(
  * button being asked for. The POS checkout button, at the bottom right of the
  * screen, is exactly that case.
  */
-function stacked(rect: DOMRect, prefer: 'above' | 'below'): number {
+function stacked(rect: DOMRect, prefer: 'above' | 'below', height = CARD_HEIGHT): number {
   const gap = 14;
-  const above = rect.top - CARD_HEIGHT - gap;
+  const above = rect.top - height - gap;
   const below = rect.bottom + gap;
   const fitsAbove = above >= EDGE;
-  const fitsBelow = below + CARD_HEIGHT <= window.innerHeight - EDGE;
+  const fitsBelow = below + height <= window.innerHeight - EDGE;
 
-  if (prefer === 'above') return fitsAbove || !fitsBelow ? clampTop(above) : below;
+  if (prefer === 'above') return fitsAbove || !fitsBelow ? clampTop(above, height) : below;
 
-  return fitsBelow || !fitsAbove ? clampTop(below) : above;
+  return fitsBelow || !fitsAbove ? clampTop(below, height) : above;
 }
 
 /**
@@ -1061,8 +1598,8 @@ function stacked(rect: DOMRect, prefer: 'above' | 'below'): number {
  * purpose. A card sitting slightly higher than it had to is not something
  * anybody notices; one with its "Next" off the bottom of the screen is.
  */
-function clampTop(top: number): number {
-  const floor = Math.max(EDGE, window.innerHeight - CARD_HEIGHT - EDGE);
+function clampTop(top: number, height = CARD_HEIGHT): number {
+  const floor = Math.max(EDGE, window.innerHeight - height - EDGE);
 
   return Math.min(Math.max(EDGE, top), floor);
 }

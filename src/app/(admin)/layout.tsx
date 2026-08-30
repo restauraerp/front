@@ -353,7 +353,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="drawer-content flex flex-col min-w-0">
         {/* Mobile topbar */}
         <div className="navbar bg-base-100 border-b border-base-200 lg:hidden px-4">
-          <label htmlFor="admin-drawer" className="btn btn-ghost btn-sm btn-square">
+          {/* Named for the tour: a step pointing at something in the menu can
+              open the menu itself on a phone, instead of naming a rail that is
+              not on the screen. Only ever pressed by the tour when it is
+              actually visible, which is what keeps this to narrow widths. */}
+          <label
+            htmlFor="admin-drawer"
+            data-tour-reveal="admin-menu"
+            className="btn btn-ghost btn-sm btn-square"
+          >
             <Menu size={20} />
           </label>
           <div className="flex items-center gap-2 ml-2">
@@ -376,7 +384,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             still carries the demo cookie for a moment, and starting them on the
             demo tour inside their own restaurant is worse than starting a beat
             late. */}
-        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} />}
+        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} contact={subscription?.contact} />}
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
@@ -387,7 +395,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Sidebar */}
-      <div className="drawer-side z-40">
+      <div className="drawer-side z-40" data-tour-region="admin-menu">
         <label htmlFor="admin-drawer" className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
         {sidebar}
       </div>
