@@ -26,3 +26,35 @@ export function verifyUrl(action: 'trial' | 'subscription'): string | null {
 
   return `${WEBSITE_URL.replace(/\/$/, '')}/verify?action=${action}`;
 }
+
+/**
+ * What subscribing costs, for the one card that has to say so out loud.
+ *
+ * Two numbers and both are display copy:
+ *
+ * - `now` must match core-api's `config/plans.php` starter `price_monthly`,
+ *   which is the side that actually charges. A customer who arrived through a
+ *   landing page carries a locked rate that is *lower* than this one, so the
+ *   figure quoted here is a ceiling - which is the safe direction for a price
+ *   on a marketing card to be wrong in.
+ * - `was` is the list price, never charged, only ever shown struck through.
+ *   It matches the website's `landing.list_price_monthly`.
+ *
+ * Both unset means no price block at all: the card still makes the offer and
+ * still opens the checkout, it simply does not quote a number it has not been
+ * given. A deployment that has not filled these in should say nothing rather
+ * than invent something.
+ */
+export type OfferPrice = { now: number; was: number | null };
+
+export function offerPrice(): OfferPrice | null {
+  const now = Number(process.env.NEXT_PUBLIC_PLAN_PRICE_MONTHLY);
+
+  if (!Number.isFinite(now) || now <= 0) return null;
+
+  const was = Number(process.env.NEXT_PUBLIC_PLAN_LIST_PRICE_MONTHLY);
+
+  // A "was" that is not above the price being asked is not a saving, and
+  // striking one through would be a claim rather than a discount.
+  return { now, was: Number.isFinite(was) && was > now ? was : null };
+}

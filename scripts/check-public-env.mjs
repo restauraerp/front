@@ -49,6 +49,12 @@ const REQUIRED = {
 const OPTIONAL = {
   NEXT_PUBLIC_GTM_ID: 'analytics only; layout.tsx skips the tag when unset',
   NEXT_PUBLIC_FACEBOOK_PIXEL_ID: 'analytics only; FacebookPixel renders nothing when unset',
+  // Optional on purpose rather than by omission: offerPrice() returns null for
+  // anything that is not a positive number, and every card that shows a price
+  // is written to say nothing at all when it gets null. An install that has not
+  // decided what it charges should quote nothing, not a zero.
+  NEXT_PUBLIC_PLAN_PRICE_MONTHLY: 'the tour and banners quote no price when unset',
+  NEXT_PUBLIC_PLAN_LIST_PRICE_MONTHLY: 'only strikes a price through when it is above the asking one',
 };
 
 /** Supplied by next.config.ts rather than any env file, so never expected here. */
