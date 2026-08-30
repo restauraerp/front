@@ -3,9 +3,10 @@
   "version": "1.00.50",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbo -p 3029",
+    "dev": "npm run walkthrough:copy && next dev --turbo -p 3029",
     "check:env": "node scripts/check-public-env.mjs",
-    "build": "npm run check:env && next build",
+    "walkthrough:copy": "node scripts/walkthrough-copy.mjs",
+    "build": "npm run check:env && npm run walkthrough:copy && next build",
     "start": "next start -p 3029",
     "lint": "eslint"
   },
@@ -29,6 +30,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "fast-xml-parser": "^5.11.1",
     "typescript": "^5"
   }
 }
