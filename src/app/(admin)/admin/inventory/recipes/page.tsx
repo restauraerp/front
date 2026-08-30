@@ -136,7 +136,7 @@ function RecipesPageContent() {
         <h1 className="text-2xl font-bold">Recipes</h1>
       </div>
 
-      <Card className="mb-6">
+      <Card tour="recipe-product" className="mb-6">
         <div className="form-control max-w-sm">
           <label className="label"><span className="label-text font-medium">Select Product</span></label>
           <SearchSelect
@@ -151,7 +151,7 @@ function RecipesPageContent() {
       </Card>
 
       {selectedProductId && (
-        <Card title="Recipe Ingredients">
+        <Card tour="recipe-rows" title="Recipe Ingredients">
           {loading ? (
             <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div>
           ) : (
@@ -247,6 +247,7 @@ function RecipesPageContent() {
                   <Plus size={15} /> Add Row
                 </button>
                 <Button
+                  data-tour="recipe-save"
                   variant="primary"
                   onClick={handleSave}
                   disabled={saving || rows.length === 0}

@@ -438,7 +438,7 @@ export default function PurchaseOrdersPage() {
               </div>
             </div>
 
-            <div className="form-control w-full">
+            <div data-tour="po-status" className="form-control w-full">
               <label className="label"><span className="label-text font-medium">Status</span></label>
               <select
                 className="select select-bordered w-full"
@@ -488,7 +488,7 @@ export default function PurchaseOrdersPage() {
             )}
 
             <div className="flex gap-4 sm:col-span-2">
-              <Button type="submit" variant="primary" disabled={submitting}>
+              <Button data-tour="po-save" type="submit" variant="primary" disabled={submitting}>
                 {submitting ? 'Saving...' : (editingId ? 'Update PO' : 'Create PO')}
               </Button>
               <Button type="button" variant="secondary" onClick={() => setIsFormOpen(false)} disabled={submitting}>Cancel</Button>

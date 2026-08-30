@@ -225,7 +225,7 @@ export default function InventoryItemsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
         <h1 className="text-2xl font-bold">Inventory Items</h1>
-        <Button onClick={() => {
+        <Button data-tour="item-add" onClick={() => {
           if (isFormOpen) { setIsFormOpen(false); resetForm(); }
           else { resetForm(); setIsFormOpen(true); }
         }}>
@@ -234,7 +234,7 @@ export default function InventoryItemsPage() {
       </div>
 
       {isFormOpen && (
-        <Card title={editingId ? 'Edit Item' : 'New Item'} style={{ marginBottom: '2rem' }}>
+        <Card tour="item-form" title={editingId ? 'Edit Item' : 'New Item'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Title" name="title" value={formData.title} onChange={handleInputChange} required />
             <div className="form-control w-full sm:col-span-2">
@@ -345,7 +345,7 @@ export default function InventoryItemsPage() {
             </div>
 
             {/* Directly Sellable */}
-            <div className="rounded-[var(--radius-field)] border border-base-300 p-4 sm:col-span-2">
+            <div data-tour="item-sellable" className="rounded-[var(--radius-field)] border border-base-300 p-4 sm:col-span-2">
               <label className="flex cursor-pointer items-start gap-3">
                 <input
                   type="checkbox" className="checkbox checkbox-primary mt-0.5"
@@ -453,7 +453,7 @@ export default function InventoryItemsPage() {
         </div>
       </div>
 
-      <Card>
+      <Card tour="items-table">
         {loading ? <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div> : (
           <>
             <Table columns={columns} data={items} onEdit={handleEdit} onDelete={handleDelete} />

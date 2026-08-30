@@ -246,7 +246,7 @@ export default function ConsumptionLogPage() {
           </p>
         </div>
         {activeTab === 'history' && (
-          <Button onClick={() => setIsFormOpen(f => !f)}>
+          <Button data-tour="consumption-add" onClick={() => setIsFormOpen(f => !f)}>
             {isFormOpen ? 'Close' : '+ Log Consumption'}
           </Button>
         )}
@@ -273,7 +273,7 @@ export default function ConsumptionLogPage() {
       {activeTab === 'history' && (
         <>
           {isFormOpen && (
-            <Card title="Report Consumption" style={{ marginBottom: '2rem' }}>
+            <Card tour="consumption-form" title="Report Consumption" style={{ marginBottom: '2rem' }}>
               <div className="bg-warning/10 border border-warning/30 rounded-lg px-4 py-3 flex items-start gap-2 mb-5">
                 <AlertTriangle size={16} className="text-warning mt-0.5 flex-shrink-0" />
                 <p className="text-sm text-base-content/80">
@@ -390,7 +390,7 @@ export default function ConsumptionLogPage() {
             </Card>
           )}
 
-          <Card title="Consumption History">
+          <Card tour="consumption-history" title="Consumption History">
             {loading
               ? <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div>
               : (
