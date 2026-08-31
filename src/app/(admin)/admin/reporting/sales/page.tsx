@@ -83,12 +83,14 @@ export default function SalesReportPage() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <StatTile
+          tour="sales-total-revenue"
           label="Total Revenue"
           value={formatTaka(summary.gross_revenue)}
           sub="All orders, incl. tax & delivery"
           tone="primary"
         />
         <StatTile
+          tour="sales-collected"
           label="Collected"
           value={formatTaka(summary.collected_revenue)}
           sub={
@@ -128,7 +130,7 @@ export default function SalesReportPage() {
       </Card>
 
       {series.length > 0 && (
-        <Card title="Sales Trend" className="mb-6">
+        <Card tour="sales-trend" title="Sales Trend" className="mb-6">
           <div className="flex justify-end mb-2">
             <div className="join">
               <button

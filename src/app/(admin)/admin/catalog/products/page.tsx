@@ -308,7 +308,7 @@ export default function ProductsPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
         <h1>Product Management</h1>
-        <Button onClick={() => {
+        <Button data-tour="product-add" onClick={() => {
           if (isFormOpen) { setIsFormOpen(false); resetForm(); }
           else { resetForm(); setIsFormOpen(true); }
         }}>
@@ -317,7 +317,7 @@ export default function ProductsPage() {
       </div>
 
       {isFormOpen && (
-        <Card title={editingId ? 'Edit Product' : 'New Product'} style={{ marginBottom: '2rem' }}>
+        <Card tour="product-form" title={editingId ? 'Edit Product' : 'New Product'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Price" name="price" type="number" step="0.01" value={formData.price} onChange={handleInputChange} required />

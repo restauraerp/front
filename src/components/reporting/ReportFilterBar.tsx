@@ -29,7 +29,7 @@ export default function ReportFilterBar() {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-1 bg-base-100 p-1.5 rounded-2xl shadow-sm border border-base-200">
+    <div data-tour="report-range" className="flex flex-wrap items-center gap-1 bg-base-100 p-1.5 rounded-2xl shadow-sm border border-base-200">
       {!single && (
         <div className="flex items-center gap-2 px-3 border-r border-base-200">
           <MapPin size={16} className="text-base-content/50" />

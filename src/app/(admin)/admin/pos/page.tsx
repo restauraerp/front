@@ -484,7 +484,7 @@ function POS() {
               <p>{searchQuery || selectedCategory ? 'No matching products found.' : 'No products available.'}</p>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
+            <div data-tour="pos-products" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: '0.75rem' }}>
               {filteredProducts.map(p => (
                 <button
                   key={p.id}
@@ -663,7 +663,7 @@ function POS() {
         )}
 
         {/* Cart */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[400px] md:min-h-0 overflow-hidden">
+        <div data-tour="pos-cart" className="flex-1 bg-white rounded-xl border border-gray-200 flex flex-col shadow-sm min-h-[400px] md:min-h-0 overflow-hidden">
           <div className="flex items-center justify-between py-3 px-4 border-b border-gray-100">
             <h2 style={{ fontWeight: 700, fontSize: '0.95rem', margin: 0 }}>{editMode ? `Editing Order #${editOrderId}` : 'Current Order'}</h2>
             <div style={{ display: 'flex', gap: '0.3rem' }}>
@@ -855,6 +855,7 @@ function POS() {
             </div>
 
             <button
+              data-tour="pos-place-order"
               onClick={handleCheckout}
               disabled={cart.length === 0 || checkingOut}
               style={{

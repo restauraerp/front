@@ -55,7 +55,7 @@ export default function Catalog() {
               <div className="text-3xl font-bold text-primary">{stats.products} <span className="text-sm font-normal text-base-content/60">Items</span></div>
             )}
           </div>
-          <Link href="/admin/catalog/products" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+          <Link href="/admin/catalog/products" data-tour="catalog-products" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
             Manage Products &rarr;
           </Link>
         </Card>

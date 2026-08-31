@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tour kind="trial" language="en"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="../walkthrough.xsd">
+
+  <mission id="dish">
+    <title>Your first dish</title>
+
+    <step key="intro">
+      <title>Put something you cook on the menu</title>
+      <body>Your restaurant is empty right now, and nothing else in here works until something is on the menu. Pick one dish you sell every day - the rest of this walkthrough is built around it.</body>
+    </step>
+
+    <step key="open-catalog">
+      <title>Open Catalog</title>
+      <body>In the main menu. Everything you put on a menu lives behind this one item.</body>
+    </step>
+
+    <step key="open-products">
+      <title>Go to Products</title>
+      <body>The products card on this page.</body>
+    </step>
+
+    <step key="add">
+      <title>Add your first product</title>
+      <body>New Product, at the top right.</body>
+    </step>
+
+    <step key="form">
+      <title>A name, a price, a category</title>
+      <body>That is all a cooked dish needs to exist. What it is made of is a separate question and we answer it shortly, with a recipe - so put in the dish itself and save it. Real food, real price: everything you do from here counts.</body>
+    </step>
+
+    <step key="done">
+      <title>You have a menu</title>
+      <body>One dish, and the till can already sell it. Next: the stock you sell exactly as it arrives.</body>
+    </step>
+  </mission>
+
+  <mission id="shelf">
+    <title>Stock you sell as it comes</title>
+
+    <step key="intro">
+      <title>A bottle of water is not cooked</title>
+      <body>Some of what you sell is bought and sold unchanged - a soft drink, a packet of crisps, a bottle of water. That is stock rather than a dish, and one tick puts it on the till beside your food.</body>
+    </step>
+
+    <step key="open-inventory">
+      <title>Open Inventory</title>
+      <body>Items, suppliers, recipes, purchase orders and consumption all sit behind this one.</body>
+    </step>
+
+    <step key="open-items">
+      <title>Go to Inventory Items</title>
+      <body>Every physical thing you buy is counted here, whether you cook with it or sell it.</body>
+    </step>
+
+    <step key="add">
+      <title>Add a new item</title>
+      <body>New Item, at the top right. Something you sell exactly as you buy it.</body>
+    </step>
+
+    <step key="sellable">
+      <title>Tick Directly Sellable</title>
+      <body>That tick is the whole difference. It gives the item a selling price and puts it on the till beside your dishes, and selling one takes it straight off this outlet’s shelf - no recipe, because nothing is made. Fill the rest in and save.</body>
+    </step>
+
+    <step key="done">
+      <title>That one is on the counter now</title>
+      <body>Bought and sold as one thing, counted as one thing. Next: the stock nobody ever buys on its own.</body>
+    </step>
+  </mission>
+
+  <mission id="ingredients">
+    <title>Two things you cook with</title>
+
+    <step key="intro">
+      <title>Now the things nobody orders</title>
+      <body>Chicken, flour, cheese - stock that only ever leaves the building inside a dish. Add two of them now and leave them unsellable; the next mission joins them to the dish you made first.</body>
+    </step>
+
+    <step key="add-first">
+      <title>Add the first ingredient</title>
+      <body>Same button, same form. Buy it in the unit it actually arrives in - a sack, a carton, a kilo.</body>
+    </step>
+
+    <step key="not-sellable">
+      <title>Leave this one unticked</title>
+      <body>Unticked means it never appears on the till - nobody walks in and buys a kilo of your flour. It moves only when a dish that needs it is sold, and the recipe is what tells the system how much.</body>
+    </step>
+
+    <step key="add-second">
+      <title>Now a second one</title>
+      <body>One more ingredient the same way. Two is enough to make the recipe worth reading.</body>
+    </step>
+
+    <step key="done">
+      <title>Two ingredients on the books</title>
+      <body>Counted, but not connected to anything yet. That is the next mission, and it is the one that makes stock look after itself.</body>
+    </step>
+  </mission>
+
+  <mission id="recipe">
+    <title>The recipe that joins them</title>
+
+    <step key="intro">
+      <title>Tell it what the dish is made of</title>
+      <body>A recipe is the link between the dish from mission one and the two ingredients you have just added. Once it exists, selling the dish takes its ingredients off the shelf without anybody writing anything down - which is the whole reason to keep stock in here at all.</body>
+    </step>
+
+    <step key="open-inventory">
+      <title>Back to Inventory</title>
+      <body>In the main menu.</body>
+    </step>
+
+    <step key="open-recipes">
+      <title>Go to Recipes</title>
+      <body>The recipes card on this page.</body>
+    </step>
+
+    <step key="pick-product">
+      <title>Choose the dish you made</title>
+      <body>Pick it from the list. A recipe belongs to a dish, so everything below now applies to that one and nothing else.</body>
+    </step>
+
+    <step key="rows">
+      <title>One line per ingredient</title>
+      <body>Add a row for each of your two and say how much one portion uses. The unit shown is the one you bought it in, so a quarter of a kilo is 0.25 - nothing to convert in your head.</body>
+    </step>
+
+    <step key="save">
+      <title>Save the recipe</title>
+      <body>Save Recipe, under the table.</body>
+    </step>
+
+    <step key="done">
+      <title>The dish knows its own ingredients</title>
+      <body>From now on, selling it moves exactly these quantities and nothing else. Next: the things a recipe cannot measure.</body>
+    </step>
+  </mission>
+
+  <mission id="bulk">
+    <title>Oil, sauce and the rest</title>
+
+    <step key="intro">
+      <title>Some things you cannot measure per plate</title>
+      <body>Nobody weighs the frying oil for one portion of chicken. Oil, sauce, gas, cleaning supplies - not sold on their own, not worth putting in a recipe, and still money. They get counted a third way, and this mission adds one.</body>
+    </step>
+
+    <step key="add">
+      <title>Add one of those</title>
+      <body>Cooking oil, a sauce, whatever your kitchen goes through without counting.</body>
+    </step>
+
+    <step key="form">
+      <title>Bought in drums, used by the day</title>
+      <body>Fill it in like an ingredient and leave Directly Sellable unticked. Buy it in the unit the delivery note uses - a drum, a five-litre bottle - because that is the number you will be checking against.</body>
+    </step>
+
+    <step key="done">
+      <title>That one moves by hand</title>
+      <body>Nothing will ever deduct it for you - no till, no recipe. You tell the system when it goes, and there is a mission near the end for exactly that. First, let us buy all four.</body>
+    </step>
+  </mission>
+
+  <mission id="buy">
+    <title>Buy all four in one order</title>
+
+    <step key="intro">
+      <title>Nothing is on the shelf yet</title>
+      <body>Four items exist and every one of them is at zero, because creating an item is not the same as buying it. Stock arrives through a purchase order: one form that tells the supplier what you want, puts the delivery on the shelf, and writes the cost into your accounts.</body>
+    </step>
+
+    <step key="open-inventory">
+      <title>Open Inventory</title>
+      <body>In the main menu.</body>
+    </step>
+
+    <step key="open-po">
+      <title>Go to Purchase Orders</title>
+      <body>The purchase orders card on this page.</body>
+    </step>
+
+    <step key="create">
+      <title>Start a new order</title>
+      <body>Create PO, at the top right.</body>
+    </step>
+
+    <step key="supplier">
+      <title>Who you are buying from</title>
+      <body>Pick a supplier - and if the list is empty, add one under Inventory first, then come back. Every order you place against a supplier builds a history you can hold them to.</body>
+    </step>
+
+    <step key="lines">
+      <title>All four items, one line each</title>
+      <body>Add a line for each one you created - the sellable one, both ingredients and the oil - with the quantity and what you actually paid. The total adds itself up as you type, and that unit price becomes the item’s cost.</body>
+    </step>
+
+    <step key="status">
+      <title>Received means it is on the shelf</title>
+      <body>Leave it on Received and saving puts every one of these quantities into the outlet’s stock. Pending or Approved records the order without moving anything - for stock still on its way.</body>
+    </step>
+
+    <step key="save">
+      <title>Save the order</title>
+      <body>Create PO, at the bottom of the form.</body>
+    </step>
+
+    <step key="done">
+      <title>Four items, all in stock</title>
+      <body>Ordered, delivered, counted and costed from one form, without writing it down twice. Now let us see what that did to the storeroom.</body>
+    </step>
+  </mission>
+
+  <mission id="health">
+    <title>What is on the shelf now</title>
+
+    <step key="intro">
+      <title>The screen that stops you running out</title>
+      <body>Running out mid-service costs you the table and the reputation. This one screen answers what you have, what it is worth, and what to reorder - and you have just given it something real to say.</body>
+    </step>
+
+    <step key="open-reporting">
+      <title>Open Reporting</title>
+      <body>In the main menu.</body>
+    </step>
+
+    <step key="open-tab">
+      <title>Click Inventory Health</title>
+      <body>In the row of tabs. This one ignores the date filter on purpose - stock is what you have now, not what you had.</body>
+    </step>
+
+    <step key="low">
+      <title>What needs reordering</title>
+      <body>Anything at or under the minimum stock level you set on the item itself. Set that level on each of your four and this number starts doing the ordering for you.</body>
+    </step>
+
+    <step key="value">
+      <title>Money sitting on the shelves</title>
+      <body>What you paid on the purchase order, still unsold. Stock is cash you have already spent, and this is how much of it is waiting.</body>
+    </step>
+
+    <step key="table">
+      <title>Your four items, in one list</title>
+      <body>Low stock first, always, so the trouble is at the top. Take a note of what each of your four says right now - the next two missions are about changing these very numbers.</body>
+    </step>
+
+    <step key="done">
+      <title>The storeroom, without walking to it</title>
+      <body>That is stock coming in. Next: stock going out, at the till.</body>
+    </step>
+  </mission>
+
+  <mission id="sell">
+    <title>Sell, and watch stock fall</title>
+
+    <step key="intro">
+      <title>Take one sale with your own menu</title>
+      <body>Sell your dish and your sellable item in the same order, then come back to that list. Both come off the shelf - and they come off in completely different ways, which is the point of this mission.</body>
+    </step>
+
+    <step key="open-pos">
+      <title>Open the POS</title>
+      <body>This is the screen your counter staff will live on all day.</body>
+    </step>
+
+    <step key="pick">
+      <title>Tap your dish, then your item</title>
+      <body>They sit side by side here - the one you cook and the one that came straight off the delivery - because to somebody at the counter there is no difference. One tap each.</body>
+    </step>
+
+    <step key="cart">
+      <title>The bill builds itself</title>
+      <body>Quantities, a note for the kitchen, a discount on one line or on the lot - with the tax and the total recalculated as you go.</body>
+    </step>
+
+    <step key="place">
+      <title>Place the order</title>
+      <body>It goes to the kitchen screen and the orders board in the same instant. This is a real order in your restaurant.</body>
+    </step>
+
+    <step key="deducted">
+      <title>Both fell, for different reasons</title>
+      <body>The sellable item came off one for one, because you sold the thing itself. The dish never moved - what moved is the two ingredients, by the exact amounts in your recipe. The oil has not moved at all, and that is correct.</body>
+    </step>
+
+    <step key="done">
+      <title>Selling now keeps its own count</title>
+      <body>Two of the three ways stock moves, both automatic. The third one is the oil, and it is the only one that needs you.</body>
+    </step>
+  </mission>
+
+  <mission id="used">
+    <title>The oil nobody sold</title>
+
+    <step key="intro">
+      <title>Stock leaves without a sale</title>
+      <body>Oil gets used, staff eat, things spill and things get thrown away. None of it goes through the till, so none of it comes off by itself - you report it, and the shelf drops the moment you do.</body>
+    </step>
+
+    <step key="open-inventory">
+      <title>Open Inventory</title>
+      <body>In the main menu.</body>
+    </step>
+
+    <step key="open-consumption">
+      <title>Go to Report Consumption</title>
+      <body>The last card on this page.</body>
+    </step>
+
+    <step key="add">
+      <title>Log some consumption</title>
+      <body>Log Consumption, at the top right.</body>
+    </step>
+
+    <step key="form">
+      <title>Outlet, date, item, quantity</title>
+      <body>Pick the oil you added, say how much went and why. Saving deducts it from that outlet straight away - and deleting the log later puts it back, so a mistake costs you nothing.</body>
+    </step>
+
+    <step key="history">
+      <title>Every entry, with a name on it</title>
+      <body>Who reported what, when, and whether it was corrected afterwards. This is the difference between stock that was used and stock that is simply missing.</body>
+    </step>
+
+    <step key="stock">
+      <title>And the shelf agrees</title>
+      <body>The oil has dropped by exactly what you reported. That is the last of the four moving, and every one of them now has a reason for every unit it loses.</body>
+    </step>
+
+    <step key="done">
+      <title>Your restaurant is set up</title>
+      <body>A dish, a recipe, stock you sell as it comes, stock you use by hand, a delivery in and a sale out. One last thing worth knowing before you carry on alone.</body>
+    </step>
+  </mission>
+
+  <mission id="again">
+    <title>Coming back to this tour</title>
+
+    <step key="intro">
+      <title>You can always start this again</title>
+      <body>Close it whenever you like and go and set the rest up yourself - it keeps your place. Here is where it lives, so you can find it again, or hand it to whoever does your stock.</body>
+    </step>
+
+    <step key="open-profile">
+      <title>Open My Profile</title>
+      <body>Right at the bottom of the main menu.</body>
+    </step>
+
+    <step key="card">
+      <title>This card, on your profile</title>
+      <body>It remembers where you got to - against you, not against this browser. Close it on your phone and pick it up on a laptop at the same step.</body>
+    </step>
+
+    <step key="buttons">
+      <title>Continue, or start over</title>
+      <body>Continue picks up at the step you left. Start over goes back to the first mission - useful when you are showing a new manager how the stock works.</body>
+    </step>
+
+    <step key="done">
+      <title>You know how the whole thing works now</title>
+      <body>Menu, stock, recipes, buying, selling and what leaves without being sold - and you did every one of them yourself, with your own food. The walkthrough is on your profile whenever you want it back, and there is one last thing worth saying before you go.</body>
+    </step>
+  </mission>
+
+  <mission id="keep">
+    <title>Keeping what you built</title>
+
+    <step key="now">
+      <title>It is all yours to keep</title>
+      <body>Your dish, your recipe, your stock and your first sale are already in here - subscribing changes nothing on these screens except the date they stop working. The introductory price is on right now, and there is no set-up cost on top of it: nothing to pay to be installed, configured or trained. If you would rather ask a person first, we are on WhatsApp and we answer.</body>
+    </step>
+  </mission>
+</tour>

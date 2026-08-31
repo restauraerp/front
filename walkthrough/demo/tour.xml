@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tour kind="demo" language="en"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="../walkthrough.xsd">
+
+  <mission id="sales">
+    <title>Last month's sales</title>
+
+    <step key="intro">
+      <title>How much did you sell last month?</title>
+      <body>Most owners answer this by adding up a drawer of receipts. Let us do it in three clicks instead - and then read what the number is actually made of.</body>
+    </step>
+
+    <step key="open-reporting">
+      <title>Open Reporting</title>
+      <body>In the main menu. Every report in the product lives behind this one item.</body>
+    </step>
+
+    <step key="range">
+      <title>The period, set once</title>
+      <body>We have set it to Last Month for you. Every tab on this page obeys it, so you pick the period once and read all thirteen reports against it.</body>
+    </step>
+
+    <step key="revenue">
+      <title>That is the month</title>
+      <body>Every order from every till, delivery app and counter, added up. Nothing was typed in to produce it.</body>
+    </step>
+
+    <step key="collected">
+      <title>Sold is not the same as collected</title>
+      <body>This is the money that actually arrived. The difference between the two tiles is what is still owed to you - the figure most restaurants never see.</body>
+    </step>
+
+    <step key="trend">
+      <title>And which days did the work</title>
+      <body>The same month, day by day. This is the chart that tells you which nights to staff properly and which to close early.</body>
+    </step>
+
+    <step key="done">
+      <title>You just read a month of trading</title>
+      <body>Sold, collected, owed, and the shape of the month. Next: whether any of it was profit.</body>
+    </step>
+  </mission>
+
+  <mission id="profit">
+    <title>Profit or loss</title>
+
+    <step key="intro">
+      <title>Revenue is not profit</title>
+      <body>A busy month can lose money, and it usually takes an accountant three weeks to say so. Here it is one tab away.</body>
+    </step>
+
+    <step key="open-tab">
+      <title>Click Profit</title>
+      <body>In the row of tabs above. It keeps the period you already chose, so this is still last month.</body>
+    </step>
+
+    <step key="income">
+      <title>Everything that came in</title>
+      <body>Paid orders, plus anything you logged as income by hand - a catering job, a room hire. Both count, so the total is the real one.</body>
+    </step>
+
+    <step key="expenses">
+      <title>Everything that went out</title>
+      <body>Your purchase orders and your logged running costs together. Mission 5 and 6 are where these two numbers come from.</body>
+    </step>
+
+    <step key="net">
+      <title>What you actually kept</title>
+      <body>One figure, and the only one that decides whether the month was worth opening the doors for.</body>
+    </step>
+
+    <step key="breakdown">
+      <title>And where it went</title>
+      <body>Line by line, so a bad month names its own cause instead of leaving you guessing.</body>
+    </step>
+
+    <step key="done">
+      <title>You now know if last month paid</title>
+      <body>In and out and what is left. Next: whether your storeroom agrees with your books.</body>
+    </step>
+  </mission>
+
+  <mission id="stock">
+    <title>Inventory health</title>
+
+    <step key="intro">
+      <title>What is in the storeroom right now?</title>
+      <body>Running out mid-service costs you the table and the reputation. This screen tells you the day before it happens.</body>
+    </step>
+
+    <step key="open-tab">
+      <title>Click Inventory Health</title>
+      <body>Same row of tabs. This one ignores the date filter on purpose - stock is what you have now, not what you had.</body>
+    </step>
+
+    <step key="low">
+      <title>The only number that needs you today</title>
+      <body>Items at or under the reorder level you set. If this is not zero, somebody should be on the phone to a supplier.</body>
+    </step>
+
+    <step key="value">
+      <title>Money sitting on the shelves</title>
+      <body>Stock is cash you have already spent. Knowing the figure is how you stop over-ordering the things that keep and under-ordering the things that sell.</body>
+    </step>
+
+    <step key="table">
+      <title>Low stock first, always</title>
+      <body>The list sorts itself so the trouble is at the top. You can print it as an A4 sheet or a till roll and hand it to whoever does the buying.</body>
+    </step>
+
+    <step key="done">
+      <title>The storeroom, without walking to it</title>
+      <body>That is the reading done. Now the working - and it starts at the till.</body>
+    </step>
+  </mission>
+
+  <mission id="sale">
+    <title>Take a sale, end to end</title>
+
+    <step key="intro">
+      <title>Ring up an order and get paid for it</title>
+      <body>The whole loop: take the order at the till, watch it appear on the orders board, mark it served, and collect the money. Everything you have just been reading is made of this.</body>
+    </step>
+
+    <step key="open-pos">
+      <title>Open the POS</title>
+      <body>This is the screen your counter staff live on all day.</body>
+    </step>
+
+    <step key="pick-item">
+      <title>Tap any dish</title>
+      <body>One tap adds it. Tap the same dish again for a second portion - no quantity box, because a counter at seven in the evening has no time for one.</body>
+    </step>
+
+    <step key="cart">
+      <title>The bill builds itself</title>
+      <body>Quantities, a note for the kitchen, a discount on one line or on the lot - and the tax and the total recalculated as you go.</body>
+    </step>
+
+    <step key="place">
+      <title>Place the order</title>
+      <body>It goes to the kitchen screen and the orders board in the same instant. This is a real order in the demo restaurant - go ahead.</body>
+    </step>
+
+    <step key="open-orders">
+      <title>And here it is, on the board</title>
+      <body>The till brought you straight here. Dine-in, takeaway and delivery all arrive in this one list, in the order they came in - and Orders, in the main menu, is how you get back to it.</body>
+    </step>
+
+    <step key="badges">
+      <title>Two badges, two questions</title>
+      <body>Every order carries where the food is up to and whether the money has arrived. They move separately, because in a real restaurant they do.</body>
+    </step>
+
+    <step key="serve">
+      <title>Move the food along</title>
+      <body>Press the green button on the ringed order to push it to its next stage - cooking, ready, served. The kitchen screen follows along.</body>
+    </step>
+
+    <step key="pay">
+      <title>Collect the payment</title>
+      <body>Press Pay on that same order.</body>
+    </step>
+
+    <step key="payment">
+      <title>How the money arrived</title>
+      <body>Cash, card or bKash, with room for a transaction id. Or send it out on account - the order stays open as a due, and it is the due that shows up as the gap in your sales report. Take the payment or close the box; either way the tour carries on.</body>
+    </step>
+
+    <step key="done">
+      <title>One sale, all the way through</title>
+      <body>Taken, cooked, served, paid - and it has already changed the sales and profit figures you read at the start.</body>
+    </step>
+  </mission>
+
+  <mission id="purchase">
+    <title>Order stock in</title>
+
+    <step key="intro">
+      <title>Buying is half of the profit line</title>
+      <body>A purchase order does three jobs at once: it tells the supplier what you want, it puts the stock on the shelf when it lands, and it puts the cost in the accounts. Let us raise one.</body>
+    </step>
+
+    <step key="open-inventory">
+      <title>Open Inventory</title>
+      <body>Items, suppliers, recipes, waste and purchase orders all sit behind this one.</body>
+    </step>
+
+    <step key="open-po">
+      <title>Go to Purchase Orders</title>
+      <body>The card for purchase orders, on this page.</body>
+    </step>
+
+    <step key="create">
+      <title>Start a new order</title>
+      <body>Create PO, at the top right.</body>
+    </step>
+
+    <step key="supplier">
+      <title>Who you are buying from</title>
+      <body>Suppliers are searchable by name or contact. Every order you place against one builds a history you can hold them to.</body>
+    </step>
+
+    <step key="lines">
+      <title>What you are buying</title>
+      <body>Pick an item, a quantity and a unit price, and add as many lines as you need. The order total adds itself up as you type - and when the delivery is received, every one of these lines goes onto the shelf.</body>
+    </step>
+
+    <step key="done">
+      <title>That is your buying under control</title>
+      <body>Ordered, received, stocked and costed, without anybody writing it twice. Next: the costs that do not arrive on a lorry.</body>
+    </step>
+  </mission>
+
+  <mission id="books">
+    <title>Money in, money out</title>
+
+    <step key="intro">
+      <title>Rent, gas, wages - and the odd job</title>
+      <body>Not every taka moves through the till. Log the rest here and the profit figure you read in mission two becomes the truth rather than an estimate.</body>
+    </step>
+
+    <step key="open-accounting">
+      <title>Open Accounting</title>
+      <body>Ledgers, income, expenses, tax rules and headers.</body>
+    </step>
+
+    <step key="open-expenses">
+      <title>Go to Expenses</title>
+      <body>The expenses card on this page.</body>
+    </step>
+
+    <step key="log-expense">
+      <title>Log an expense</title>
+      <body>Log Expense, at the top right. Try it with anything - a gas bill, a repair.</body>
+    </step>
+
+    <step key="expense-form">
+      <title>A header, a category, an amount</title>
+      <body>The header is what your accountant will group it under; the category is what you call it. Save it and it lands in the profit report immediately.</body>
+    </step>
+
+    <step key="income">
+      <title>Income works identically</title>
+      <body>This is the Income screen, and it is the same form. Anything you earn away from the till - a catering job, a hall booking - belongs here so it counts toward the month.</body>
+    </step>
+
+    <step key="done">
+      <title>Your books now agree with your restaurant</title>
+      <body>Sales from the till, purchases from suppliers, and everything else by hand. One last thing, and it is the one worth remembering.</body>
+    </step>
+  </mission>
+
+  <mission id="again">
+    <title>Coming back to this tour</title>
+
+    <step key="intro">
+      <title>You can always start this again</title>
+      <body>Close it whenever you like and go and press things yourself - the tour keeps your place. Here is where it lives so you can find it again.</body>
+    </step>
+
+    <step key="open-profile">
+      <title>Open My Profile</title>
+      <body>Right at the bottom of the main menu.</body>
+    </step>
+
+    <step key="card">
+      <title>This card, on your profile</title>
+      <body>It remembers where you got to - against you, not against this browser. Close the tour on your phone and pick it up on a laptop at the same step.</body>
+    </step>
+
+    <step key="buttons">
+      <title>Continue, or start over</title>
+      <body>Continue picks up at the step you left. Start over goes back to the first mission - useful when you want to show somebody else.</body>
+    </step>
+
+    <step key="done">
+      <title>That is the whole product</title>
+      <body>Reports, till, orders, buying and books - and you worked every one of them yourself. The tour is on your profile whenever you want it back, and there is one last thing worth saying before you go.</body>
+    </step>
+  </mission>
+
+  <mission id="yours">
+    <title>Your own restaurant</title>
+
+    <step key="trial">
+      <title>Now do it with your own menu</title>
+      <body>Everything you just used belongs to a made-up restaurant. Start your own free trial and it is the same screens with your food, your stock and your prices - add a few dishes and take one real sale, and the reports from the first mission start filling with your numbers. It is free for seven days, there is no card to enter, and it opens the moment you say yes.</body>
+    </step>
+  </mission>
+</tour>

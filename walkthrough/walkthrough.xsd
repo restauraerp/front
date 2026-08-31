@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  What a walkthrough copy file may contain.
+
+  Deliberately small. This schema describes *words*, not behaviour: which
+  control a step rings, whether it waits for a click and where the card sits
+  are decisions about the product's screens, and they stay in
+  src/lib/walkthrough/tours.ts where they can be type-checked against the
+  `data-tour` attributes they refer to. Everything a person would want to
+  reword lives here.
+
+  Editors that understand xsi:noNamespaceSchemaLocation will offer completion
+  and flag a misspelled tag while it is being typed, which is most of the value
+  of having a schema at all.
+-->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema" elementFormDefault="qualified">
+
+  <xs:element name="tour">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="mission" maxOccurs="unbounded">
+          <xs:complexType>
+            <xs:sequence>
+              <!-- Shown as "Mission 3 of 8 - Order stock in". Keep it short. -->
+              <xs:element name="title" type="xs:string"/>
+              <xs:element name="step" maxOccurs="unbounded">
+                <xs:complexType>
+                  <xs:sequence>
+                    <xs:element name="title" type="xs:string"/>
+                    <xs:element name="body" type="xs:string"/>
+                  </xs:sequence>
+                  <!--
+                    The beat's own key, without the mission in front of it. The
+                    compiler joins the two: mission `purchase` plus step
+                    `create` is the key `purchase.create` that the tour, the
+                    progress record and every report already use, so a key
+                    renamed here loses somebody's saved position.
+                  -->
+                  <xs:attribute name="key" type="xs:string" use="required"/>
+                </xs:complexType>
+              </xs:element>
+            </xs:sequence>
+            <!-- Matches the mission id in tours.ts. -->
+            <xs:attribute name="id" type="xs:string" use="required"/>
+          </xs:complexType>
+        </xs:element>
+      </xs:sequence>
+
+      <xs:attribute name="kind" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="demo"/>
+            <xs:enumeration value="trial"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+
+      <xs:attribute name="language" use="required">
+        <xs:simpleType>
+          <xs:restriction base="xs:string">
+            <xs:enumeration value="en"/>
+            <xs:enumeration value="bn"/>
+          </xs:restriction>
+        </xs:simpleType>
+      </xs:attribute>
+    </xs:complexType>
+  </xs:element>
+
+</xs:schema>

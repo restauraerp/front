@@ -36,6 +36,7 @@ import {
   Home,
   ArrowLeft,
   BarChart3,
+  Languages,
   X,
 } from 'lucide-react';
 
@@ -291,6 +292,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="border-t border-base-300 p-3">
         <Link
           href="/admin/profile"
+          data-tour="nav-profile"
           onClick={() => setDrawerOpen(false)}
           className={`flex items-center transition-all duration-300 ease-in-out ${
             collapsed
@@ -304,6 +306,29 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <span className="whitespace-nowrap">My Profile</span>
           </div>
         </Link>
+
+        {/* The one door to the walkthrough's words, and only on a developer's
+            machine. NODE_ENV is inlined at build time, so this link is not
+            merely hidden in production - it is not in the bundle, which matches
+            the route behind it answering 404 there. A plain anchor because the
+            studio is outside this layout and wants a clean load. */}
+        {process.env.NODE_ENV !== 'production' && (
+          <a
+            href="/walkthrough-studio"
+            onClick={() => setDrawerOpen(false)}
+            className={`mt-1 flex items-center text-base-content/60 transition-all duration-300 ease-in-out ${
+              collapsed
+                ? 'justify-center w-11 h-11 mx-auto rounded-full px-0'
+                : 'px-3 py-2.5 rounded-lg w-full'
+            } text-sm font-medium hover:bg-base-300`}
+            title={collapsed ? 'Walkthrough copy' : undefined}
+          >
+            <Languages size={18} className="shrink-0" />
+            <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
+              <span className="whitespace-nowrap">Walkthrough copy</span>
+            </div>
+          </a>
+        )}
       </div>
     </aside>
   );
@@ -328,7 +353,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="drawer-content flex flex-col min-w-0">
         {/* Mobile topbar */}
         <div className="navbar bg-base-100 border-b border-base-200 lg:hidden px-4">
-          <label htmlFor="admin-drawer" className="btn btn-ghost btn-sm btn-square">
+          {/* Named for the tour: a step pointing at something in the menu can
+              open the menu itself on a phone, instead of naming a rail that is
+              not on the screen. Only ever pressed by the tour when it is
+              actually visible, which is what keeps this to narrow widths. */}
+          <label
+            htmlFor="admin-drawer"
+            data-tour-reveal="admin-menu"
+            className="btn btn-ghost btn-sm btn-square"
+          >
             <Menu size={20} />
           </label>
           <div className="flex items-center gap-2 ml-2">
@@ -351,7 +384,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             still carries the demo cookie for a moment, and starting them on the
             demo tour inside their own restaurant is worse than starting a beat
             late. */}
-        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} />}
+        {identityLoaded && tour.show && <Walkthrough kind={tour.kind} contact={subscription?.contact} />}
 
         {/* Main */}
         <main className="flex-1 p-6 bg-base-100 overflow-y-auto">
@@ -362,7 +395,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Sidebar */}
-      <div className="drawer-side z-40">
+      <div className="drawer-side z-40" data-tour-region="admin-menu">
         <label htmlFor="admin-drawer" className="drawer-overlay" onClick={() => setDrawerOpen(false)} />
         {sidebar}
       </div>

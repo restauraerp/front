@@ -89,7 +89,7 @@ export default function AccountingDashboard() {
               <div className="text-3xl font-bold text-primary">{stats.expenses} <span className="text-sm font-normal text-base-content/60">Expenses</span></div>
             )}
           </div>
-          <Link href="/admin/accounting/expenses" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+          <Link href="/admin/accounting/expenses" data-tour="accounting-expenses" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
             Manage Expenses &rarr;
           </Link>
         </Card>

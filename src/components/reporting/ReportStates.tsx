@@ -68,11 +68,14 @@ export function StatTile({
   value,
   sub,
   tone = 'default',
+  tour,
 }: {
   label: string;
   value: React.ReactNode;
   sub?: React.ReactNode;
   tone?: 'default' | 'primary' | 'success' | 'warning' | 'info';
+  /** The guided walkthrough's anchor for this tile. Inert when unset. */
+  tour?: string;
 }) {
   const toneClass = {
     default: 'text-base-content',
@@ -83,7 +86,7 @@ export function StatTile({
   }[tone];
 
   return (
-    <div className="bg-base-100 border border-base-200 rounded-2xl shadow-sm p-5">
+    <div data-tour={tour} className="bg-base-100 border border-base-200 rounded-2xl shadow-sm p-5">
       <div className="text-xs font-medium uppercase tracking-wide text-base-content/50">{label}</div>
       <div className={`text-3xl font-bold mt-1 ${toneClass}`}>{value}</div>
       {sub && <div className="text-xs text-base-content/50 mt-1">{sub}</div>}

@@ -55,7 +55,7 @@ export default function InventoryDashboard() {
               <div className="text-3xl font-bold text-primary">{stats.items} <span className="text-sm font-normal text-base-content/60">Items</span></div>
             )}
           </div>
-          <Link href="/admin/inventory/items" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Items &rarr;</Link>
+          <Link href="/admin/inventory/items" data-tour="inventory-items" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Items &rarr;</Link>
         </Card>
 
         <Card title={<div className="flex items-center gap-2"><Truck className="text-primary" size={20} /> Suppliers</div>}>
@@ -79,7 +79,7 @@ export default function InventoryDashboard() {
               <div className="text-3xl font-bold text-primary">{stats.recipes} <span className="text-sm font-normal text-base-content/60">Recipes</span></div>
             )}
           </div>
-          <Link href="/admin/inventory/recipes" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Recipes &rarr;</Link>
+          <Link href="/admin/inventory/recipes" data-tour="inventory-recipes" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Recipes &rarr;</Link>
         </Card>
 
         <Card title={<div className="flex items-center gap-2"><ShoppingCart className="text-primary" size={20} /> Purchase Orders</div>}>
@@ -91,7 +91,7 @@ export default function InventoryDashboard() {
               <div className="text-3xl font-bold text-primary">{stats.purchaseOrders} <span className="text-sm font-normal text-base-content/60">Orders</span></div>
             )}
           </div>
-          <Link href="/admin/inventory/purchase-orders" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Orders &rarr;</Link>
+          <Link href="/admin/inventory/purchase-orders" data-tour="inventory-purchase-orders" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Orders &rarr;</Link>
         </Card>
 
         <Card title={<div className="flex items-center gap-2"><MapPin className="text-primary" size={20} /> Storage Locations</div>}>
@@ -123,7 +123,7 @@ export default function InventoryDashboard() {
             <p className="text-base-content/70 mb-2">Log inventory consumed outside of any product order — staff meals, tasting, spillage.</p>
             <p className="text-xs text-base-content/50">Each log immediately reduces stock at the selected outlet.</p>
           </div>
-          <Link href="/admin/inventory/consumption" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Log Consumption &rarr;</Link>
+          <Link href="/admin/inventory/consumption" data-tour="inventory-consumption" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Log Consumption &rarr;</Link>
         </Card>
       </div>
     </div>
