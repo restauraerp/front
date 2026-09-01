@@ -92,8 +92,9 @@ export function apiErrorContact(error: unknown): ApiErrorBody['contact'] | undef
 /**
  * For data a screen can live without.
  *
- * Returns the fallback when the API refuses because the tenant's plan does not
- * include that module, and rethrows anything else.
+ * Returns the fallback whenever the API refuses the read - the tenant's plan
+ * does not include that module, or the signed-in role lacks the permission -
+ * and rethrows anything else.
  *
  * This exists because a core screen must not die over an optional one. POS
  * loads its products, settings and customers together; customers are CRM, which
@@ -101,6 +102,12 @@ export function apiErrorContact(error: unknown): ApiErrorBody['contact'] | undef
  * whole batch - so the till showed no products at all because the tenant had
  * not bought the customer directory. A missing module should cost you that
  * feature, not the page.
+ *
+ * Every refusal is treated the same way, not just the plan-shaped ones. A
+ * permission added in a later release is not granted to roles that were
+ * stamped before it existed, so gating an endpoint quietly turns its callers
+ * into 403s - and narrowing this to plan blocks let exactly that blank the
+ * till again. Whoever cannot read it gets the fallback.
  */
 export async function fetchOptional<T>(
   endpoint: string,
@@ -110,7 +117,7 @@ export async function fetchOptional<T>(
   try {
     return (await fetchApi(endpoint, options)) ?? fallback;
   } catch (error) {
-    if (error instanceof ApiError && (error.isPlanBlock || error.isBillingBlock)) {
+    if (error instanceof ApiError && (error.status === 403 || error.isBillingBlock)) {
       return fallback;
     }
 
