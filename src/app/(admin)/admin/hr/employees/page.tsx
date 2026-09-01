@@ -196,7 +196,12 @@ export default function EmployeesPage() {
         <Card title={editingId ? 'Edit Employee' : 'New Employee'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
-            <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
+            <div>
+              <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required disabled={editingId !== null && formData.role === 'restaurant_admin'} />
+              {editingId !== null && formData.role === 'restaurant_admin' && (
+                <p className="text-xs text-warning mt-1">The owner account email cannot be changed.</p>
+              )}
+            </div>
             <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+1234567890" />
             <Input 
               label="Password" 
