@@ -16,7 +16,7 @@ const getStatusBadge = (status: any) => {
   return <span className="badge badge-ghost px-3 py-1 h-auto rounded-full">{status}</span>;
 };
 
-export const Table = ({ columns, data, onEdit, onDelete, rowClassName, onRowClick }: any) => {
+export const Table = ({ columns, data, onEdit, onDelete, extraActions, rowClassName, onRowClick }: any) => {
   return (
     <div className="overflow-x-auto w-full">
       <table className={`table w-full ${rowClassName ? '' : 'table-zebra'}`}>
@@ -27,7 +27,7 @@ export const Table = ({ columns, data, onEdit, onDelete, rowClassName, onRowClic
                 {col.label}
               </th>
             ))}
-            {(onEdit || onDelete) && (
+            {(onEdit || onDelete || extraActions) && (
               <th className="text-xs uppercase text-base-content/60 font-semibold">Actions</th>
             )}
           </tr>
@@ -57,9 +57,10 @@ export const Table = ({ columns, data, onEdit, onDelete, rowClassName, onRowClic
                           : <span className="text-base-content/30">—</span>}
                   </td>
                 ))}
-                {(onEdit || onDelete) && (
+                {(onEdit || onDelete || extraActions) && (
                   <td onClick={(e) => e.stopPropagation()}>
                     <div className="flex gap-2">
+                      {extraActions && extraActions(row)}
                       {onEdit && (
                         <button
                           onClick={() => onEdit(row)}

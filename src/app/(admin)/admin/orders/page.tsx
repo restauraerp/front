@@ -159,12 +159,18 @@ export default function OrdersPage() {
   const [partnerLoading, setPartnerLoading] = useState(true);
   const [partnerReloadKey, setPartnerReloadKey] = useState(0);
 
+  const [canEditOrder, setCanEditOrder] = useState(false);
+
   useEffect(() => {
     loadOrders();
     fetchApi('/auth/me').then(res => {
       const roles = res?.roles?.map((r: any) => r.name) || [];
+      const perms: string[] = res?.all_permissions || [];
       if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
         setIsAdmin(true);
+        setCanEditOrder(true);
+      } else if (perms.includes('edit_order')) {
+        setCanEditOrder(true);
       }
     }).catch(console.error);
     fetchApi('/locations').then(res => {
@@ -565,7 +571,7 @@ export default function OrdersPage() {
             <DollarSign size={12} /> Pay
           </button>
         )}
-        {!isEditing && order.payment_status !== 'paid' && (
+        {canEditOrder && !isEditing && order.payment_status !== 'paid' && (
           <button className="btn btn-xs btn-outline gap-1" onClick={() => window.location.href = `/admin/pos?edit=${order.id}`}>
             <Pencil size={12} /> Edit in POS
           </button>

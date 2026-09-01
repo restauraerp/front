@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { UserCircle } from 'lucide-react';
+import { UserCircle, Link2, Copy, Check, X } from 'lucide-react';
 import styles from '@/components/ui/ui.module.css';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
@@ -29,9 +29,17 @@ export default function EmployeesPage() {
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [loginLinkModal, setLoginLinkModal] = useState<{ user: any; url: string; loading: boolean; copied: boolean } | null>(null);
 
   useEffect(() => {
     loadData();
+    fetchApi('/auth/me').then(res => {
+      const roles = res?.roles?.map((r: any) => r.name) || [];
+      if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
+        setIsAdmin(true);
+      }
+    }).catch(console.error);
   }, [page]);
 
   const loadData = async () => {
@@ -152,6 +160,29 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleLoginLink = async (row: any) => {
+    setLoginLinkModal({ user: row, url: '', loading: true, copied: false });
+    try {
+      const res = await fetchApi(`/users/${row.id}/login-link`, { method: 'POST' });
+      setLoginLinkModal(prev => prev ? { ...prev, url: res.one_time_login_url, loading: false } : null);
+    } catch (err) {
+      console.error(err);
+      alert('Failed to generate login link');
+      setLoginLinkModal(null);
+    }
+  };
+
+  const copyLoginLink = async () => {
+    if (!loginLinkModal?.url) return;
+    try {
+      await navigator.clipboard.writeText(loginLinkModal.url);
+      setLoginLinkModal(prev => prev ? { ...prev, copied: true } : null);
+      setTimeout(() => setLoginLinkModal(prev => prev ? { ...prev, copied: false } : null), 2000);
+    } catch {
+      alert('Failed to copy');
+    }
+  };
+
   const columns = [
     { key: 'id', label: 'ID' },
     { 
@@ -259,7 +290,15 @@ export default function EmployeesPage() {
       <Card>
         {loading ? <p>Loading employees...</p> : (
           <>
-            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} />
+            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} extraActions={isAdmin ? (row: any) => (
+              <button
+                onClick={() => handleLoginLink(row)}
+                className="btn btn-xs btn-ghost btn-square text-primary tooltip"
+                data-tip="Login Link"
+              >
+                <Link2 size={14} />
+              </button>
+            ) : undefined} />
             {totalPages > 1 && (
               <div className="flex justify-center mt-6 pb-2">
                 <div className="join">
@@ -272,6 +311,42 @@ export default function EmployeesPage() {
           </>
         )}
       </Card>
+
+      {loginLinkModal && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-md">
+            <button className="btn btn-sm btn-circle btn-ghost absolute right-2 top-2" onClick={() => setLoginLinkModal(null)}>
+              <X size={16} />
+            </button>
+            <h3 className="font-bold text-lg mb-1">Login Link</h3>
+            <p className="text-sm text-base-content/60 mb-4">
+              One-time login link for <span className="font-semibold">{loginLinkModal.user.name}</span>
+            </p>
+            {loginLinkModal.loading ? (
+              <div className="flex justify-center py-4">
+                <span className="loading loading-spinner loading-md" />
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  readOnly
+                  value={loginLinkModal.url}
+                  className="input input-bordered w-full text-xs"
+                  onClick={(e) => (e.target as HTMLInputElement).select()}
+                />
+                <button className="btn btn-primary w-full gap-2" onClick={copyLoginLink}>
+                  {loginLinkModal.copied ? <><Check size={16} /> Copied!</> : <><Copy size={16} /> Copy Link</>}
+                </button>
+                <p className="text-xs text-base-content/50 text-center">
+                  This link expires in 24 hours and can only be used once.
+                </p>
+              </div>
+            )}
+          </div>
+          <div className="modal-backdrop" onClick={() => setLoginLinkModal(null)} />
+        </div>
+      )}
     </div>
   );
 }

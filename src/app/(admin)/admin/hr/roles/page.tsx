@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Search } from 'lucide-react';
 
 export default function RolesPage() {
   const [roles, setRoles] = useState<any[]>([]);
@@ -19,6 +20,7 @@ export default function RolesPage() {
     permissions: []
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [permSearch, setPermSearch] = useState('');
 
   useEffect(() => {
     loadData();
@@ -99,6 +101,7 @@ export default function RolesPage() {
       name: row.name || '',
       permissions: row.permissions ? row.permissions.map((p: any) => p.name) : []
     });
+    setPermSearch('');
     setIsFormOpen(true);
   };
 
@@ -152,12 +155,22 @@ export default function RolesPage() {
 
             <div>
               <label className="font-medium text-sm text-base-content/70 mb-2 block">Assign Permissions</label>
+              <div className="relative max-w-xs mb-3">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+                <input
+                  type="text"
+                  className="input input-bordered input-sm w-full pl-9"
+                  placeholder="Search permissions…"
+                  value={permSearch}
+                  onChange={(e) => setPermSearch(e.target.value)}
+                />
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 bg-base-200/50 p-4 rounded-xl border border-base-300">
-                {permissions.map((p: any) => (
+                {permissions.filter((p: any) => p.name.replace(/_/g, ' ').includes(permSearch.toLowerCase())).map((p: any) => (
                   <label key={p.id} className="cursor-pointer label justify-start gap-3 p-2 hover:bg-base-100 rounded-lg transition-colors">
-                    <input 
-                      type="checkbox" 
-                      className="checkbox checkbox-sm checkbox-primary" 
+                    <input
+                      type="checkbox"
+                      className="checkbox checkbox-sm checkbox-primary"
                       checked={formData.permissions.includes(p.name)}
                       onChange={() => handlePermissionToggle(p.name)}
                     />
