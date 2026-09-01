@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.54",
+  "version": "1.00.55",
   "private": true,
   "scripts": {
     "dev": "npm run walkthrough:copy && next dev --turbo -p 3029",

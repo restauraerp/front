@@ -73,7 +73,7 @@ const routePermissions: Record<string, string> = {
   '/admin/hr': 'view_hr',
   '/admin/delivery': 'view_delivery',
   '/admin/crm': 'view_crm',
-  '/admin/partners': 'view_orders',
+  '/admin/partners': 'view_partners',
   '/admin/locations': 'view_locations',
   '/admin/accounting': 'view_accounting',
   '/admin/website': 'view_website',
