@@ -576,7 +576,7 @@ export default function OrdersPage() {
             <Pencil size={12} /> Edit in POS
           </button>
         )}
-        {!isEditing && ['pending', 'cooking'].includes(order.status) && (
+        {canEditOrder && !isEditing && ['pending', 'cooking'].includes(order.status) && (
           <button className="btn btn-xs btn-error btn-outline gap-1" onClick={() => handleDelete(order.id)}>
             <XCircle size={12} /> Cancel
           </button>
