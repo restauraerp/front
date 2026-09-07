@@ -1,8 +1,9 @@
 'use client';
 
 import React from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { safeAdminNext } from '@/lib/safeNext';
 import { KeyRound, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
 /**
@@ -13,6 +14,10 @@ import { KeyRound, AlertCircle, Eye, EyeOff } from 'lucide-react';
  */
 export default function SetPassword() {
   const router = useRouter();
+  // Carried through from the one-time link, so somebody who was on their way to
+  // the billing page still gets there after choosing a password. Validated to
+  // an in-app admin path; see safeAdminNext.
+  const next = safeAdminNext(useSearchParams().get('next'));
 
   const [password, setPassword] = React.useState('');
   const [confirmation, setConfirmation] = React.useState('');
@@ -40,7 +45,7 @@ export default function SetPassword() {
         body: JSON.stringify({ password, password_confirmation: confirmation }),
       });
 
-      router.replace('/admin');
+      router.replace(next);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : null;
       setError(message || 'We could not set your password. Please try again.');
