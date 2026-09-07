@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { API_BASE_URL } from '@/lib/api';
 import { setTenant, clearTenant } from '@/lib/tenant';
 import { clearDemoSession } from '@/lib/demo';
+import { safeAdminNext } from '@/lib/safeNext';
 import { UtensilsCrossed, AlertCircle } from 'lucide-react';
 
 /**
@@ -17,7 +18,12 @@ import { UtensilsCrossed, AlertCircle } from 'lucide-react';
  */
 export default function OneTimeLoginForm() {
   const router = useRouter();
-  const token = useSearchParams().get('token');
+  const searchParams = useSearchParams();
+  const token = searchParams.get('token');
+  // Where to land once they are signed in. Validated to an in-app admin path so
+  // a campaign link can point at, say, the billing page, without turning this
+  // into an open redirect. See safeAdminNext.
+  const destination = safeAdminNext(searchParams.get('next'));
   const [failure, setFailure] = React.useState<string | null>(null);
 
   // A missing token is knowable during render, so it is derived rather than
@@ -67,8 +73,13 @@ export default function OneTimeLoginForm() {
         if (data?.tenant?.slug) setTenant(data.tenant.slug);
 
         // They still have no password of their own; send them to choose one
-        // before anything else.
-        router.replace(data.must_set_password ? '/admin/set-password' : '/admin');
+        // before anything else, carrying the destination through so subscribing
+        // still lands them on the billing page once the password is set.
+        router.replace(
+          data.must_set_password
+            ? `/admin/set-password?next=${encodeURIComponent(destination)}`
+            : destination,
+        );
       } catch {
         if (!cancelled) setFailure('We could not reach the server. Please try again.');
       }
@@ -77,7 +88,7 @@ export default function OneTimeLoginForm() {
     return () => {
       cancelled = true;
     };
-  }, [token, router]);
+  }, [token, destination, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-base-200 px-4">
