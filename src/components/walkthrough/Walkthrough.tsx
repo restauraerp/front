@@ -9,10 +9,14 @@ import { offerPrice, verifyUrl } from '@/lib/marketing';
 import {
   TOUR_COMMAND,
   announceTourEnd,
+  beginSitting,
   clearState,
+  currentDevice,
   fetchState,
+  readSitting,
   readState,
   reportProgress,
+  tickSitting,
   writeState,
   type TourCommand,
 } from '@/lib/walkthrough/progress';
@@ -726,6 +730,24 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
 
   /* -------------------------------------------------------------- reporting */
 
+  // The clock behind the percentage: how long the tour is actually on screen,
+  // over how many sittings, on what device. A sitting spans the tour's page-to-
+  // page navigation (sessionStorage) and ends with the tab; only visible seconds
+  // are counted, because a tab left in the background is not time spent learning.
+  useEffect(() => {
+    if (!open || !resolvedKind) return;
+
+    beginSitting(resolvedKind);
+
+    const tick = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        tickSitting(resolvedKind);
+      }
+    }, 1000);
+
+    return () => window.clearInterval(tick);
+  }, [open, resolvedKind]);
+
   useEffect(() => {
     if (!open || !resolvedKind || !step) return;
 
@@ -733,10 +755,15 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
 
     reportedRef.current = index;
 
+    const sitting = readSitting(resolvedKind);
+
     reportProgress({
       kind: resolvedKind,
       percent: percentAt(resolvedKind, index),
       key: step.key,
+      seconds: sitting?.seconds,
+      sessionId: sitting?.sessionId,
+      device: currentDevice(),
     });
 
     writeState(resolvedKind, { index });
@@ -752,10 +779,15 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
       const current = steps[index];
       if (!current) return;
 
+      const sitting = readSitting(resolvedKind);
+
       reportProgress({
         kind: resolvedKind,
         percent: percentAt(resolvedKind, index),
         key: current.key,
+        seconds: sitting?.seconds,
+        sessionId: sitting?.sessionId,
+        device: currentDevice(),
       });
     };
 

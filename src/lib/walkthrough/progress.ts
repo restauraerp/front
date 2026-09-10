@@ -15,13 +15,85 @@ import { API_BASE_URL } from '@/lib/api';
 import { LEAD_COOKIE, isDemoSession, readCookie } from '@/lib/demo';
 import type { TourKind } from './tours';
 
+export type DeviceType = 'phone' | 'tablet' | 'desktop';
+
 export type ProgressReport = {
   kind: TourKind | 'video';
   percent: number;
   key?: string;
-  /** Seconds in the demo, when the caller knows. Ignored for other kinds. */
+  /** Active on-screen seconds so far in this sitting. */
   seconds?: number;
+  /** One opening of the walkthrough, so sittings can be counted. */
+  sessionId?: string;
+  /** phone / tablet / desktop, bucketed by viewport width. */
+  device?: DeviceType;
 };
+
+/** Which bucket the current viewport falls in - the same cut points the website knows. */
+export function currentDevice(): DeviceType {
+  if (typeof window === 'undefined') return 'desktop';
+  const w = window.innerWidth;
+  if (w < 768) return 'phone';
+  if (w <= 1024) return 'tablet';
+  return 'desktop';
+}
+
+/**
+ * One sitting at a walkthrough: an id and the on-screen seconds so far.
+ *
+ * Held in sessionStorage on purpose. A walkthrough walks somebody across several
+ * pages, and only sessionStorage spans those navigations while still ending when
+ * the tab closes - which is exactly what a "sitting" is. Come back tomorrow in a
+ * fresh tab and it is a new sitting, which is the count worth having.
+ */
+type Sitting = { sessionId: string; seconds: number };
+
+function sittingKey(kind: TourKind | 'video'): string {
+  return `walkthrough_sitting:${kind}`;
+}
+
+function newSessionId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `s-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+/** Starts the sitting for this kind, or resumes the one already under way. */
+export function beginSitting(kind: TourKind | 'video'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    if (sessionStorage.getItem(sittingKey(kind))) return;
+    const fresh: Sitting = { sessionId: newSessionId(), seconds: 0 };
+    sessionStorage.setItem(sittingKey(kind), JSON.stringify(fresh));
+  } catch {
+    /* sessionStorage unavailable: the sitting just goes unmeasured. */
+  }
+}
+
+/** Adds one second of on-screen time to the sitting under way. */
+export function tickSitting(kind: TourKind | 'video'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = sessionStorage.getItem(sittingKey(kind));
+    if (!raw) return;
+    const sitting = JSON.parse(raw) as Sitting;
+    sitting.seconds += 1;
+    sessionStorage.setItem(sittingKey(kind), JSON.stringify(sitting));
+  } catch {
+    /* ignore */
+  }
+}
+
+/** The sitting so far, to hang on a report; null when there is nothing to send. */
+export function readSitting(kind: TourKind | 'video'): Sitting | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = sessionStorage.getItem(sittingKey(kind));
+    return raw ? (JSON.parse(raw) as Sitting) : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Reports one reading.
@@ -30,7 +102,7 @@ export type ProgressReport = {
  * without it, somebody who abandons the tour mid-step is recorded one step behind
  * where they actually stopped, which is exactly the step worth knowing about.
  */
-export function reportProgress({ kind, percent, key, seconds }: ProgressReport): void {
+export function reportProgress({ kind, percent, key, seconds, sessionId, device }: ProgressReport): void {
   if (typeof window === 'undefined') return;
 
   const body: Record<string, unknown> = {
@@ -40,6 +112,8 @@ export function reportProgress({ kind, percent, key, seconds }: ProgressReport):
 
   if (key) body.key = key;
   if (seconds !== undefined) body.seconds = seconds;
+  if (sessionId) body.session_id = sessionId;
+  if (device) body.device = device;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
