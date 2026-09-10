@@ -55,6 +55,11 @@ const OPTIONAL = {
   // decided what it charges should quote nothing, not a zero.
   NEXT_PUBLIC_PLAN_PRICE_MONTHLY: 'the tour and banners quote no price when unset',
   NEXT_PUBLIC_PLAN_LIST_PRICE_MONTHLY: 'only strikes a price through when it is above the asking one',
+  // Error monitoring is DSN-gated: Sentry never initialises without these, so a
+  // build with them empty simply reports nothing rather than being broken.
+  NEXT_PUBLIC_SENTRY_DSN: 'error monitoring; Sentry stays disabled when unset',
+  NEXT_PUBLIC_SENTRY_ENVIRONMENT: 'labels events by environment; falls back to Sentry default',
+  NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: 'performance sampling; defaults to 0.1 when unset',
 };
 
 /** Supplied by next.config.ts rather than any env file, so never expected here. */

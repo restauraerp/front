@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.60",
+  "version": "1.00.61",
   "private": true,
   "scripts": {
     "dev": "npm run walkthrough:copy && next dev --turbo -p 3029",
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@next/third-parties": "^16.2.10",
+    "@sentry/nextjs": "^10.74.0",
     "@tailwindcss/postcss": "^4.3.2",
     "daisyui": "^5.6.5",
     "lucide-react": "^1.22.0",

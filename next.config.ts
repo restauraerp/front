@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { withSentryConfig } from "@sentry/nextjs";
 import packageJson from "./package.json";
 
 // Inside Docker this points at the core-api container (e.g. http://core-api:8000).
@@ -45,4 +46,17 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Wrap with Sentry: it instruments the build and, when SENTRY_AUTH_TOKEN (plus
+// org/project) is present at build time, uploads source maps so a minified stack
+// trace reads like the real one. Absent those, the build is unchanged - runtime
+// reporting is gated separately on NEXT_PUBLIC_SENTRY_DSN.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  // Quiet unless something is actually wrong, and keep the Sentry logger out of
+  // the shipped client bundle.
+  silent: !process.env.CI,
+  disableLogger: true,
+});
+
