@@ -164,3 +164,36 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Error monitoring (Sentry)
+
+Unhandled errors — client, server and edge — are reported to Sentry via
+`@sentry/nextjs`. Init lives in `src/instrumentation.ts` (server/edge),
+`src/instrumentation-client.ts` (browser), and `src/app/global-error.tsx`
+(root-layout crashes). It is **DSN-gated**: with no `NEXT_PUBLIC_SENTRY_DSN`
+nothing initialises and nothing is sent, so an un-configured build reports
+nothing rather than breaking.
+
+### Configuration
+
+`NEXT_PUBLIC_*` values are baked into the bundle at **build time**, so the DSN
+must be present when `next build` runs — setting it only at runtime is too late.
+Our deploy reads every public variable from one file, `/var/www/front/shared/.env`
+on the deploy host (see `.github/workflows/deploy.yml`), so the DSN goes there
+and takes effect on the next deploy.
+
+| Variable | Purpose |
+| --- | --- |
+| `NEXT_PUBLIC_SENTRY_DSN` | The Sentry project DSN. Empty = disabled. |
+| `NEXT_PUBLIC_SENTRY_ENVIRONMENT` | Labels events (e.g. `production`). |
+| `NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE` | Performance sampling; defaults to `0.1`. |
+| `SENTRY_ORG` / `SENTRY_PROJECT` / `SENTRY_AUTH_TOKEN` | Build-time only, for source-map upload. Optional; keep the token secret. |
+
+### Testing it — `/sentry-test`
+
+A permanent diagnostic page. Open **`/sentry-test`** in the browser: a banner
+says whether Sentry is on for the running build, and three buttons each trigger
+a different kind of error (handled, uncaught client, server 500). Press one and
+confirm the event lands in **Sentry → Issues**. Nothing fires on its own, so the
+page is safe to leave in production. The two Laravel apps have the equivalent in
+`php artisan sentry:test`.
