@@ -54,7 +54,7 @@ export default function Dashboard() {
     dhakaDate7.setHours(0, 0, 0, 0);
     const fromDate = `${dhakaDate7.getFullYear()}-${pad(dhakaDate7.getMonth()+1)}-${pad(dhakaDate7.getDate())} 00:00:00`;
 
-    fetchApi(`/orders?nopaginate=1&from=${fromDate}`).then(res => {
+    fetchApi(`/orders?nopaginate=1&summary=1&from=${fromDate}`).then(res => {
       const ordersData = res.data || res || [];
       
       let todayRev = 0, todayOrders = 0;
