@@ -3,7 +3,7 @@
   "version": "1.00.62",
   "private": true,
   "scripts": {
-    "dev": "npm run walkthrough:copy && next dev --turbo -p 3029",
+    "dev": "npm run walkthrough:copy && next dev -p 3029",
     "check:env": "node scripts/check-public-env.mjs",
     "walkthrough:copy": "node scripts/walkthrough-copy.mjs",
     "build": "npm run check:env && npm run walkthrough:copy && next build --webpack",
