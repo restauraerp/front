@@ -110,6 +110,19 @@ jobs:
         # No NEXT_PUBLIC_* here on purpose. Anything exported into the job
         # environment silently outranks .env.production, which is how the two
         # drifted apart in the first place.
+        #
+        # The SENTRY_* trio is the exception, and belongs here rather than in
+        # .env.production: they are build-time-only credentials for uploading
+        # source maps, never compiled into the bundle. Without them next build
+        # ships minified stack traces to Sentry (every frontend issue reads like
+        # `executors/200.js:1:1442 (E)` - unsymbolicated and untriageable). With
+        # them, withSentryConfig uploads maps so frames resolve to real files.
+        # If the secrets are absent the build still succeeds; only upload is
+        # skipped.
+        env:
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           npm ci
           npm run build

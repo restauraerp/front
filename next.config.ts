@@ -62,6 +62,10 @@ export default isProdBuild
       org: process.env.SENTRY_ORG,
       project: process.env.SENTRY_PROJECT,
       authToken: process.env.SENTRY_AUTH_TOKEN,
+      // Stamps our own modules with this key so thirdPartyErrorFilterIntegration
+      // (see instrumentation-client.ts) can tell first-party frames from the
+      // injected third-party scripts it exists to drop.
+      applicationKey: 'restauraerp-front',
       // Quiet unless something is actually wrong, and keep the Sentry logger out
       // of the shipped client bundle.
       silent: !process.env.CI,
