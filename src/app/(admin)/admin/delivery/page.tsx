@@ -14,6 +14,8 @@ export default function DeliveryPage() {
   
   const [orders, setOrders] = useState<any[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
+  const [ordersPage, setOrdersPage] = useState(1);
+  const [ordersTotalPages, setOrdersTotalPages] = useState(1);
   
   const [riders, setRiders] = useState<any[]>([]);
   
@@ -49,9 +51,15 @@ export default function DeliveryPage() {
     }).catch(console.error);
 
     loadData();
-    loadOrders();
     loadRiders();
   }, []);
+
+  // Deliverable orders are fetched server-side, filtered to delivery orders of
+  // the active branch and paginated. Pulling every order and filtering in the
+  // browser timed out the API on large tenants (RESTAURAERP-CORE-API-2).
+  useEffect(() => {
+    loadOrders();
+  }, [activeLocationId, ordersPage]);
 
   const loadRiders = async () => {
     try {
@@ -79,10 +87,11 @@ export default function DeliveryPage() {
   const loadOrders = async () => {
     try {
       setLoadingOrders(true);
-      const res = await fetchApi('/orders?nopaginate=1');
-      const allOrders = res.data || res || [];
-      const deliverable = allOrders.filter((o: any) => o.order_type === 'delivery');
-      setOrders(deliverable);
+      const params = new URLSearchParams({ order_type: 'delivery', page: String(ordersPage) });
+      if (activeLocationId) params.set('location_id', String(activeLocationId));
+      const res = await fetchApi(`/orders?${params.toString()}`);
+      setOrders(res.data || []);
+      setOrdersTotalPages(res.last_page || 1);
     } catch (err) {
       console.error(err);
     } finally {
@@ -171,16 +180,15 @@ export default function DeliveryPage() {
     { key: 'status', label: 'Status' }
   ];
 
-  const filteredOrders = orders.filter(o => activeLocationId ? o.location_id === activeLocationId : true);
-  
+  // Orders are already filtered to delivery orders of the active branch by the
+  // server, so the list is used as-is.
+  const filteredOrders = orders;
+
   const filteredDeliveries = deliveries.filter(d => {
     if (!activeLocationId) return true;
-    const dOrder = orders.find(o => o.id === d.order_id);
-    if (dOrder) {
-      return dOrder.location_id === activeLocationId;
-    }
-    // If order is not loaded or missing, fallback to hiding it when a branch is selected
-    return false; 
+    // The delivery carries its order (eager-loaded by the API), so its branch
+    // is known without needing the full orders list in memory.
+    return d.order?.location_id === activeLocationId;
   });
 
   return (
@@ -195,6 +203,7 @@ export default function DeliveryPage() {
               onChange={(e) => {
                 const id = Number(e.target.value);
                 setActiveLocationId(id);
+                setOrdersPage(1);
                 if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_active_location_id'), id.toString());
               }}
             >
@@ -337,6 +346,15 @@ export default function DeliveryPage() {
                   )}
                 </tbody>
               </table>
+              {ordersTotalPages > 1 && (
+                <div className="flex justify-center mt-6 pb-2">
+                  <div className="join">
+                    <button className="join-item btn btn-sm" onClick={() => setOrdersPage(p => Math.max(1, p - 1))} disabled={ordersPage === 1}>«</button>
+                    <button className="join-item btn btn-sm bg-base-100 cursor-default">Page {ordersPage} of {ordersTotalPages}</button>
+                    <button className="join-item btn btn-sm" onClick={() => setOrdersPage(p => Math.min(ordersTotalPages, p + 1))} disabled={ordersPage === ordersTotalPages}>»</button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </Card>

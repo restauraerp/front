@@ -50,13 +50,22 @@ const nextConfig: NextConfig = {
 // org/project) is present at build time, uploads source maps so a minified stack
 // trace reads like the real one. Absent those, the build is unchanged - runtime
 // reporting is gated separately on NEXT_PUBLIC_SENTRY_DSN.
-export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  // Quiet unless something is actually wrong, and keep the Sentry logger out of
-  // the shipped client bundle.
-  silent: !process.env.CI,
-  disableLogger: true,
-});
+//
+// Dev is deliberately left unwrapped. The Sentry plugin instruments every
+// Turbopack compile, which is pure overhead for a local dev server that never
+// uploads source maps - it only adds CPU to each rebuild. Source maps matter
+// for the production build (npm run build), where this wrapper still applies.
+const isProdBuild = process.env.NODE_ENV === 'production';
+
+export default isProdBuild
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      // Quiet unless something is actually wrong, and keep the Sentry logger out
+      // of the shipped client bundle.
+      silent: !process.env.CI,
+      disableLogger: true,
+    })
+  : nextConfig;
 
