@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { SettleDueModal } from '@/components/orders/SettleDueModal';
 import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
+import { useSlipSettings } from '@/hooks/useBranding';
 
 /** The fields the row actions read off an order. */
 interface OrderRow {
@@ -144,6 +145,7 @@ export default function OrdersPage() {
   const [confirmProcessing, setConfirmProcessing] = useState(false);
 
   // Admin role + trashed orders
+  const slips = useSlipSettings();
   const [isAdmin, setIsAdmin] = useState(false);
   const [trashedOrders, setTrashedOrders] = useState<any[]>([]);
   const [trashedPage, setTrashedPage] = useState(1);
@@ -583,12 +585,21 @@ export default function OrdersPage() {
         )}
         {!isEditing && (
           <div className="ml-auto flex gap-1">
-            <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
-              <ChefHat size={12} />
-            </button>
-            <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
-              <Printer size={12} />
-            </button>
+            {slips.kitchen && (
+              <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
+                <ChefHat size={12} />
+              </button>
+            )}
+            {slips.delivery && order.order_type === 'delivery' && (
+              <button className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10" onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')} title="Delivery Slip">
+                <Truck size={12} />
+              </button>
+            )}
+            {slips.customer && (
+              <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
+                <Printer size={12} />
+              </button>
+            )}
           </div>
         )}
         {isEditing && (
@@ -724,12 +735,21 @@ export default function OrdersPage() {
           </div>
         ) : activeTab === 'completed' || activeTab === 'third_party' ? (
           <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-            <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
-              <ChefHat size={12} />
-            </button>
-            <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
-              <Printer size={12} />
-            </button>
+            {slips.kitchen && (
+              <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
+                <ChefHat size={12} />
+              </button>
+            )}
+            {slips.delivery && order.order_type === 'delivery' && (
+              <button className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10" onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')} title="Delivery Slip">
+                <Truck size={12} />
+              </button>
+            )}
+            {slips.customer && (
+              <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
+                <Printer size={12} />
+              </button>
+            )}
             <button className="btn btn-xs btn-ghost border border-base-300" title="View Details" onClick={() => setDetailOrder(order)}>
               <Eye size={12} />
             </button>
@@ -1080,20 +1100,33 @@ export default function OrdersPage() {
                               </div>
                             ) : activeTab === 'completed' || activeTab === 'third_party' ? (
                               <div className="flex items-center gap-1">
-                                <button
-                                  className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10"
-                                  title="Chef Slip"
-                                  onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')}
-                                >
-                                  <ChefHat size={14} />
-                                </button>
-                                <button
-                                  className="btn btn-xs btn-ghost border border-base-300"
-                                  title="Receipt"
-                                  onClick={() => window.open(`/receipt/${order.id}`, '_blank')}
-                                >
-                                  <Printer size={14} />
-                                </button>
+                                {slips.kitchen && (
+                                  <button
+                                    className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10"
+                                    title="Chef Slip"
+                                    onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')}
+                                  >
+                                    <ChefHat size={14} />
+                                  </button>
+                                )}
+                                {slips.delivery && order.order_type === 'delivery' && (
+                                  <button
+                                    className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10"
+                                    title="Delivery Slip"
+                                    onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')}
+                                  >
+                                    <Truck size={14} />
+                                  </button>
+                                )}
+                                {slips.customer && (
+                                  <button
+                                    className="btn btn-xs btn-ghost border border-base-300"
+                                    title="Receipt"
+                                    onClick={() => window.open(`/receipt/${order.id}`, '_blank')}
+                                  >
+                                    <Printer size={14} />
+                                  </button>
+                                )}
                                 <button
                                   className="btn btn-xs btn-ghost border border-base-300"
                                   title="View Details"
@@ -1431,13 +1464,22 @@ export default function OrdersPage() {
                 )}
                 <div className="flex justify-between font-bold text-base"><span>Total</span><span className="text-primary">৳{parseFloat(detailOrder.total || 0).toFixed(2)}</span></div>
               </div>
-              <div className="flex gap-2 pt-2">
-                <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/kitchen-print/${detailOrder.id}`, '_blank')}>
-                  <ChefHat size={14} /> Chef Slip
-                </button>
-                <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/receipt/${detailOrder.id}`, '_blank')}>
-                  <Printer size={14} /> Receipt
-                </button>
+              <div className="flex gap-2 pt-2 flex-wrap">
+                {slips.kitchen && (
+                  <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/kitchen-print/${detailOrder.id}`, '_blank')}>
+                    <ChefHat size={14} /> Chef Slip
+                  </button>
+                )}
+                {slips.delivery && detailOrder.order_type === 'delivery' && (
+                  <button className="btn btn-sm btn-ghost flex-1 gap-1 text-success" onClick={() => window.open(`/delivery-print/${detailOrder.id}`, '_blank')}>
+                    <Truck size={14} /> Delivery
+                  </button>
+                )}
+                {slips.customer && (
+                  <button className="btn btn-sm btn-ghost flex-1 gap-1" onClick={() => window.open(`/receipt/${detailOrder.id}`, '_blank')}>
+                    <Printer size={14} /> Receipt
+                  </button>
+                )}
                 {detailOrder.payment_status === 'due' ? (
                   <button
                     className="btn btn-sm btn-ghost flex-1 gap-1 text-warning"

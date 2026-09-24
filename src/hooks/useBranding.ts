@@ -23,6 +23,34 @@ export const SETTING_KEYS = {
   partnerDefaultCommission: 'partner_default_commission_rate',
 } as const;
 
+/**
+ * Which slips this restaurant prints. Stored as '1'/'0' strings in the same
+ * key/value table, and read through the shared cache below.
+ *
+ * Kitchen and customer default on - every restaurant needs them from day one.
+ * Delivery defaults off: it only matters to restaurants that deliver, and its
+ * slip carries a customer's address and phone, so it is opt-in rather than
+ * something we start printing on their behalf.
+ */
+export const SLIP_KEYS = {
+  kitchen: 'slip_kitchen_enabled',
+  customer: 'slip_customer_enabled',
+  delivery: 'slip_delivery_enabled',
+} as const;
+
+export const SLIP_DEFAULTS: Record<keyof typeof SLIP_KEYS, boolean> = {
+  kitchen: true,
+  customer: true,
+  delivery: false,
+};
+
+export interface SlipSettings {
+  kitchen: boolean;
+  customer: boolean;
+  delivery: boolean;
+  loaded: boolean;
+}
+
 export const BRANDING_KEYS = {
   name: 'site_name',
   address: 'address',
@@ -174,4 +202,50 @@ export function useSetting(key: string, fallback: string): { value: string; load
   const stored = (settings[key] ?? '').trim();
 
   return { value: stored === '' ? fallback : stored, loaded: true };
+}
+
+/**
+ * The three slip toggles, read from the shared settings cache.
+ *
+ * A missing key means the restaurant has never touched it, so each falls back
+ * to SLIP_DEFAULTS rather than to "off" - a fresh restaurant must still get its
+ * kitchen and customer slips without visiting settings first.
+ */
+export function useSlipSettings(): SlipSettings {
+  const [settings, setSettings] = useState<Record<string, string> | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const notify = () => setVersion((n) => n + 1);
+    listeners.add(notify);
+
+    return () => {
+      listeners.delete(notify);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    loadSettings().then((value) => {
+      if (active) setSettings(value);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [version]);
+
+  const read = (key: string, fallback: boolean): boolean => {
+    if (settings === null) return fallback;
+    const stored = (settings[key] ?? '').trim();
+    return stored === '' ? fallback : stored === '1';
+  };
+
+  return {
+    kitchen: read(SLIP_KEYS.kitchen, SLIP_DEFAULTS.kitchen),
+    customer: read(SLIP_KEYS.customer, SLIP_DEFAULTS.customer),
+    delivery: read(SLIP_KEYS.delivery, SLIP_DEFAULTS.delivery),
+    loaded: settings !== null,
+  };
 }

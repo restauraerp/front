@@ -6,6 +6,7 @@ import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import RestaurantIdentityCard from '@/components/settings/RestaurantIdentityCard';
+import SlipPrintingCard from '@/components/settings/SlipPrintingCard';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
@@ -102,6 +103,14 @@ export default function SettingsPage() {
           there are two dozen storefront keys and no reason to hide them. */}
       <div style={{ marginBottom: '2rem' }}>
         <RestaurantIdentityCard onSaved={loadData} />
+      </div>
+
+      {/* Which slips the restaurant prints - kitchen, customer receipt, and the
+          delivery slip. Kept as its own card, above the raw key/value editor,
+          for the same reason as the identity fields: nobody should have to know
+          the setting is called `slip_delivery_enabled` to turn it on. */}
+      <div style={{ marginBottom: '2rem' }}>
+        <SlipPrintingCard />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
