@@ -61,6 +61,15 @@ export default function DeliveryPrintPage() {
       )}
 
       <div style={{ textAlign: 'center', marginBottom: '12px', borderBottom: '2px solid #000', paddingBottom: '10px' }}>
+        {/* The slip may be handed or sent to the customer, so it carries the
+            restaurant's mark like the receipt does. */}
+        {branding.logo && (
+          <img
+            src={`/storage/${branding.logo}`}
+            alt=""
+            style={{ maxWidth: '120px', maxHeight: '80px', margin: '0 auto 8px', display: 'block', objectFit: 'contain' }}
+          />
+        )}
         {branding.name && (
           <p style={{ fontSize: '0.9rem', margin: '0 0 4px 0', fontWeight: 'bold' }}>{branding.name.toUpperCase()}</p>
         )}
