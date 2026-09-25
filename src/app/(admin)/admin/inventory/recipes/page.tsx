@@ -10,8 +10,21 @@ import { SearchSelect } from '@/components/ui/SearchSelect';
 interface InventoryItem {
   id: number;
   title: string;
+  /** The counted/purchase unit stock is held in. */
   unit: string;
+  /** The smaller unit the item is used in, when it differs from the purchase unit. */
+  sale_unit?: string | null;
   images?: { id: number; url: string; is_featured?: boolean }[];
+}
+
+/**
+ * The unit a recipe quantity is expressed in: how the kitchen uses the item,
+ * not how it is bought. Falls back to the purchase unit when the item has no
+ * separate usage unit.
+ */
+function usageUnit(item?: InventoryItem): string {
+  if (!item) return '—';
+  return item.sale_unit && item.sale_unit !== item.unit ? item.sale_unit : item.unit;
 }
 
 interface RecipeRow {
@@ -194,7 +207,7 @@ function RecipesPageContent() {
                                   label=""
                                   value={row.inventory_item_id}
                                   onChange={(v) => updateRow(idx, 'inventory_item_id', String(v))}
-                                  options={inventoryItems.map(i => ({ value: i.id, label: `${i.title} (${i.unit})` }))}
+                                  options={inventoryItems.map(i => ({ value: i.id, label: `${i.title} (${usageUnit(i)})` }))}
                                   placeholder="— Select item —"
                                   searchPlaceholder="Search items…"
                                 />
@@ -212,7 +225,7 @@ function RecipesPageContent() {
                             />
                           </td>
                           <td className="text-sm text-base-content/60 font-medium">
-                            {item?.unit || '—'}
+                            {usageUnit(item)}
                           </td>
                           <td>
                             <button
