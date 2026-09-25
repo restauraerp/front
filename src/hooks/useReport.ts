@@ -4,13 +4,16 @@ import { useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
 import { resolveRange, ReportWindow } from '@/lib/reportRange';
+import { useBusinessTime } from '@/hooks/useBranding';
 
 /**
  * Reads the shared reporting filters (range + branch) out of the URL and
- * resolves them into a concrete window.
+ * resolves them into a concrete window, in the restaurant's own timezone, day
+ * start and week start.
  */
 export function useReportFilters(): { period: ReportWindow; branch: string } {
   const searchParams = useSearchParams();
+  const bt = useBusinessTime();
 
   return {
     // Named `period`, not `window` - shadowing the DOM global in every page
@@ -19,6 +22,12 @@ export function useReportFilters(): { period: ReportWindow; branch: string } {
       searchParams.get('range'),
       searchParams.get('from'),
       searchParams.get('to'),
+      new Date(),
+      {
+        timezone: bt.timezone || undefined,
+        dayStartMinutes: bt.dayStartMinutes,
+        weekStartDay: bt.weekStartDay,
+      },
     ),
     branch: searchParams.get('branch') || 'all',
   };
