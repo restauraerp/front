@@ -51,6 +51,35 @@ export interface SlipSettings {
   loaded: boolean;
 }
 
+/**
+ * Business-day settings - the timezone reports are read in, the time of day the
+ * business day rolls over, and which weekday a week starts on. Stored in the
+ * same key/value table; the names match core-api's App\Support\Time\BusinessTime.
+ */
+export const BUSINESS_TIME_KEYS = {
+  timezone: 'business_timezone',
+  dayStart: 'business_day_start_time',
+  weekStart: 'week_start_day',
+} as const;
+
+export interface BusinessTimeSettings {
+  /** IANA timezone, or '' when unset (falls back to the deployment timezone). */
+  timezone: string;
+  /** Business-day start as 'HH:MM'. */
+  dayStart: string;
+  /** Minutes past midnight the business day starts. */
+  dayStartMinutes: number;
+  /** Weekday a week starts on: 0 (Sunday) .. 6 (Saturday). */
+  weekStartDay: number;
+  loaded: boolean;
+}
+
+function parseHm(value: string): number {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return 0;
+  return Math.max(0, Math.min(24 * 60 - 1, (+m[1]) * 60 + (+m[2])));
+}
+
 export const BRANDING_KEYS = {
   name: 'site_name',
   address: 'address',
@@ -246,6 +275,51 @@ export function useSlipSettings(): SlipSettings {
     kitchen: read(SLIP_KEYS.kitchen, SLIP_DEFAULTS.kitchen),
     customer: read(SLIP_KEYS.customer, SLIP_DEFAULTS.customer),
     delivery: read(SLIP_KEYS.delivery, SLIP_DEFAULTS.delivery),
+    loaded: settings !== null,
+  };
+}
+
+/**
+ * The business-day settings (timezone, day start, week start), read from the
+ * shared settings cache. Unset values fall back so a restaurant that never
+ * touched them behaves exactly as before: no timezone override, midnight day
+ * start, week starting Sunday.
+ */
+export function useBusinessTime(): BusinessTimeSettings {
+  const [settings, setSettings] = useState<Record<string, string> | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const notify = () => setVersion((n) => n + 1);
+    listeners.add(notify);
+
+    return () => {
+      listeners.delete(notify);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    loadSettings().then((value) => {
+      if (active) setSettings(value);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [version]);
+
+  const read = (key: string): string => (settings?.[key] ?? '').trim();
+
+  const dayStart = read(BUSINESS_TIME_KEYS.dayStart) || '00:00';
+  const weekRaw = read(BUSINESS_TIME_KEYS.weekStart);
+
+  return {
+    timezone: read(BUSINESS_TIME_KEYS.timezone),
+    dayStart,
+    dayStartMinutes: parseHm(dayStart),
+    weekStartDay: /^[0-6]$/.test(weekRaw) ? Number(weekRaw) : 0,
     loaded: settings !== null,
   };
 }

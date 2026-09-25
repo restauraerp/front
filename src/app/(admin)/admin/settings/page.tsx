@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import RestaurantIdentityCard from '@/components/settings/RestaurantIdentityCard';
 import SlipPrintingCard from '@/components/settings/SlipPrintingCard';
+import BusinessDayCard from '@/components/settings/BusinessDayCard';
 
 export default function SettingsPage() {
   const [settings, setSettings] = useState<any[]>([]);
@@ -111,6 +112,12 @@ export default function SettingsPage() {
           the setting is called `slip_delivery_enabled` to turn it on. */}
       <div style={{ marginBottom: '2rem' }}>
         <SlipPrintingCard />
+      </div>
+
+      {/* When the business day starts, the reporting timezone, and the week
+          start - the timing reports and token generation are calculated on. */}
+      <div style={{ marginBottom: '2rem' }}>
+        <BusinessDayCard />
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
