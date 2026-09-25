@@ -38,15 +38,26 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchApi('/auth/me').then(res => {
-      setUserPermissions(res?.all_permissions || []);
+      const perms: string[] = res?.all_permissions || [];
+      setUserPermissions(perms);
       const roles = res?.roles?.map((r: any) => r.name) || [];
-      if (roles.includes('super_admin')) setIsSuperAdmin(true);
+      const superAdmin = roles.includes('super_admin');
+      if (superAdmin) setIsSuperAdmin(true);
       setAuthLoaded(true);
-    }).catch(console.error);
 
+      // The revenue figures are gated on their own permission. A role without
+      // it - a POS manager, by default - must not see any statistics, so the
+      // numbers are never even fetched rather than fetched and hidden.
+      if (superAdmin || perms.includes('view_dashboard_stats')) {
+        loadStats();
+      }
+    }).catch(console.error);
+  }, []);
+
+  const loadStats = () => {
     const pad = (n: number) => n.toString().padStart(2, '0');
     const now = new Date();
-    
+
     const d7 = new Date(now);
     d7.setDate(d7.getDate() - 7);
     const dhakaStr7 = d7.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' });
@@ -92,13 +103,14 @@ export default function Dashboard() {
         weekRev, weekOrders
       });
     }).catch(console.error);
-  }, []);
+  };
 
   const hasAccess = (reqPerm: string) => {
     if (isSuperAdmin) return true;
     return userPermissions.includes(reqPerm);
   };
 
+  const canViewStats = hasAccess('view_dashboard_stats');
   const filteredLinks = quickLinks.filter(link => hasAccess(link.reqPerm));
 
   return (
@@ -115,7 +127,11 @@ export default function Dashboard() {
 
       {/* Stats */}
       {/* The tour's opening step points here: what the software produces, before
-          anything about how it is set up. */}
+          anything about how it is set up. Gated on view_dashboard_stats - a POS
+          manager, by default, sees the dashboard but none of these figures.
+          Hidden until auth resolves so the numbers never flash for a role that
+          is not allowed to see them. */}
+      {authLoaded && canViewStats && (
       <div data-tour="dashboard-summary" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="stat bg-base-100 border border-base-200 rounded-2xl shadow-sm">
           <div className="stat-figure text-primary"><TrendingUp size={28} /></div>
@@ -144,6 +160,7 @@ export default function Dashboard() {
           <div className="stat-desc text-secondary font-medium">Based on recent week</div>
         </div>
       </div>
+      )}
 
       {/* Quick Links */}
       <Card title="Quick Access">
