@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
+import { SearchSelect } from '@/components/ui/SearchSelect';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { BUSINESS_TIME_KEYS, clearBrandingCache } from '@/hooks/useBranding';
 import { Clock, Globe, CalendarDays } from 'lucide-react';
@@ -11,12 +12,26 @@ interface StoredSetting {
   value: string;
 }
 
-/** A small, region-first set of timezones; the empty value means the deployment default. */
-const TIMEZONES = [
-  'Asia/Dhaka', 'Asia/Kolkata', 'Asia/Karachi', 'Asia/Kathmandu', 'Asia/Yangon',
-  'Asia/Dubai', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Jakarta',
-  'Europe/London', 'America/New_York', 'UTC',
-];
+/**
+ * Every IANA timezone the browser knows, so the picker covers the whole world.
+ * Falls back to a region-first shortlist on the rare engine without
+ * Intl.supportedValuesOf.
+ */
+const ALL_TIMEZONES: string[] = (() => {
+  try {
+    const supported = (Intl as unknown as { supportedValuesOf?: (k: string) => string[] }).supportedValuesOf;
+    if (typeof supported === 'function') {
+      return supported('timeZone');
+    }
+  } catch {
+    /* fall through to the shortlist */
+  }
+  return [
+    'UTC', 'Asia/Dhaka', 'Asia/Kolkata', 'Asia/Karachi', 'Asia/Kathmandu', 'Asia/Yangon',
+    'Asia/Dubai', 'Asia/Bangkok', 'Asia/Singapore', 'Asia/Jakarta',
+    'Europe/London', 'America/New_York',
+  ];
+})();
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -95,14 +110,16 @@ export default function BusinessDayCard() {
           <label className="flex items-center gap-2 text-xs text-base-content/60 mb-1">
             <Globe size={14} /> Timezone
           </label>
-          <select
-            className="select select-bordered w-full"
+          <SearchSelect
             value={timezone}
-            onChange={(e) => { setTimezone(e.target.value); setSaved(false); }}
-          >
-            <option value="">Default (Asia/Dhaka)</option>
-            {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-          </select>
+            onChange={(v) => { setTimezone(String(v)); setSaved(false); }}
+            options={[
+              { value: '', label: 'Default (Asia/Dhaka)' },
+              ...ALL_TIMEZONES.map((tz) => ({ value: tz, label: tz })),
+            ]}
+            placeholder="Default (Asia/Dhaka)"
+            searchPlaceholder="Search timezones…"
+          />
         </div>
 
         <div>
