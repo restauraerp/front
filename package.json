@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.67",
+  "version": "1.00.68",
   "private": true,
   "scripts": {
     "dev": "npm run walkthrough:copy && next dev -p 3029",
