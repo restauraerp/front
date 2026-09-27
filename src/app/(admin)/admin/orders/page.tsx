@@ -633,9 +633,17 @@ export default function OrdersPage() {
                   Token #{order.token_number}
                 </span>
               )}
+              {order.source === 'online' && (
+                <span className="badge badge-accent badge-sm font-extrabold" title="Placed by the customer through the online order link">
+                  Online
+                </span>
+              )}
             </div>
             <div className="text-xs text-base-content/60">
               Order #{order.id} {order.token_number != null ? `(Token #${order.token_number}) ` : ''}• {order.customer?.name || 'Walk-in'}
+              {order.source === 'online' && order.customer?.phone && (
+                <> • <a href={`tel:${order.customer.phone}`} className="link">{order.customer.phone}</a></>
+              )}
             </div>
           </div>
           <div className="flex flex-col items-end gap-1">
@@ -661,6 +669,12 @@ export default function OrdersPage() {
                 View on Maps
               </a>
             )}
+          </div>
+        )}
+
+        {order.customer_note && (
+          <div className="mb-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded-lg whitespace-pre-line">
+            <span className="font-semibold">Customer note:</span> {order.customer_note}
           </div>
         )}
 
@@ -777,6 +791,8 @@ export default function OrdersPage() {
                  if (activeLocationId && o.location_id !== activeLocationId) return false;
                  if (activeTab === 'active_orders') return true;
                  const isCompleted = isFinished(o) && o.payment_status === 'paid';
+                 // Placed by the customer through the online order link.
+                 if (activeTab === 'customer_orders') return o.source === 'online' && !isCompleted;
                  return o.order_type === activeTab && !isCompleted;
                });
 
@@ -803,6 +819,7 @@ export default function OrdersPage() {
     dine_in: 'Dine In',
     takeaway: 'Takeaway',
     delivery: 'Delivery',
+    customer_orders: 'Customer Orders',
     catering: 'Catering',
     third_party: '3rd Party',
     due: 'Due',
@@ -815,6 +832,7 @@ export default function OrdersPage() {
     const notComplete = active.filter(o => !(isFinished(o) && o.payment_status === 'paid'));
     return {
       active_orders: notComplete.length,
+      customer_orders: notComplete.filter(o => o.source === 'online').length,
       dine_in: notComplete.filter(o => o.order_type === 'dine_in').length,
       takeaway: notComplete.filter(o => o.order_type === 'takeaway').length,
       delivery: notComplete.filter(o => o.order_type === 'delivery').length,
@@ -871,7 +889,7 @@ export default function OrdersPage() {
       <Card>
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 gap-3">
           <h2 className="text-lg font-bold">
-            {tabLabels[activeTab] || activeTab} Orders
+            {(tabLabels[activeTab] || activeTab).replace(/ Orders$/, '')} Orders
             {activeTab === 'completed' && completedTotal > 0 && (
               <span className="ml-2 text-sm font-normal text-base-content/50">({completedTotal.toLocaleString()})</span>
             )}
@@ -975,7 +993,7 @@ export default function OrdersPage() {
                   <thead>
                     <tr>
                       <th>Order Info</th>
-                      {['active_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && <th>Type</th>}
+                      {['active_orders', 'customer_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && <th>Type</th>}
                       {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
                       <th>Date</th>
                       <th>Items</th>
@@ -1004,11 +1022,28 @@ export default function OrdersPage() {
                                   T#{order.token_number}
                                 </span>
                               )}
+                              {order.source === 'online' && (
+                                <span className="badge badge-accent badge-xs font-extrabold" title="Placed by the customer through the online order link">Online</span>
+                              )}
                             </div>
                             <div className="text-xs opacity-70">Placed: {new Date(order.created_at).toLocaleTimeString()}</div>
                             {order.customer && <div className="text-xs text-info mt-1 font-semibold">{order.customer.name}</div>}
+                            {order.source === 'online' && order.customer?.phone && (
+                              <a href={`tel:${order.customer.phone}`} className="text-xs link block">{order.customer.phone}</a>
+                            )}
+                            {activeTab === 'customer_orders' && order.order_type === 'delivery' && order.delivery_address && (
+                              <div className="text-xs opacity-80 flex items-start gap-1 mt-1 max-w-[14rem]">
+                                <MapPin size={12} className="mt-0.5 text-error flex-shrink-0" />
+                                <span className="line-clamp-2">{order.delivery_address}</span>
+                              </div>
+                            )}
+                            {order.customer_note && (
+                              <div className="text-xs mt-1 max-w-[14rem] bg-amber-50 border border-amber-200 text-amber-900 rounded px-1.5 py-0.5 whitespace-pre-line">
+                                <span className="font-semibold">Note:</span> {order.customer_note}
+                              </div>
+                            )}
                           </td>
-                          {['active_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && (
+                          {['active_orders', 'customer_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && (
                             <td className="font-medium text-base-content/80">{tabLabels[order.order_type] || order.order_type?.replace('_', ' ')}</td>
                           )}
                           {['delivery', 'catering'].includes(activeTab) && (

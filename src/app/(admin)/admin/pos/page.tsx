@@ -11,6 +11,7 @@ import {
 import OrderTypeSelector from './components/OrderTypeSelector';
 import TableSelector from './components/TableSelector';
 import CustomerPicker from './components/CustomerPicker';
+import OnlineOrderLink from './components/OnlineOrderLink';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
 import { tenantKey } from '@/lib/tenant';
 import { isSellable } from '@/lib/product';
@@ -443,6 +444,8 @@ function POS() {
               className="input input-bordered input-sm w-full pl-9"
             />
           </div>
+
+          <div className="ml-auto"><OnlineOrderLink /></div>
         </div>
 
         {/* Category Tabs */}
