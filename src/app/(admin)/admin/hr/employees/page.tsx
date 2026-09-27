@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
@@ -25,7 +25,10 @@ export default function EmployeesPage() {
     location_id: '',
     role: '',
     phone: '',
-    image_url: ''
+    image_url: '',
+    // Off for someone who only needs to exist as a user (a rider to assign,
+    // a waiter to credit) and must never sign in.
+    can_login: true,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -99,7 +102,8 @@ export default function EmployeesPage() {
       const formDataToSend = new FormData();
       Object.keys(formData).forEach(key => {
         if (key === 'image_url') return;
-        if (key === 'password' && !formData.password) return;
+        // A no-login account has no password to send.
+        if (key === 'password' && (!formData.password || !formData.can_login)) return;
         if (formData[key as keyof typeof formData] !== null && formData[key as keyof typeof formData] !== undefined && formData[key as keyof typeof formData] !== '') {
           formDataToSend.append(key, String(formData[key as keyof typeof formData]));
         }
@@ -125,11 +129,11 @@ export default function EmployeesPage() {
       setIsFormOpen(false);
       setEditingId(null);
       setImageFile(null);
-      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
+      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true });
       loadData();
     } catch (err) {
       console.error(err);
-      alert('Failed to save employee');
+      alert(apiErrorMessage(err, 'Failed to save employee'));
     }
   };
 
@@ -142,7 +146,8 @@ export default function EmployeesPage() {
       location_id: row.location_id || '',
       role: row.roles?.[0]?.name || '',
       phone: row.phone || '',
-      image_url: row.image_url || ''
+      image_url: row.image_url || '',
+      can_login: row.can_login !== false,
     });
     setImageFile(null);
     setIsFormOpen(true);
@@ -202,7 +207,18 @@ export default function EmployeesPage() {
         </div>
       )
     },
-    { key: 'name', label: 'Name' },
+    {
+      key: 'name',
+      label: 'Name',
+      render: (row: any) => (
+        <div className="flex items-center gap-2">
+          <span>{row.name}</span>
+          {row.can_login === false && (
+            <span className="badge badge-ghost badge-sm whitespace-nowrap" title="This user cannot sign in">No sign-in</span>
+          )}
+        </div>
+      ),
+    },
     { key: 'email', label: 'Email' },
     { key: 'phone', label: 'Phone', render: (row: any) => row.phone || '-' },
     { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
@@ -217,7 +233,7 @@ export default function EmployeesPage() {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
           setImageFile(null);
-          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '' });
+          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Employee'}
         </Button>
@@ -234,15 +250,38 @@ export default function EmployeesPage() {
               )}
             </div>
             <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+1234567890" />
-            <Input 
-              label="Password" 
-              name="password" 
-              type="password" 
-              value={formData.password} 
-              onChange={handleInputChange} 
-              required={!editingId} 
-              placeholder={editingId ? 'Leave blank to keep current' : ''}
-            />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl bg-base-200/60">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-primary mt-0.5"
+                  checked={formData.can_login}
+                  disabled={formData.role === 'restaurant_admin'}
+                  onChange={(e) => setFormData(prev => ({ ...prev, can_login: e.target.checked }))}
+                />
+                <span>
+                  <span className="font-medium block">Can sign in</span>
+                  <span className="text-xs text-base-content/60">
+                    {formData.role === 'restaurant_admin'
+                      ? 'The owner account must always be able to sign in.'
+                      : formData.can_login
+                        ? 'This user can sign in to the app with their email and password.'
+                        : 'This user exists only to be assigned work (deliveries, sales, payroll) and cannot sign in. No password is needed.'}
+                  </span>
+                </span>
+              </label>
+            </div>
+            {formData.can_login && (
+              <Input
+                label="Password"
+                name="password"
+                type="password"
+                value={formData.password}
+                onChange={handleInputChange}
+                required={!editingId}
+                placeholder={editingId ? 'Leave blank to keep current' : ''}
+              />
+            )}
             
             <div className="form-control w-full" style={{ gridColumn: '1 / -1' }}>
               <label className="label"><span className="label-text font-medium">Profile Photo</span></label>
@@ -290,7 +329,7 @@ export default function EmployeesPage() {
       <Card>
         {loading ? <p>Loading employees...</p> : (
           <>
-            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} extraActions={isAdmin ? (row: any) => (
+            <Table columns={columns} data={employees} onEdit={handleEdit} onDelete={handleDelete} extraActions={isAdmin ? (row: any) => row.can_login === false ? null : (
               <button
                 onClick={() => handleLoginLink(row)}
                 className="btn btn-xs btn-ghost btn-square text-primary tooltip"
