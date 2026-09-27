@@ -1,8 +1,8 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { fetchApi } from '@/lib/api';
-import { tenantKey } from '@/lib/tenant';
+import { API_BASE_URL } from '@/lib/api';
+import { getTenant, tenantKey } from '@/lib/tenant';
 
 type CartItem = {
   product_id: number;
@@ -21,8 +21,11 @@ type CartContextType = {
   isCartOpen: boolean;
   setIsCartOpen: (isOpen: boolean) => void;
   total: number;
-  checkout: (details: { delivery_address?: string; delivery_time?: string; payment_method?: string }) => Promise<any>;
+  checkout: (details: CheckoutDetails) => Promise<PlacedOrder>;
 };
+
+type CheckoutDetails = { name: string; phone: string; delivery_address: string; note?: string };
+type PlacedOrder = { order_id: number; token_number: number | null; total: number; currency: string };
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
@@ -76,32 +79,39 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const total = items.reduce((sum, item) => sum + (item.price * item.qty), 0);
 
-  const checkout = async (details: any) => {
-    // Assuming location_id 1 for storefront
-    const payload = {
-      location_id: 1,
-      order_type: 'delivery',
-      subtotal: total,
-      tax_amount: 0,
-      discount_amount: 0,
-      total: total,
-      delivery_address: details.delivery_address,
-      payment_method: details.payment_method || 'cash',
-      items: items.map(i => ({
-        product_id: i.product_id,
-        qty: i.qty,
-        price: i.price
-      }))
-    };
+  /**
+   * Places the order through the restaurant's online order link.
+   *
+   * Only ids and quantities go up. The server prices the order from its own
+   * product table and takes no payment, so the prices in this cart are a
+   * preview and nothing here can change what the customer is charged. (This
+   * used to post to `storefront/orders` with its own prices and
+   * payment_method 'cash', which marked the order paid.)
+   */
+  const checkout = async (details: CheckoutDetails): Promise<PlacedOrder> => {
+    const tenant = getTenant();
+    if (!tenant) throw new Error('This site is not set up to take orders.');
 
-    const res = await fetchApi('/storefront/orders', {
+    const res = await fetch(`${API_BASE_URL}/order/${encodeURIComponent(tenant)}`, {
       method: 'POST',
-      body: JSON.stringify(payload)
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({
+        order_type: 'delivery',
+        name: details.name,
+        phone: details.phone,
+        delivery_address: details.delivery_address,
+        note: details.note || null,
+        items: items.map(i => ({ product_id: i.product_id, qty: i.qty })),
+      }),
     });
+    const body = await res.json().catch(() => null);
+    if (!res.ok) {
+      const first = body?.errors ? (Object.values(body.errors)[0] as string[])[0] : null;
+      throw new Error(first || body?.message || 'Your order could not be placed. Please try again.');
+    }
 
     clearCart();
-    setIsCartOpen(false);
-    return res;
+    return body as PlacedOrder;
   };
 
   return (
@@ -119,27 +129,53 @@ export function useCart() {
 }
 
 function CartDrawer() {
-  const { isCartOpen, setIsCartOpen, items, updateQty, removeFromCart, total, checkout } = useCart();
+  const { isCartOpen, setIsCartOpen, items, updateQty, total, checkout } = useCart();
   const [loading, setLoading] = useState(false);
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [placed, setPlaced] = useState<PlacedOrder | null>(null);
 
   if (!isCartOpen) return null;
 
-  const handleCheckout = async () => {
+  const close = () => {
+    setIsCartOpen(false);
+    setPlaced(null);
+  };
+
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (items.length === 0) return;
-    if (!address) return alert('Please enter delivery address');
-    
+
+    setError(null);
     setLoading(true);
     try {
-      await checkout({ delivery_address: address });
-      alert('Order placed successfully!');
+      setPlaced(await checkout({ name, phone, delivery_address: address, note }));
+      setNote('');
     } catch (err) {
-      alert('Failed to place order. Please try again.');
-      console.error(err);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   };
+
+  if (placed) {
+    return (
+      <>
+        <div className="fixed inset-0 bg-black/50 z-[100]" onClick={close} />
+        <div className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-base-100 z-[101] shadow-2xl flex flex-col items-center justify-center p-6 text-center gap-3">
+          <div className="text-5xl">✅</div>
+          <h2 className="text-xl font-bold">Order placed</h2>
+          <p>Order #{placed.order_id}{placed.token_number != null ? ` · Token ${placed.token_number}` : ''}</p>
+          <p className="font-semibold">Total {placed.currency}{placed.total.toLocaleString()}</p>
+          <p className="text-sm text-base-content/70">Pay on delivery. Any delivery charge is added by the restaurant.</p>
+          <button className="btn btn-primary mt-2" onClick={close}>Done</button>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -150,9 +186,10 @@ function CartDrawer() {
       <div className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-base-100 z-[101] shadow-2xl flex flex-col">
         <div className="p-4 border-b border-base-200 flex justify-between items-center">
           <h2 className="text-xl font-bold">Your Order</h2>
-          <button onClick={() => setIsCartOpen(false)} className="btn btn-sm btn-ghost btn-circle">✕</button>
+          <button type="button" onClick={close} className="btn btn-sm btn-ghost btn-circle">✕</button>
         </div>
         
+        <form onSubmit={handleCheckout} className="flex-1 flex flex-col min-h-0">
         <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
           {items.length === 0 ? (
             <p className="text-center text-base-content/50 my-8">Your cart is empty</p>
@@ -169,23 +206,21 @@ function CartDrawer() {
                   <p className="text-primary font-bold">৳{item.price}</p>
                 </div>
                 <div className="flex items-center gap-2">
-                  <button className="btn btn-xs btn-square" onClick={() => updateQty(item.product_id, item.qty - 1)}>-</button>
+                  <button type="button" className="btn btn-xs btn-square" onClick={() => updateQty(item.product_id, item.qty - 1)}>-</button>
                   <span className="w-4 text-center">{item.qty}</span>
-                  <button className="btn btn-xs btn-square" onClick={() => updateQty(item.product_id, item.qty + 1)}>+</button>
+                  <button type="button" className="btn btn-xs btn-square" onClick={() => updateQty(item.product_id, item.qty + 1)}>+</button>
                 </div>
               </div>
             ))
           )}
 
           {items.length > 0 && (
-            <div className="mt-4 form-control">
-              <label className="label"><span className="label-text font-semibold">Delivery Address</span></label>
-              <textarea 
-                className="textarea textarea-bordered h-24" 
-                placeholder="Enter your delivery address..."
-                value={address}
-                onChange={e => setAddress(e.target.value)}
-              ></textarea>
+            <div className="mt-4 flex flex-col gap-3">
+              <input required maxLength={100} className="input input-bordered w-full" placeholder="Your name" value={name} onChange={e => setName(e.target.value)} />
+              <input required type="tel" inputMode="tel" maxLength={20} className="input input-bordered w-full" placeholder="Mobile number (01XXXXXXXXX)" value={phone} onChange={e => setPhone(e.target.value)} />
+              <textarea required maxLength={500} className="textarea textarea-bordered h-20 w-full" placeholder="Delivery address" value={address} onChange={e => setAddress(e.target.value)} />
+              <textarea maxLength={500} className="textarea textarea-bordered h-16 w-full" placeholder="Note for the restaurant (optional)" value={note} onChange={e => setNote(e.target.value)} />
+              {error && <div className="alert alert-error text-sm">{error}</div>}
             </div>
           )}
         </div>
@@ -196,13 +231,15 @@ function CartDrawer() {
             <span className="font-bold text-xl">৳{total.toFixed(2)}</span>
           </div>
           <button 
+            type="submit"
             className="btn btn-primary w-full"
             disabled={items.length === 0 || loading}
-            onClick={handleCheckout}
           >
             {loading ? <span className="loading loading-spinner"></span> : 'Place Order'}
           </button>
+          <p className="text-xs text-center text-base-content/60 mt-2">Pay on delivery. Tax and delivery charge, if any, are added by the restaurant.</p>
         </div>
+        </form>
       </div>
     </>
   );
