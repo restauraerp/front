@@ -29,11 +29,19 @@ export const BUSINESS_TIMEZONE = STORAGE_TIMEZONE;
 
 export type ReportBucket = 'hour' | 'day' | 'month';
 
+/**
+ * When the business day starts if the restaurant has not set it: quarter past
+ * midnight, so an order just after twelve stays on the evening that is closing.
+ * Mirrors BusinessTime::DEFAULT_DAY_START in core-api - change both together.
+ */
+export const DEFAULT_DAY_START = '00:15';
+export const DEFAULT_DAY_START_MINUTES = 15;
+
 /** The restaurant's business-day settings that shape a reporting window. */
 export interface ReportRangeSettings {
   /** IANA timezone, e.g. 'Asia/Dhaka'. Defaults to the storage timezone. */
   timezone?: string;
-  /** Minutes past midnight the business day starts. Defaults to 0 (midnight). */
+  /** Minutes past midnight the business day starts. Defaults to DEFAULT_DAY_START_MINUTES (00:15). */
   dayStartMinutes?: number;
   /** Weekday a week starts on: 0 (Sunday) .. 6 (Saturday). Defaults to 0. */
   weekStartDay?: number;
@@ -122,7 +130,7 @@ function formatInTz(date: Date, tz: string): string {
  * timezone, shifted back by the day-start so a moment before the cutoff counts
  * as the previous day.
  */
-export function businessToday(now: Date = new Date(), tz: string = STORAGE_TIMEZONE, dayStartMinutes = 0): string {
+export function businessToday(now: Date = new Date(), tz: string = STORAGE_TIMEZONE, dayStartMinutes = DEFAULT_DAY_START_MINUTES): string {
   const shifted = new Date(now.getTime() - dayStartMinutes * 60_000);
   const p = partsInTz(shifted, tz);
   return `${p.y}-${pad(p.mo)}-${pad(p.d)}`;
@@ -191,7 +199,7 @@ export function resolveRange(
   settings: ReportRangeSettings = {},
 ): ReportWindow {
   const tz = settings.timezone || STORAGE_TIMEZONE;
-  const dayStartMinutes = settings.dayStartMinutes ?? 0;
+  const dayStartMinutes = settings.dayStartMinutes ?? DEFAULT_DAY_START_MINUTES;
   const weekStartDay = settings.weekStartDay ?? 0;
 
   // A calendar-date boundary (the restaurant's day-start on `ymd`, in its own
