@@ -1,8 +1,10 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Minus, Plus, Search, ShoppingBag, MapPin, Phone, CheckCircle2, X, Store, Bike } from 'lucide-react';
+import { Minus, Plus, Search, ShoppingBag, ShoppingCart, MapPin, Phone, CheckCircle2, X, Store, Bike, ClipboardList } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
+import MyOrders from './MyOrders';
+import { readTrackedOrders, trackOrder } from './trackedOrders';
 
 /**
  * The restaurant's online order link: /order/{restaurant-code}.
@@ -19,7 +21,7 @@ type Location = { id: number; name: string; address: string | null; phone: strin
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; description: string | null; price: number; category_id: number | null; image_url: string | null; location_ids: number[] | null };
 type Menu = { restaurant: Restaurant; accepting_orders: boolean; order_types: string[]; locations: Location[]; categories: Category[]; products: Product[] };
-type Placed = { order_id: number; token_number: number | null; order_type: string; location: Location; subtotal: number; tax_amount: number; total: number; currency: string };
+type Placed = { order_id: number; tracking_key: string; token_number: number | null; order_type: string; location: Location; subtotal: number; tax_amount: number; total: number; currency: string };
 type Cart = Record<number, number>;
 
 const TYPE_LABEL: Record<string, string> = { takeaway: 'Pickup', delivery: 'Delivery' };
@@ -65,6 +67,10 @@ export default function OnlineOrderPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<Placed | null>(null);
+  const [view, setView] = useState<'menu' | 'orders'>('menu');
+  // How many orders this browser has placed here, for the header button.
+  // Read after mount - the cookie is not there during the server render.
+  const [trackedCount, setTrackedCount] = useState(0);
 
   const cartKey = `restora_online_cart::${slug}`;
   const customerKey = 'restora_online_customer';
@@ -79,6 +85,7 @@ export default function OnlineOrderPage() {
       })
       .then((data) => {
         setMenu(data);
+        setTrackedCount(readTrackedOrders(slug).length);
         const saved = readStored<{ cart?: Cart; locationId?: number; orderType?: string }>(cartKey, {});
         const ids = data.locations.map((l) => l.id);
         setLocationId(saved.locationId && ids.includes(saved.locationId) ? saved.locationId : ids[0] ?? null);
@@ -166,6 +173,7 @@ export default function OnlineOrderPage() {
       setNote('');
       setCartOpen(false);
       setPlaced(body as Placed);
+      setTrackedCount(trackOrder(slug, { id: body.order_id, key: body.tracking_key }).length);
       window.scrollTo({ top: 0 });
     } catch (e) {
       setError((e as Error).message);
@@ -217,7 +225,8 @@ export default function OnlineOrderPage() {
           {(placed.location.phone || restaurant.phone) && (
             <a className="btn btn-outline btn-sm" href={`tel:${placed.location.phone || restaurant.phone}`}><Phone size={14} /> Call the restaurant</a>
           )}
-          <button className="btn btn-primary w-full" onClick={() => setPlaced(null)}>Order something else</button>
+          <button className="btn btn-primary w-full gap-1" onClick={() => { setPlaced(null); setView('orders'); }}><ClipboardList size={16} /> Track my order</button>
+          <button className="btn btn-ghost btn-sm w-full" onClick={() => setPlaced(null)}>Order something else</button>
         </div></div>
       </div>
     );
@@ -225,17 +234,36 @@ export default function OnlineOrderPage() {
 
   const location = menu.locations.find((l) => l.id === locationId);
 
+  const header = (
+    <header className="bg-base-100 border-b border-base-300">
+      <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
+        {logo ? <img src={logo} alt="" className="w-12 h-12 rounded-lg object-cover" /> : <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center"><Store className="text-primary" /></div>}
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-semibold truncate">{restaurant.name}</h1>
+          <p className="text-xs text-base-content/60 truncate">Order online · pay on {orderType === 'delivery' ? 'delivery' : 'pickup'}</p>
+        </div>
+        {view === 'menu' && trackedCount > 0 && (
+          <button className="btn btn-sm btn-ghost border-base-300 gap-1 shrink-0" onClick={() => setView('orders')}>
+            <ClipboardList size={16} /> <span className="hidden sm:inline">My orders</span>
+            <span className="badge badge-sm badge-primary">{trackedCount}</span>
+          </button>
+        )}
+      </div>
+    </header>
+  );
+
+  if (view === 'orders') {
+    return (
+      <div className="min-h-screen bg-base-200 pb-10">
+        {header}
+        <MyOrders slug={slug} onBack={() => { setView('menu'); setTrackedCount(readTrackedOrders(slug).length); }} />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-base-200 pb-28">
-      <header className="bg-base-100 border-b border-base-300">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          {logo ? <img src={logo} alt="" className="w-12 h-12 rounded-lg object-cover" /> : <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center"><Store className="text-primary" /></div>}
-          <div className="min-w-0">
-            <h1 className="text-lg font-semibold truncate">{restaurant.name}</h1>
-            <p className="text-xs text-base-content/60 truncate">Order online · pay on {orderType === 'delivery' ? 'delivery' : 'pickup'}</p>
-          </div>
-        </div>
-      </header>
+      {header}
 
       <main className="max-w-5xl mx-auto px-4 py-4 space-y-4">
         {!menu.accepting_orders && (
@@ -290,7 +318,7 @@ export default function OnlineOrderPage() {
                     <div className="mt-auto pt-2 flex items-center justify-between gap-2">
                       <span className="font-semibold">{money(p.price)}</span>
                       {qty === 0 ? (
-                        <button className="btn btn-sm btn-primary" disabled={!menu.accepting_orders} onClick={() => setQty(p.id, 1)}><Plus size={14} /> Add</button>
+                        <button className="btn btn-sm btn-primary" disabled={!menu.accepting_orders} onClick={() => setQty(p.id, 1)}><ShoppingCart size={14} /> Add</button>
                       ) : (
                         <div className="flex items-center gap-1">
                           <button className="btn btn-sm btn-square btn-ghost border-base-300" onClick={() => setQty(p.id, qty - 1)} aria-label="Remove one"><Minus size={14} /></button>
