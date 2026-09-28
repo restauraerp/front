@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
@@ -214,12 +215,17 @@ export default function DeliveryPage() {
             </select>
           )}
         </div>
-        <Button onClick={() => {
-          setIsFormOpen(!isFormOpen);
-          setEditingId(null);
-        }}>
-          {isFormOpen ? 'Close Form' : '+ Assign Delivery'}
-        </Button>
+        <div className="flex gap-2">
+          <Link href="/admin/delivery/charges" className="btn btn-outline btn-sm">
+            Delivery Charges Report
+          </Link>
+          <Button onClick={() => {
+            setIsFormOpen(!isFormOpen);
+            setEditingId(null);
+          }}>
+            {isFormOpen ? 'Close Form' : '+ Assign Delivery'}
+          </Button>
+        </div>
       </div>
 
       {isFormOpen && (

@@ -10,6 +10,8 @@ import {
 interface ProfitReport {
   summary: {
     revenue: number;
+    sales_revenue: number;
+    delivery_charges: number;
     other_income: number;
     total_income: number;
     operational_expenses: number;
@@ -47,9 +49,8 @@ export default function ProfitReportPage() {
           tour="profit-total-income"
           label="Total Income"
           value={formatTaka(summary.total_income)}
-          sub={summary.other_income > 0
-            ? `${formatTaka(summary.revenue)} orders + ${formatTaka(summary.other_income)} logged`
-            : 'Paid orders only'}
+          sub={`Sales ${formatTaka(summary.sales_revenue)} + delivery ${formatTaka(summary.delivery_charges)}`
+            + (summary.other_income > 0 ? ` + ${formatTaka(summary.other_income)} logged` : '')}
           tone="success"
         />
         <StatTile
@@ -75,14 +76,17 @@ export default function ProfitReportPage() {
 
       <Card tour="profit-breakdown" title="Breakdown">
         <MetricNote>
-          Revenue counts only paid orders; income logged under Accounting &rarr; Income is
-          added on top. Expenses include manually-logged operational expenses and purchase
-          order totals. Tax collected and discounts given are included in the revenue figure.
+          Sales revenue counts only paid orders, with tax and discounts included and delivery
+          charges taken out. Delivery charges collected are listed on their own so they can be
+          paid out to riders or couriers - log that payout under Accounting &rarr; Expenses and it
+          comes off net profit here. Income logged under Accounting &rarr; Income is added on top.
+          Expenses include manually-logged operational expenses and purchase order totals.
         </MetricNote>
 
         <div className="space-y-3 mt-4">
           {[
-            { label: 'Collected Revenue', value: summary.revenue, positive: true },
+            { label: 'Sales Revenue', value: summary.sales_revenue, positive: true },
+            { label: 'Delivery Charges', value: summary.delivery_charges, positive: true },
             { label: 'Other Income', value: summary.other_income, positive: true },
             { label: 'Operational Expenses', value: -summary.operational_expenses, positive: summary.operational_expenses === 0 },
             { label: 'Purchase Expenses', value: -summary.purchase_expenses, positive: summary.purchase_expenses === 0 },

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { fetchApi } from '@/lib/api';
-import { BookOpen, Receipt, Percent, Tag, TrendingUp } from 'lucide-react';
+import { BookOpen, Receipt, Percent, Tag, TrendingUp, PieChart } from 'lucide-react';
 
 export default function AccountingDashboard() {
   const [stats, setStats] = useState({ ledgers: 0, incomes: 0, expenses: 0, taxes: 0, headers: 0 });
@@ -52,6 +52,15 @@ export default function AccountingDashboard() {
         subtitle="Manage ledgers, income, expenses, and tax rules across your branches."
       />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Card title={<div className="flex items-center gap-2"><PieChart className="text-primary" size={20} /> Report by Header</div>}>
+          <div className="mb-4">
+            <p className="text-base-content/70 mb-2">See where your income comes from and where your expenses go, grouped by header.</p>
+          </div>
+          <Link href="/admin/accounting/report" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+            View Report &rarr;
+          </Link>
+        </Card>
+
         <Card title={<div className="flex items-center gap-2"><BookOpen className="text-primary" size={20} /> Ledgers</div>}>
           <div className="mb-4">
             <p className="text-base-content/70 mb-2">View all financial transactions and balances.</p>

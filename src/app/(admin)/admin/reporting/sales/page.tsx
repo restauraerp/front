@@ -20,6 +20,8 @@ interface SalesSeriesPoint {
   bucket: string;
   orders: number;
   revenue: number;
+  sales_revenue: number;
+  delivery: number;
   item_revenue: number;
   collected: number;
 }
@@ -29,6 +31,7 @@ interface SalesReport {
   summary: {
     orders_count: number;
     gross_revenue: number;
+    sales_revenue: number;
     item_revenue: number;
     tax_total: number;
     discount_total: number;
@@ -65,7 +68,8 @@ export default function SalesReportPage() {
       render: (row: SalesSeriesPoint) => formatBucket(row.bucket, granularity),
     },
     { key: 'orders', label: 'Orders', render: (row: SalesSeriesPoint) => formatCount(row.orders) },
-    { key: 'revenue', label: 'Revenue (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.revenue) },
+    { key: 'sales_revenue', label: 'Sales (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.sales_revenue) },
+    { key: 'delivery', label: 'Delivery (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.delivery) },
     { key: 'collected', label: 'Collected (৳)', render: (row: SalesSeriesPoint) => formatTaka(row.collected) },
   ];
 
@@ -81,13 +85,18 @@ export default function SalesReportPage() {
         Showing <span className="font-semibold text-base-content">{period.label}</span>
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <StatTile
           tour="sales-total-revenue"
-          label="Total Revenue"
-          value={formatTaka(summary.gross_revenue)}
-          sub="All orders, incl. tax & delivery"
+          label="Sales Revenue"
+          value={formatTaka(summary.sales_revenue)}
+          sub="Orders incl. tax, excl. delivery charges"
           tone="primary"
+        />
+        <StatTile
+          label="Delivery Charges"
+          value={formatTaka(summary.delivery_total)}
+          sub={`Total with delivery: ${formatTaka(summary.gross_revenue)}`}
         />
         <StatTile
           tour="sales-collected"
@@ -110,9 +119,10 @@ export default function SalesReportPage() {
 
       <Card title="Revenue Breakdown" className="mb-6">
         <MetricNote>
-          Total Revenue is the sum of order totals: item revenue plus tax plus delivery, less
-          discounts. The Product Performance tab counts line items only, so it reports the smaller
-          item-revenue figure.
+          Sales Revenue is item revenue plus tax, less discounts. Delivery charges are shown on their
+          own - they are usually paid out to riders or couriers - and are reported in full under
+          Delivery &rarr; Delivery Charges. The Product Performance tab counts line items only, so it
+          reports the smaller item-revenue figure.
         </MetricNote>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {[
@@ -155,12 +165,12 @@ export default function SalesReportPage() {
                   <XAxis dataKey="bucket" tickFormatter={(v) => formatBucket(v, granularity)} {...axisProps} />
                   <YAxis tickFormatter={formatTakaCompact} {...axisProps} />
                   <Tooltip
-                    formatter={(value) => [formatTaka(Number(value)), 'Revenue'] as [string, string]}
+                    formatter={(value) => [formatTaka(Number(value)), 'Sales revenue'] as [string, string]}
                     labelFormatter={(label) => formatBucket(String(label), granularity)}
                     cursor={{ fill: CHART.cursor }}
                     {...tooltipProps}
                   />
-                  <Bar dataKey="revenue" fill={CHART.revenue} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="sales_revenue" fill={CHART.revenue} radius={[4, 4, 0, 0]} />
                 </BarChart>
               ) : (
                 <LineChart data={series} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
@@ -168,13 +178,13 @@ export default function SalesReportPage() {
                   <XAxis dataKey="bucket" tickFormatter={(v) => formatBucket(v, granularity)} {...axisProps} />
                   <YAxis tickFormatter={formatTakaCompact} {...axisProps} />
                   <Tooltip
-                    formatter={(value) => [formatTaka(Number(value)), 'Revenue'] as [string, string]}
+                    formatter={(value) => [formatTaka(Number(value)), 'Sales revenue'] as [string, string]}
                     labelFormatter={(label) => formatBucket(String(label), granularity)}
                     {...tooltipProps}
                   />
                   <Line
                     type="monotone"
-                    dataKey="revenue"
+                    dataKey="sales_revenue"
                     stroke={CHART.revenue}
                     strokeWidth={3}
                     dot={{ r: 3, fill: CHART.revenue }}

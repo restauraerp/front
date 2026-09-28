@@ -38,6 +38,7 @@ import {
   BarChart3,
   Languages,
   X,
+  Plug,
 } from 'lucide-react';
 
 const navItems = [
@@ -49,6 +50,9 @@ const navItems = [
   { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
   { href: '/admin/hr', label: 'HRM', icon: Users },
   { href: '/admin/delivery', label: 'Delivery', icon: Truck },
+  // The restaurant's Telegram bot for rider notifications. manage_integrations
+  // belongs to the Delivery module, so this only appears with it.
+  { href: '/admin/integrations', label: 'Integration', icon: Plug },
   { href: '/admin/crm', label: 'CRM', icon: HeartHandshake },
   { href: '/admin/partners', label: 'Partners', icon: Handshake },
   { href: '/admin/locations', label: 'Locations', icon: MapPin },
@@ -72,6 +76,7 @@ const routePermissions: Record<string, string> = {
   '/admin/kiosk': 'view_kitchen_kiosk',
   '/admin/hr': 'view_hr',
   '/admin/delivery': 'view_delivery',
+  '/admin/integrations': 'manage_integrations',
   '/admin/crm': 'view_crm',
   '/admin/partners': 'view_partners',
   '/admin/locations': 'view_locations',

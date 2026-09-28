@@ -17,16 +17,29 @@ import { fetchApi } from '@/lib/api';
  * card on a dashboard fires its own /auth/me on mount - five identical
  * requests to answer one question - and they resolve out of order.
  */
-let cached: Promise<string[]> | null = null;
+type Entitlements = {
+  permissions: string[];
+  /**
+   * The restaurant's modules (its custom package's or its tier's), or null
+   * from an API too old to send them - treated as "everything", since the
+   * server still refuses what the restaurant does not have.
+   */
+  modules: string[] | null;
+};
 
-function loadPermissions(): Promise<string[]> {
+let cached: Promise<Entitlements> | null = null;
+
+function loadPermissions(): Promise<Entitlements> {
   cached ??= fetchApi('/auth/me')
-    .then((res) => (res?.all_permissions as string[]) || [])
+    .then((res) => ({
+      permissions: (res?.all_permissions as string[]) || [],
+      modules: Array.isArray(res?.modules) ? (res.modules as string[]) : null,
+    }))
     .catch(() => {
       // Not cached as a failure: a dropped request should not leave the whole
       // session convinced it has no permissions until a full reload.
       cached = null;
-      return [];
+      return { permissions: [], modules: null };
     });
 
   return cached;
@@ -41,16 +54,21 @@ export interface Permissions {
   /** False until /auth/me answers, so nothing flashes before it is known. */
   loaded: boolean;
   can: (permission: string) => boolean;
+  /**
+   * Whether the restaurant has a module. True until /auth/me answers, so a
+   * screen does not flash an option away for the restaurants that have it.
+   */
+  hasModule: (module: string) => boolean;
 }
 
 export function usePermissions(): Permissions {
-  const [permissions, setPermissions] = useState<string[] | null>(null);
+  const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    loadPermissions().then((perms) => {
-      if (active) setPermissions(perms);
+    loadPermissions().then((loaded) => {
+      if (active) setEntitlements(loaded);
     });
 
     return () => {
@@ -59,7 +77,8 @@ export function usePermissions(): Permissions {
   }, []);
 
   return {
-    loaded: permissions !== null,
-    can: (permission: string) => (permissions ?? []).includes(permission),
+    loaded: entitlements !== null,
+    can: (permission: string) => (entitlements?.permissions ?? []).includes(permission),
+    hasModule: (module: string) => entitlements?.modules == null || entitlements.modules.includes(module),
   };
 }

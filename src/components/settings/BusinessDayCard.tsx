@@ -4,6 +4,7 @@ import { Card } from '@/components/ui/Card';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { BUSINESS_TIME_KEYS, clearBrandingCache } from '@/hooks/useBranding';
+import { DEFAULT_DAY_START } from '@/lib/reportRange';
 import { Clock, Globe, CalendarDays } from 'lucide-react';
 
 interface StoredSetting {
@@ -46,7 +47,7 @@ const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frida
 export default function BusinessDayCard() {
   const [stored, setStored] = useState<StoredSetting[] | null>(null);
   const [timezone, setTimezone] = useState('');
-  const [dayStart, setDayStart] = useState('00:00');
+  const [dayStart, setDayStart] = useState(DEFAULT_DAY_START);
   const [weekStart, setWeekStart] = useState('0');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export default function BusinessDayCard() {
         setStored(rows);
         const val = (k: string) => (rows.find((r) => r.key === k)?.value ?? '').trim();
         setTimezone(val(BUSINESS_TIME_KEYS.timezone));
-        setDayStart(/^\d{1,2}:\d{2}$/.test(val(BUSINESS_TIME_KEYS.dayStart)) ? val(BUSINESS_TIME_KEYS.dayStart) : '00:00');
+        setDayStart(/^\d{1,2}:\d{2}$/.test(val(BUSINESS_TIME_KEYS.dayStart)) ? val(BUSINESS_TIME_KEYS.dayStart) : DEFAULT_DAY_START);
         setWeekStart(/^[0-6]$/.test(val(BUSINESS_TIME_KEYS.weekStart)) ? val(BUSINESS_TIME_KEYS.weekStart) : '0');
       })
       .catch((err) => setError(apiErrorMessage(err, 'Could not load business-day settings.')));
@@ -130,7 +131,7 @@ export default function BusinessDayCard() {
             type="time"
             className="input input-bordered w-full"
             value={dayStart}
-            onChange={(e) => { setDayStart(e.target.value || '00:00'); setSaved(false); }}
+            onChange={(e) => { setDayStart(e.target.value || DEFAULT_DAY_START); setSaved(false); }}
           />
           <p className="text-xs text-base-content/50 mt-1">
             e.g. set 04:00 if late-night orders should count toward the day that just ended.

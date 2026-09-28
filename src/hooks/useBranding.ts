@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
+import { DEFAULT_DAY_START } from '@/lib/reportRange';
 
 /**
  * What this restaurant is called, for anything it hands a customer.
@@ -312,7 +313,7 @@ export function useBusinessTime(): BusinessTimeSettings {
 
   const read = (key: string): string => (settings?.[key] ?? '').trim();
 
-  const dayStart = read(BUSINESS_TIME_KEYS.dayStart) || '00:00';
+  const dayStart = read(BUSINESS_TIME_KEYS.dayStart) || DEFAULT_DAY_START;
   const weekRaw = read(BUSINESS_TIME_KEYS.weekStart);
 
   return {

@@ -14,6 +14,8 @@ import { CHART, axisProps, tooltipProps } from '@/components/reporting/chartThem
 const METRIC_OPTIONS = [
   { value: 'revenue', label: 'Revenue', endpoint: '/reports/sales', extract: (d: any) => d?.summary?.collected_revenue ?? 0 },
   { value: 'gross_revenue', label: 'Gross Revenue', endpoint: '/reports/sales', extract: (d: any) => d?.summary?.gross_revenue ?? 0 },
+  { value: 'sales_revenue', label: 'Sales Revenue (excl. delivery)', endpoint: '/reports/sales', extract: (d: any) => d?.summary?.sales_revenue ?? 0 },
+  { value: 'delivery_charges', label: 'Delivery Charges', endpoint: '/reports/sales', extract: (d: any) => d?.summary?.delivery_total ?? 0 },
   { value: 'profit', label: 'Net Profit', endpoint: '/reports/profit', extract: (d: any) => d?.summary?.net_profit ?? 0 },
   { value: 'all_expenses', label: 'All Expenses', endpoint: '/reports/expenses', extract: (d: any) => d?.summary?.total_expenses ?? 0 },
   { value: 'non_inventory', label: 'Non-Inventory Expenses', endpoint: '/reports/non-inventory-expenses', extract: (d: any) => d?.summary?.total ?? 0 },

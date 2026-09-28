@@ -79,7 +79,10 @@ export default function Dashboard() {
 
       ordersData.forEach((o: any) => {
         if (o.status !== 'Cancelled' && o.status !== 'Failed') {
-          const amount = Number(o.total || 0);
+          // Sales only: delivery charges are reported apart from revenue (see
+          // Delivery -> Delivery Charges), so the dashboard agrees with the
+          // Sales and Profit reports.
+          const amount = Number(o.total || 0) - Number(o.delivery_charge || 0);
           
           const rawDate = new Date(o.created_at);
           const dhakaOrderDate = new Date(rawDate.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
