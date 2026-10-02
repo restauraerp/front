@@ -18,7 +18,7 @@ import { storageUrl } from '@/lib/site/types';
 import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
 import { PALETTE_BY_KEY, colorsOf } from '@/lib/site/palettes';
 import { familyCss, googleFontsUrl, type FontCatalog } from '@/lib/site/fonts';
-import { ColourBrowser, FontBrowser, PaletteSwatch } from './ThemeBrowsers';
+import { ColourBrowser, FontBrowser, PaletteSwatch, StarterBrowser, type Starter } from './ThemeBrowsers';
 import { Modal, useDialogs } from '@/components/ui/Dialogs';
 
 /**
@@ -134,6 +134,7 @@ export default function SiteBuilderPage() {
   const [site, setSite] = useState<SiteStatus | null>(null);
   const [standardPages, setStandardPages] = useState<StandardPage[]>([]);
   const [modal, setModal] = useState<'publish' | 'add-page' | 'versions' | null>(null);
+  const [starters, setStarters] = useState<Starter[] | null>(null);
   const { confirm, dialog } = useDialogs();
   const [templates, setTemplates] = useState<Record<string, { label: string; description: string; sections: Section[] }> | null>(null);
   const [dragging, setDragging] = useState<{ kind: 'palette' | 'section'; label: string } | null>(null);
@@ -576,6 +577,39 @@ export default function SiteBuilderPage() {
     if (page) openPage(page);
   };
 
+  const openStarters = async () => {
+    setError(null);
+    try {
+      setStarters((await fetchApi('/site-builder/starters')).starters);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not load the starter sites.'));
+    }
+  };
+
+  /** Replaces the whole draft site with a starter. The live site waits for Publish website. */
+  const applyStarter = async (starter: Starter) => {
+    if (!(await confirm({
+      title: `Start from "${starter.name}"?`,
+      message: 'Every page, the colours and fonts in the editor are replaced. Changes you have not published are lost. Your live website does not change until you publish, and earlier versions stay in History.',
+      action: 'Replace my draft site',
+    }))) return;
+    setBusy('pages'); setError(null);
+    try {
+      const res = await fetchApi(`/site-builder/starters/${starter.key}`, { method: 'POST' });
+      applyWorkspace(res);
+      setTheme(res.theme);
+      setSavedTheme(res.theme);
+      const home = (res.pages as PageRow[]).find((p) => p.is_home) ?? res.pages[0];
+      if (home) openPage(home);
+      setStarters(null);
+      setNotice(`"${starter.name}" is in the editor with your menu and photos. Change anything you like, then publish the website.`);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not apply the starter site.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
   /** Puts the live site back to (or forward to) a version. Drafts are untouched. */
   const makeLive = async (version: Version) => {
     if (!(await confirm({
@@ -644,6 +678,7 @@ export default function SiteBuilderPage() {
         </div>
         <button className="btn btn-sm btn-ghost btn-square" onClick={undo} disabled={!history.past.length} title="Undo"><Undo2 size={16} /></button>
         <button className="btn btn-sm btn-ghost btn-square" onClick={redo} disabled={!history.future.length} title="Redo"><Redo2 size={16} /></button>
+        <button className="btn btn-sm btn-ghost" onClick={openStarters}><Sparkles size={14} /> Starter sites</button>
         <button className="btn btn-sm btn-ghost" onClick={() => setModal('versions')}><History size={14} /> History</button>
         <a className="btn btn-sm btn-ghost" href={viewUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> View live</a>
         <button className="btn btn-sm btn-outline" onClick={handleSave} disabled={!dirty || busy !== null}>
@@ -863,6 +898,16 @@ export default function SiteBuilderPage() {
       )}
       {modal === 'versions' && (
         <VersionsModal onMakeLive={makeLive} onEdit={async (v) => { if (await editVersion(v)) setModal(null); }} onError={setError} onClose={() => setModal(null)} />
+      )}
+      {starters && (
+        <StarterBrowser
+          starters={starters}
+          catalog={fontCatalog}
+          labels={Object.fromEntries(Object.entries(defs).map(([k, d]) => [k, d.label]))}
+          busy={busy === 'pages'}
+          onPick={applyStarter}
+          onClose={() => setStarters(null)}
+        />
       )}
       {dialog}
 

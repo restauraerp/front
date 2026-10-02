@@ -173,3 +173,68 @@ export function FontBrowser({ theme, catalog, onPick, onClose }: {
     </Modal>
   );
 }
+
+export type Starter = {
+  key: string;
+  name: string;
+  description: string;
+  tags: string[];
+  theme: SiteTheme;
+  pages: string[];
+  home: string[];
+};
+
+/** Whole starter websites: pick one to replace the draft site (after a confirm, in the caller). */
+export function StarterBrowser({ starters, catalog, labels, busy, onPick, onClose }: {
+  starters: Starter[];
+  catalog: FontCatalog;
+  labels: Record<string, string>;
+  busy: boolean;
+  onPick: (starter: Starter) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = starters.filter((s) => {
+    const hay = `${s.name} ${s.description} ${s.tags.join(' ')}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
+  const face = (n?: string): FontFace => ({ name: n ?? 'Inter', category: catalog[n ?? '']?.category ?? 'sans-serif', weights: catalog[n ?? '']?.weights ?? '400' });
+
+  return (
+    <Modal onClose={onClose} wide>
+      <FontLoader names={starters.flatMap((s) => [s.theme.heading_font ?? '', s.theme.body_font ?? ''])} catalog={catalog} />
+      <div className="space-y-3">
+        <h3 className="font-semibold text-lg">Start from a starter site</h3>
+        <p className="text-sm text-base-content/70">
+          A whole website - colours, fonts and pages - filled with your menu, photos, branches and reviews. It replaces what is in the editor; your live site does not change until you publish.
+        </p>
+        <label className="input input-sm input-bordered flex items-center gap-2 w-full">
+          <Search size={14} className="opacity-50" />
+          <input className="grow" placeholder="Search: biryani, cafe, pizza, delivery…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </label>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1">
+          {shown.map((s) => {
+            const colors = colorsOf(s.theme);
+            const v = paletteVars(colors);
+            return (
+              <button key={s.key} type="button" disabled={busy} onClick={() => onPick(s)}
+                      className="text-left rounded-xl border border-base-300 hover:border-primary overflow-hidden disabled:opacity-50">
+                <div className="p-4" style={{ background: colors.neutral, color: v['--color-neutral-content'] }}>
+                  <div className="text-xl leading-tight" style={{ fontFamily: familyCss(face(s.theme.heading_font)) }}>{s.name}</div>
+                  <div className="text-xs mt-1 opacity-80" style={{ fontFamily: familyCss(face(s.theme.body_font)) }}>{s.theme.heading_font} &amp; {s.theme.body_font}</div>
+                  <span className="inline-block mt-3 rounded px-2 py-1 text-xs" style={{ background: colors.primary, color: v['--color-primary-content'] }}>Order now</span>
+                </div>
+                <div className="p-3 space-y-1.5" style={{ background: colors.base, color: v['--color-base-content'] }}>
+                  <p className="text-xs opacity-80">{s.description}</p>
+                  <p className="text-[11px] opacity-60">{s.pages.length} pages: {s.pages.join(', ')}</p>
+                  <p className="text-[11px] opacity-60">Home: {s.home.map((t) => labels[t] ?? t).join(' · ')}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </Modal>
+  );
+}
