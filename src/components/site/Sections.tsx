@@ -2,7 +2,8 @@ import React from 'react';
 import { MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart } from 'lucide-react';
 import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
-import { themeStyle, type SiteTheme } from '@/lib/site/themes';
+import { themeStyle, type SiteFonts, type SiteTheme } from '@/lib/site/themes';
+import { googleFontsUrl } from '@/lib/site/fonts';
 import ReservationForm from './ReservationForm';
 import SiteMap from './SiteMap';
 import OnlineOrder from '@/app/order/[slug]/OnlineOrder';
@@ -430,10 +431,12 @@ export function SiteSection({ section, ctx }: { section: Section; ctx: SiteConte
 }
 
 /** The site's header and footer around a page's sections. */
-export function SiteFrame({ ctx, pages, theme, current, children }: {
+export function SiteFrame({ ctx, pages, theme, fonts, current, children }: {
   ctx: SiteContext;
   pages: SiteNavPage[];
   theme?: SiteTheme | null;
+  /** The theme's fonts with their categories; without, they are guessed as sans-serif. */
+  fonts?: SiteFonts | null;
   /** The slug of the page being shown ('' for home), to mark it in the menu. */
   current?: string;
   children: React.ReactNode;
@@ -444,9 +447,12 @@ export function SiteFrame({ ctx, pages, theme, current, children }: {
   // The header's Order online button already goes to the ordering page.
   const links = pages.length > 1 ? pages.filter((p) => !(orderButton && p.kind === 'order')) : [];
   const linkClass = (p: SiteNavPage) => (p.slug === current ? 'font-semibold text-primary' : '');
+  const fontsUrl = googleFontsUrl(fonts ? [fonts.heading, fonts.body] : [theme?.heading_font, theme?.body_font].filter((n): n is string => !!n).map((name) => ({ name, category: 'sans-serif', weights: '400' })));
 
   return (
-    <div className="min-h-screen flex flex-col bg-base-100 text-base-content" style={themeStyle(theme)}>
+    <div data-site-theme className="min-h-screen flex flex-col bg-base-100 text-base-content" style={themeStyle(theme, fonts)}>
+      {/* React hoists this into <head>, once, wherever it is rendered. */}
+      {fontsUrl && <link rel="stylesheet" href={fontsUrl} precedence="default" />}
       <header className="sticky top-0 z-30 bg-base-100/95 backdrop-blur border-b border-base-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
           <a href={href('')} className="flex items-center gap-2 min-w-0">

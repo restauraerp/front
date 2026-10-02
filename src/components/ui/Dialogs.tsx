@@ -1,5 +1,6 @@
 'use client';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { X } from 'lucide-react';
 
 /**
  * Styled replacements for the browser's confirm(), prompt() and alert(),
@@ -116,3 +117,20 @@ function DialogView({ request, onDone }: { request: Request; onDone: () => void 
     </dialog>
   );
 }
+
+/** A daisyUI modal, open while it is rendered. Escape and the backdrop close it. */
+export function Modal({ onClose, wide, children }: { onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+
+  return (
+    <dialog ref={ref} className="modal" onClose={onClose}>
+      <div className={`modal-box ${wide ? 'max-w-3xl' : ''}`}>
+        <button className="btn btn-sm btn-ghost btn-square absolute right-3 top-3" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        {children}
+      </div>
+      <form method="dialog" className="modal-backdrop"><button aria-label="Close">close</button></form>
+    </dialog>
+  );
+}
+

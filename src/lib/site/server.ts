@@ -1,5 +1,5 @@
 import type { Section, SiteMenuData, SiteNavPage, SiteRestaurant, SiteReview, SiteSocialLink } from './types';
-import type { SiteTheme } from './themes';
+import type { SiteFonts, SiteTheme } from './themes';
 import type { SiteTags } from './track';
 
 /**
@@ -15,6 +15,7 @@ const API = `${(process.env.API_INTERNAL_URL || 'http://127.0.0.1:8029').replace
 export interface SitePageData {
   restaurant: SiteRestaurant;
   theme: SiteTheme;
+  fonts: SiteFonts;
   /** The restaurant's measurement tags (Site builder > Integrations). */
   tracking: SiteTags | null;
   /** The live version's number; null for a site never published. */

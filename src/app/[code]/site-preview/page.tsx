@@ -8,7 +8,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { SiteFrame, SiteSection } from '@/components/site/Sections';
 import type { Section, SiteContext, SiteNavPage } from '@/lib/site/types';
-import type { SiteTheme } from '@/lib/site/themes';
+import type { SiteFonts, SiteTheme } from '@/lib/site/themes';
 
 /**
  * The site builder's preview, inside the editor's iframe.
@@ -34,6 +34,7 @@ type PreviewState = {
   /** The page being edited, to mark it in the menu. */
   current: string;
   theme: SiteTheme;
+  fonts: SiteFonts;
   sections: Section[];
   selectedId: string | null;
   labels: Record<string, string>;
@@ -90,7 +91,7 @@ export default function SitePreviewPage() {
 
   return (
     <div onClickCapture={(e) => { if ((e.target as HTMLElement).closest('a')) e.preventDefault(); }}>
-      <SiteFrame ctx={ctx} pages={state.pages} theme={state.theme} current={state.current}>
+      <SiteFrame ctx={ctx} pages={state.pages} theme={state.theme} fonts={state.fonts} current={state.current}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={state.sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             {state.sections.map((s, i) => (

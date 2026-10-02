@@ -1,60 +1,48 @@
 import type React from 'react';
+import { colorsOf, paletteVars, type PaletteColors } from './palettes';
+import { familyCss, type FontFace } from './fonts';
 
 /**
- * The site builder's palettes and type styles.
+ * A site's theme as core-api stores it (App\Support\Site\SiteTheme), and the
+ * style that applies it.
  *
- * core-api only stores the names (SiteSections::PALETTES / FONTS); the colours
- * live here. A palette overrides the daisyUI theme variables on the site's
- * outer element, so every section - and every daisyUI class inside it - picks
- * the colours up with no per-component work.
+ * Colours become daisyUI's theme variables on the site's outer element, so
+ * every section - and every daisyUI class inside it - picks them up with no
+ * per-component work. Fonts become two variables: the body font on the
+ * element itself, the heading font for h1-h4 (globals.css, [data-site-theme]).
  */
-export const PALETTES: Record<string, { label: string; vars: Record<string, string> }> = {
-  emerald: {
-    label: 'Emerald',
-    vars: { '--color-primary': '#0F6E5C', '--color-primary-content': '#FFFFFF', '--color-neutral': '#1A1D1F', '--color-neutral-content': '#FAFAF8', '--color-base-200': '#F2F5F4' },
-  },
-  saffron: {
-    label: 'Saffron',
-    vars: { '--color-primary': '#D97706', '--color-primary-content': '#FFFFFF', '--color-neutral': '#3B2414', '--color-neutral-content': '#FFF7ED', '--color-base-200': '#FFF4E5' },
-  },
-  crimson: {
-    label: 'Crimson',
-    vars: { '--color-primary': '#B91C1C', '--color-primary-content': '#FFFFFF', '--color-neutral': '#2A1215', '--color-neutral-content': '#FEF2F2', '--color-base-200': '#FBEFEF' },
-  },
-  ocean: {
-    label: 'Ocean',
-    vars: { '--color-primary': '#1D4ED8', '--color-primary-content': '#FFFFFF', '--color-neutral': '#0F1A2E', '--color-neutral-content': '#EFF6FF', '--color-base-200': '#EEF3FB' },
-  },
-  charcoal: {
-    label: 'Charcoal & gold',
-    vars: { '--color-primary': '#B08D3C', '--color-primary-content': '#111111', '--color-neutral': '#111111', '--color-neutral-content': '#F5F1E8', '--color-base-200': '#F3EFE6' },
-  },
-};
-
-/** The root layout already loads Inter, Poppins and Hind Siliguri as CSS variables. */
-export const FONTS: Record<string, { label: string; family: string }> = {
-  modern: { label: 'Modern', family: 'var(--font-inter), system-ui, sans-serif' },
-  rounded: { label: 'Rounded', family: 'var(--font-poppins), system-ui, sans-serif' },
-  classic: { label: 'Classic', family: 'Georgia, "Times New Roman", serif' },
-  bangla: { label: 'Bangla', family: 'var(--font-hind-siliguri), var(--font-inter), sans-serif' },
-};
-
-/** Site-wide settings: the theme, and the header and footer every page shares. */
 export interface SiteTheme {
   palette: string;
-  font: string;
+  colors?: PaletteColors | null;
+  heading_font?: string;
+  body_font?: string;
   header_order_button?: boolean;
   footer_social?: boolean;
   footer_text?: string;
 }
 
+export interface SiteFonts {
+  heading: FontFace;
+  body: FontFace;
+}
+
 export const DEFAULT_THEME: SiteTheme = {
-  palette: 'emerald', font: 'modern', header_order_button: true, footer_social: true, footer_text: '',
+  palette: 'emerald', colors: null, heading_font: 'Inter', body_font: 'Inter', header_order_button: true, footer_social: true, footer_text: '',
 };
 
+/** Faces for a theme when the categories are not known (they only steer the fallback). */
+export function facesOf(theme: SiteTheme | null | undefined, catalog?: Record<string, { category: string; weights: string }>): SiteFonts {
+  const face = (name: string): FontFace => ({ name, category: catalog?.[name]?.category ?? 'sans-serif', weights: catalog?.[name]?.weights ?? '400;700' });
+  return { heading: face(theme?.heading_font || 'Inter'), body: face(theme?.body_font || 'Inter') };
+}
+
 /** The style to put on the site's outer element. */
-export function themeStyle(theme: SiteTheme | null | undefined): React.CSSProperties {
-  const palette = PALETTES[theme?.palette ?? ''] ?? PALETTES.emerald;
-  const font = FONTS[theme?.font ?? ''] ?? FONTS.modern;
-  return { ...palette.vars, fontFamily: font.family } as React.CSSProperties;
+export function themeStyle(theme: SiteTheme | null | undefined, fonts?: SiteFonts | null): React.CSSProperties {
+  const faces = fonts ?? facesOf(theme);
+  return {
+    ...paletteVars(colorsOf(theme)),
+    '--site-heading-font': familyCss(faces.heading),
+    '--site-body-font': familyCss(faces.body),
+    fontFamily: 'var(--site-body-font)',
+  } as React.CSSProperties;
 }

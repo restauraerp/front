@@ -84,7 +84,7 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
   return (
     <>
     <SiteTracking tags={data.tracking} />
-    <SiteFrame ctx={ctx} theme={data.theme} current={(slug ?? [])[0] ?? ''} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
+    <SiteFrame ctx={ctx} theme={data.theme} fonts={data.fonts} current={(slug ?? [])[0] ?? ''} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
       {data.page.sections.map((section) => (
         <SiteSection key={section.id} section={section} ctx={ctx} />
       ))}

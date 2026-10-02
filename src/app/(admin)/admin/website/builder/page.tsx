@@ -15,8 +15,11 @@ import type {
   ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteSocialLink,
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
-import { FONTS, PALETTES, DEFAULT_THEME, type SiteTheme } from '@/lib/site/themes';
-import { useDialogs } from '@/components/ui/Dialogs';
+import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
+import { PALETTE_BY_KEY, colorsOf } from '@/lib/site/palettes';
+import { familyCss, googleFontsUrl, type FontCatalog } from '@/lib/site/fonts';
+import { ColourBrowser, FontBrowser, PaletteSwatch } from './ThemeBrowsers';
+import { Modal, useDialogs } from '@/components/ui/Dialogs';
 
 /**
  * The in-house site builder.
@@ -111,6 +114,7 @@ const metaOf = (p: PageRow): PageMeta => ({
 
 export default function SiteBuilderPage() {
   const [defs, setDefs] = useState<Record<string, ComponentDefinition> | null>(null);
+  const [fontCatalog, setFontCatalog] = useState<FontCatalog>({});
   const [pages, setPages] = useState<PageRow[]>([]);
   const [siteCode, setSiteCode] = useState('');
   const [currentId, setCurrentId] = useState<number | null>(null);
@@ -172,6 +176,7 @@ export default function SiteBuilderPage() {
         const [components, list] = await Promise.all([fetchApi('/site-builder/components'), fetchApi('/site-pages')]);
         if (!active) return;
         setDefs(components.components);
+        setFontCatalog(components.fonts ?? {});
         setTheme(components.theme);
         setSavedTheme(components.theme);
         applyWorkspace(list);
@@ -225,6 +230,7 @@ export default function SiteBuilderPage() {
       state: {
         ctx,
         theme,
+        fonts: facesOf(theme, fontCatalog),
         sections,
         selectedId,
         // The draft site's navigation - what it will be once published.
@@ -234,7 +240,7 @@ export default function SiteBuilderPage() {
         marker,
       },
     }, window.location.origin);
-  }, [previewReady, ctx, defs, theme, sections, selectedId, pages, marker, current]);
+  }, [previewReady, ctx, defs, theme, fontCatalog, sections, selectedId, pages, marker, current]);
 
   // ---- Editing ----------------------------------------------------------------
   /** Every section edit goes through here, so it can be undone. */
@@ -802,7 +808,7 @@ export default function SiteBuilderPage() {
                 </>
               ) : (
                 <>
-                  <ThemePanel theme={theme} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
+                  <ThemePanel theme={theme} catalog={fontCatalog} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
                   <DomainPanel onError={setError} />
                   <IntegrationsPanel onError={setError} onSaved={setNotice} />
                 </>
@@ -869,22 +875,6 @@ export default function SiteBuilderPage() {
       </DragOverlay>
       </DndContext>
     </div>
-  );
-}
-
-/** A daisyUI modal, open while it is rendered. Escape and the backdrop close it. */
-function Modal({ onClose, wide, children }: { onClose: () => void; wide?: boolean; children: React.ReactNode }) {
-  const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => { ref.current?.showModal(); }, []);
-
-  return (
-    <dialog ref={ref} className="modal" onClose={onClose}>
-      <div className={`modal-box ${wide ? 'max-w-2xl' : ''}`}>
-        <button className="btn btn-sm btn-ghost btn-square absolute right-3 top-3" onClick={onClose} aria-label="Close"><X size={16} /></button>
-        {children}
-      </div>
-      <form method="dialog" className="modal-backdrop"><button aria-label="Close">close</button></form>
-    </dialog>
   );
 }
 
@@ -1368,42 +1358,41 @@ function DomainPanel({ onError }: { onError: (message: string) => void }) {
   );
 }
 
-/** Site-wide colours, type, header and footer - a draft like the pages, live on Publish website. */
-function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
+/** Site-wide colours, fonts, header and footer - a draft like the pages, live on Publish website. */
+function ThemePanel({ theme, catalog, dirty, saving, onChange, onSave }: {
   theme: SiteTheme;
+  catalog: FontCatalog;
   dirty: boolean;
   saving: boolean;
   onChange: (theme: SiteTheme) => void;
   onSave: () => void;
 }) {
+  const [open, setOpen] = useState<'colours' | 'fonts' | null>(null);
+  const colors = colorsOf(theme);
+  const paletteName = theme.colors && theme.palette === 'custom' ? 'Your own colours' : PALETTE_BY_KEY[theme.palette]?.name ?? 'Custom';
+  const faces = facesOf(theme, catalog);
+  const fontsUrl = googleFontsUrl([faces.heading, faces.body]);
+
   return (
     <div className="space-y-4">
+      {fontsUrl && <link rel="stylesheet" href={fontsUrl} precedence="default" />}
       <div>
         <span className="label-text text-xs font-medium mb-2 block">Colours</span>
-        <div className="grid grid-cols-1 gap-2">
-          {Object.entries(PALETTES).map(([key, p]) => (
-            <button key={key} type="button" onClick={() => onChange({ ...theme, palette: key })}
-                    className={`flex items-center gap-3 rounded-lg border p-2 text-sm text-left ${theme.palette === key ? 'border-primary ring-1 ring-primary' : 'border-base-300 hover:border-base-content/30'}`}>
-              <span className="flex">
-                {['--color-primary', '--color-neutral', '--color-base-200'].map((v) => (
-                  <span key={v} className="w-5 h-5 rounded-full border border-black/10 -ml-1 first:ml-0" style={{ background: p.vars[v] }} />
-                ))}
-              </span>
-              {p.label}
-            </button>
-          ))}
-        </div>
+        <button type="button" onClick={() => setOpen('colours')} className="w-full flex items-center gap-3 rounded-lg border border-base-300 hover:border-primary p-2 text-left">
+          <PaletteSwatch colors={colors} className="w-16 h-12 shrink-0" />
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium truncate">{paletteName}</span>
+            <span className="block text-xs text-primary">Browse or build from your colour</span>
+          </span>
+        </button>
       </div>
       <div>
-        <span className="label-text text-xs font-medium mb-2 block">Type</span>
-        <div className="grid grid-cols-2 gap-2">
-          {Object.entries(FONTS).map(([key, f]) => (
-            <button key={key} type="button" onClick={() => onChange({ ...theme, font: key })} style={{ fontFamily: f.family }}
-                    className={`rounded-lg border p-2 text-sm ${theme.font === key ? 'border-primary ring-1 ring-primary' : 'border-base-300 hover:border-base-content/30'}`}>
-              {f.label} <span className="opacity-60">Aa</span>
-            </button>
-          ))}
-        </div>
+        <span className="label-text text-xs font-medium mb-2 block">Fonts</span>
+        <button type="button" onClick={() => setOpen('fonts')} className="w-full rounded-lg border border-base-300 hover:border-primary p-3 text-left">
+          <span className="block text-lg leading-tight" style={{ fontFamily: familyCss(faces.heading) }}>{faces.heading.name}</span>
+          <span className="block text-sm text-base-content/70" style={{ fontFamily: familyCss(faces.body) }}>Body text in {faces.body.name}</span>
+          <span className="block text-xs text-primary mt-1">Search fonts and pairs</span>
+        </button>
       </div>
       <div className="space-y-2">
         <span className="label-text text-xs font-medium block">Header and footer</span>
@@ -1422,6 +1411,13 @@ function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
         {saving ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save site settings
       </button>
       <p className="text-xs text-base-content/50">Saved as a draft for every page. Visitors see them when you publish the website.</p>
+
+      {open === 'colours' && (
+        <ColourBrowser theme={theme} onClose={() => setOpen(null)} onPick={(palette, c) => onChange({ ...theme, palette, colors: c })} />
+      )}
+      {open === 'fonts' && (
+        <FontBrowser theme={theme} catalog={catalog} onClose={() => setOpen(null)} onPick={(heading, body) => onChange({ ...theme, heading_font: heading, body_font: body })} />
+      )}
     </div>
   );
 }
