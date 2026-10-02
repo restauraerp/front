@@ -8,7 +8,56 @@ import {
   isAffirmative,
 } from '@/lib/devTraffic';
 
+/**
+ * Subdomains that are never a restaurant's site: our own apps live there.
+ */
+const RESERVED_SUBDOMAINS = new Set(['www', 'app', 'api', 'admin', 'mail', 'demo', 'staging', 'dev']);
+
+/**
+ * Paths a restaurant's subdomain passes through untouched: online ordering,
+ * and the API and storage rewrites in next.config.ts.
+ */
+const SITE_PASSTHROUGH = ['/order/', '/api/', '/storage/', '/_next/'];
+
+/**
+ * The restaurant a request's host names - `{code}.{SITE_BASE_DOMAIN}` - or
+ * null. SITE_BASE_DOMAIN is the domain restaurant sites hang off: restauraerp.com
+ * in production, `localhost` by default so `{code}.localhost:3029` works in
+ * development with no setup (browsers resolve *.localhost to this machine).
+ */
+function siteCodeFromHost(request: NextRequest): string | null {
+  const base = (process.env.SITE_BASE_DOMAIN || (process.env.NODE_ENV === 'production' ? '' : 'localhost')).toLowerCase();
+  if (!base) return null;
+
+  const host = (request.headers.get('host') || '').toLowerCase().replace(/:\d+$/, '');
+  if (!host.endsWith(`.${base}`)) return null;
+
+  const sub = host.slice(0, -(base.length + 1));
+  if (!sub || sub.includes('.') || RESERVED_SUBDOMAINS.has(sub)) return null;
+
+  return /^[a-z0-9-]{1,64}$/.test(sub) ? sub : null;
+}
+
 export function proxy(request: NextRequest) {
+  // A restaurant's own subdomain: serve its site. Everything under it is the
+  // site except the passthrough paths; /admin and the rest of the app are not
+  // reachable on a restaurant's domain.
+  const siteCode = siteCodeFromHost(request);
+  if (siteCode) {
+    const path = request.nextUrl.pathname;
+
+    if (!SITE_PASSTHROUGH.some((prefix) => path.startsWith(prefix))) {
+      const target = request.nextUrl.clone();
+      target.pathname = `/${siteCode}/site${path === '/' ? '' : path}`;
+
+      const headers = new Headers(request.headers);
+      // Tells the page its links start at '/', not '/{code}/site'.
+      headers.set('x-site-base', '');
+
+      return NextResponse.rewrite(target, { request: { headers } });
+    }
+  }
+
   const token = request.cookies.get('token')?.value;
   const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
   // /login/one-time must run even when the user already has a token: it is the

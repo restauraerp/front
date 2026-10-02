@@ -431,9 +431,13 @@ export default function WebsiteManagementPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Website Management</h1>
-        <p className="text-sm text-base-content/50 mt-1">Manage all public-facing content, branding, and social presence.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Website Management</h1>
+          <p className="text-sm text-base-content/50 mt-1">Manage all public-facing content, branding, and social presence.</p>
+        </div>
+        {/* The drag-and-drop builder for the restaurant's own site. */}
+        <Link href="/admin/website/builder" className="btn btn-primary btn-sm">Open site builder</Link>
       </div>
 
       {/* Tabs */}
