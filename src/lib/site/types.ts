@@ -61,6 +61,17 @@ export interface SiteReview {
   author: string | null;
   rating: number;
   text: string | null;
+  photo?: string | null;
+  time?: string | null;
+  source?: string;
+}
+
+/** The overall rating: Google's own when the profile is connected. */
+export interface SiteReviewSummary {
+  rating: number | null;
+  total: number;
+  write_review_url: string | null;
+  google_url: string | null;
 }
 
 export interface SiteSocialLink {
@@ -72,6 +83,7 @@ export interface SiteContext {
   restaurant: SiteRestaurant;
   menu: SiteMenuData | null;
   reviews: SiteReview[];
+  reviewSummary?: SiteReviewSummary | null;
   social: SiteSocialLink[];
   /** In the editor's preview: forms do not submit and links do not navigate. */
   preview?: boolean;

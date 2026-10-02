@@ -261,24 +261,73 @@ function Featured({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   );
 }
 
+function Stars({ rating, size = 16 }: { rating: number; size?: number }) {
+  return (
+    <span className="inline-flex gap-0.5 text-warning" aria-label={`${rating} out of 5`}>
+      {Array.from({ length: 5 }, (_, n) => <Star key={n} size={size} fill={n < Math.round(rating) ? 'currentColor' : 'none'} />)}
+    </span>
+  );
+}
+
+/**
+ * Reviews, chosen by the section's settings: how many, in what order, from
+ * how many stars, only written ones - and optionally the overall rating, the
+ * total, dates and a "Review us on Google" button. A setting missing from a
+ * section saved before it existed keeps the old behaviour.
+ */
 function Reviews({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
-  const reviews = ctx.reviews.slice(0, Number(str(props, 'count')) || 3);
-  if (reviews.length === 0) return <EmptyHint ctx={ctx} label="Reviews" hint="Choose reviews to show in Website > Reviews." />;
+  const min = Number(str(props, 'min_rating')) || 1;
+  const count = Number(str(props, 'count')) || 3;
+  const reviews = ctx.reviews
+    .filter((r) => r.rating >= min && (!on(props, 'with_text') || !!r.text?.trim()))
+    .sort((a, b) => (str(props, 'sort') === 'highest' ? b.rating - a.rating : 0) || (b.time ?? '').localeCompare(a.time ?? ''))
+    .slice(0, count);
+  const summary = ctx.reviewSummary;
+  const showRating = on(props, 'show_rating') && summary?.rating != null;
+  const showTotal = on(props, 'show_total') && !!summary?.total;
+  const link = on(props, 'show_link') ? summary?.write_review_url ?? summary?.google_url : null;
+
+  if (reviews.length === 0 && !showRating) {
+    return <EmptyHint ctx={ctx} label="Reviews" hint="No reviews match these settings yet. Connect Google in Site > Reviews, or add them in Website > Reviews." />;
+  }
 
   return (
     <Shell props={props}>
       <Heading text={str(props, 'heading')} />
+      {(showRating || showTotal) && (
+        <div className="flex flex-col items-center gap-1 -mt-4 mb-8">
+          {showRating && (
+            <div className="flex items-center gap-2">
+              <span className="text-3xl font-bold">{summary!.rating!.toFixed(1)}</span>
+              <Stars rating={summary!.rating!} size={20} />
+            </div>
+          )}
+          {showTotal && <span className="text-sm opacity-70">Based on {summary!.total.toLocaleString('en-US')} Google review{summary!.total === 1 ? '' : 's'}</span>}
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {reviews.map((r, i) => (
           <figure key={i} className="rounded-2xl bg-base-100 text-base-content p-5 shadow-sm">
-            <div className="flex gap-0.5 text-warning" aria-label={`${r.rating} out of 5`}>
-              {Array.from({ length: 5 }, (_, n) => <Star key={n} size={16} fill={n < r.rating ? 'currentColor' : 'none'} />)}
-            </div>
+            <Stars rating={r.rating} />
             {r.text && <blockquote className="mt-3 text-sm leading-relaxed opacity-90 line-clamp-6">{r.text}</blockquote>}
-            {r.author && <figcaption className="mt-3 text-sm font-semibold">{r.author}</figcaption>}
+            <figcaption className="mt-3 flex items-center gap-2 text-sm">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {r.photo && <img src={r.photo} alt="" className="w-7 h-7 rounded-full" referrerPolicy="no-referrer" />}
+              <span>
+                {r.author && <span className="font-semibold block">{r.author}</span>}
+                {on(props, 'show_dates') && r.time && (
+                  <span className="text-xs opacity-60">{new Date(r.time).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                )}
+              </span>
+            </figcaption>
           </figure>
         ))}
       </div>
+      {link && (
+        <div className="text-center mt-8">
+          <a href={link} target="_blank" rel="noopener noreferrer" className="btn btn-outline gap-2"><Star size={16} /> Review us on Google</a>
+        </div>
+      )}
     </Shell>
   );
 }

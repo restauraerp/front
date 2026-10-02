@@ -8,11 +8,11 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3, Star,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
-  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteSocialLink,
+  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink,
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
@@ -125,6 +125,7 @@ export default function SiteBuilderPage() {
   const [menu, setMenu] = useState<SiteMenuData | null>(null);
   const [restaurant, setRestaurant] = useState<SiteRestaurant | null>(null);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
+  const [reviewSummary, setReviewSummary] = useState<SiteReviewSummary | null>(null);
   const [social, setSocial] = useState<SiteSocialLink[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
@@ -196,8 +197,16 @@ export default function SiteBuilderPage() {
             code: data.restaurant.code, name: data.restaurant.name, logo_url: data.restaurant.logo_url,
             phone: data.restaurant.phone, email: null, address: data.restaurant.address, currency: data.restaurant.currency,
           });
-          const reviewList = (reviewRows?.data ?? reviewRows ?? []) as { author_name: string; rating: number; text: string; is_displayed: boolean | number }[];
-          setReviews(reviewList.filter((r) => r.is_displayed).map((r) => ({ author: r.author_name, rating: Number(r.rating), text: r.text })));
+          const reviewList = (reviewRows?.data ?? reviewRows ?? []) as { author_name: string; rating: number; text: string; time: string | null; author_photo_url?: string | null; is_displayed: boolean | number }[];
+          setReviews(reviewList.filter((r) => r.is_displayed).map((r) => ({ author: r.author_name, rating: Number(r.rating), text: r.text, time: r.time, photo: r.author_photo_url })));
+          // The same overall rating visitors see: Google's when connected,
+          // else worked out from every stored review.
+          const rated = reviewList.filter((r) => r.rating);
+          const google = await fetchApi('/site-builder/google').catch(() => null);
+          if (!active) return;
+          setReviewSummary(google?.average_rating != null
+            ? { rating: Math.round(google.average_rating * 10) / 10, total: google.total_reviews ?? 0, write_review_url: null, google_url: null }
+            : { rating: rated.length ? Math.round((rated.reduce((a, r) => a + Number(r.rating), 0) / rated.length) * 10) / 10 : null, total: rated.length, write_review_url: null, google_url: null });
           const linkList = (linkRows?.data ?? linkRows ?? []) as { platform: string; url: string; is_active: boolean | number }[];
           setSocial(linkList.filter((l) => l.is_active && /^https?:\/\//i.test(l.url ?? '')).map((l) => ({ platform: (l.platform ?? '').toLowerCase(), url: l.url })));
         }
@@ -210,8 +219,8 @@ export default function SiteBuilderPage() {
 
   const siteBase = siteCode ? `/${siteCode}/site` : '';
   const ctx: SiteContext | null = useMemo(() => restaurant && ({
-    restaurant, menu, reviews, social, basePath: siteBase, orderUrl: `/order/${siteCode}`,
-  }), [restaurant, menu, reviews, social, siteBase, siteCode]);
+    restaurant, menu, reviews, reviewSummary, social, basePath: siteBase, orderUrl: `/order/${siteCode}`,
+  }), [restaurant, menu, reviews, reviewSummary, social, siteBase, siteCode]);
 
   // ---- Preview iframe --------------------------------------------------------
   useEffect(() => {
@@ -845,6 +854,7 @@ export default function SiteBuilderPage() {
                 <>
                   <ThemePanel theme={theme} catalog={fontCatalog} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
                   <DomainPanel onError={setError} />
+                  <GooglePanel onError={setError} onSaved={setNotice} />
                   <IntegrationsPanel onError={setError} onSaved={setNotice} />
                 </>
               )}
@@ -1220,6 +1230,123 @@ function PagePanel({ meta, isHome, siteBase, onChange, onError }: {
         </div>
         <p className="text-xs text-base-content/50 mt-1">Shown when the page is shared on Facebook or WhatsApp. Your logo is used if empty.</p>
       </div>
+    </div>
+  );
+}
+
+type GoogleStatus = {
+  available: boolean;
+  connected: boolean;
+  google_email: string | null;
+  location: string | null;
+  location_title: string | null;
+  average_rating: number | null;
+  total_reviews: number | null;
+  synced_at: string | null;
+  last_error: string | null;
+};
+
+/**
+ * Google Business Profile: connect (Google's own sign-in, then back here),
+ * pick which profile, and its reviews and rating keep themselves up to date.
+ */
+function GooglePanel({ onError, onSaved }: { onError: (message: string) => void; onSaved: (message: string) => void }) {
+  const [status, setStatus] = useState<GoogleStatus | null>(null);
+  const [locations, setLocations] = useState<{ location: string; title: string; address: string }[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useDialogs();
+
+  const loadLocations = useCallback(async () => {
+    try {
+      setLocations((await fetchApi('/site-builder/google/locations')).locations);
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Could not read your Google profiles.'));
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    let active = true;
+    fetchApi('/site-builder/google').then((res: GoogleStatus) => {
+      if (!active) return;
+      setStatus(res);
+      // Just back from Google's sign-in: say how it went, then pick a profile.
+      const result = new URLSearchParams(window.location.search).get('google');
+      if (result) {
+        window.history.replaceState(null, '', window.location.pathname);
+        if (result === 'connected') { onSaved('Google connected. Choose which profile your website shows reviews from.'); if (!res.location) loadLocations(); }
+        else if (result === 'cancelled') onError('Connecting Google was cancelled.');
+        else onError('Google could not be connected. Please try again.');
+      }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [loadLocations, onError, onSaved]);
+
+  if (!status) return null;
+
+  const run = async (work: () => Promise<GoogleStatus>, done: string) => {
+    setBusy(true);
+    try { setStatus(await work()); onSaved(done); } catch (err) { onError(apiErrorMessage(err, 'Google did not answer. Please try again.')); } finally { setBusy(false); }
+  };
+
+  const connect = async () => {
+    setBusy(true);
+    try { window.location.href = (await fetchApi('/site-builder/google/connect', { method: 'POST' })).url; } catch (err) { onError(apiErrorMessage(err, 'Could not start connecting Google.')); setBusy(false); }
+  };
+
+  const disconnect = async () => {
+    if (!(await confirm({ title: 'Disconnect Google?', message: 'New reviews stop coming in. Reviews already here stay, to hide or delete in Website > Reviews.', action: 'Disconnect' }))) return;
+    run(() => fetchApi('/site-builder/google', { method: 'DELETE' }), 'Google disconnected.');
+  };
+
+  return (
+    <div className="space-y-2 border-t border-base-200 pt-4">
+      {dialog}
+      <span className="label-text text-xs font-medium flex items-center gap-1"><Star size={12} /> Google reviews</span>
+      {!status.connected ? (
+        <>
+          <p className="text-xs text-base-content/60">Connect your Google Business Profile and your reviews and star rating come in by themselves, every hour.</p>
+          <button className="btn btn-sm btn-outline w-full" disabled={busy || !status.available} onClick={connect}>
+            {busy ? <span className="loading loading-spinner loading-xs" /> : <Globe size={14} />} Connect Google Business Profile
+          </button>
+          {!status.available && <p className="text-[11px] text-warning">Not available on this server yet.</p>}
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-base-content/70">Connected as <b>{status.google_email ?? 'your Google account'}</b>.</p>
+          {status.location ? (
+            <div className="rounded-lg bg-base-200 p-2 text-xs space-y-1">
+              <div className="font-medium">{status.location_title}</div>
+              {status.average_rating != null && <div>{status.average_rating.toFixed(1)} ★ from {status.total_reviews ?? 0} reviews</div>}
+              {status.synced_at && <div className="text-base-content/60">Updated {when(status.synced_at)}</div>}
+              {status.last_error && <div className="text-error">{status.last_error}</div>}
+            </div>
+          ) : locations === null ? (
+            <button className="btn btn-xs btn-primary" onClick={loadLocations}>Choose a profile</button>
+          ) : (
+            <ul className="space-y-1">
+              {locations.length === 0 && <li className="text-xs text-base-content/60">This Google account manages no business profiles.</li>}
+              {locations.map((l) => (
+                <li key={l.location}>
+                  <button className="w-full text-left rounded-lg border border-base-300 hover:border-primary p-2 text-xs" disabled={busy}
+                          onClick={() => run(() => fetchApi('/site-builder/google/location', { method: 'PUT', body: JSON.stringify({ location: l.location }) }), `Reviews from ${l.title} are in.`)}>
+                    <span className="font-medium block">{l.title}</span>
+                    <span className="text-base-content/60">{l.address}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            {status.location && (
+              <button className="btn btn-xs btn-outline flex-1" disabled={busy} onClick={() => run(() => fetchApi('/site-builder/google/sync', { method: 'POST' }), 'Google reviews updated.')}>
+                {busy ? <span className="loading loading-spinner loading-xs" /> : <RotateCcw size={12} />} Update now
+              </button>
+            )}
+            {status.location && <button className="btn btn-xs btn-ghost" disabled={busy} onClick={() => { setLocations(null); loadLocations(); setStatus({ ...status, location: null }); }}>Change</button>}
+            <button className="btn btn-xs btn-ghost text-error" disabled={busy} onClick={disconnect}>Disconnect</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
