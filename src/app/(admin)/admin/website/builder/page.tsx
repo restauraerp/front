@@ -8,11 +8,11 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3, Star,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3, Star, Share2,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
-  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink,
+  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink, SitePosts, SiteSocialAccounts,
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
@@ -126,6 +126,7 @@ export default function SiteBuilderPage() {
   const [restaurant, setRestaurant] = useState<SiteRestaurant | null>(null);
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [reviewSummary, setReviewSummary] = useState<SiteReviewSummary | null>(null);
+  const [socialFeed, setSocialFeed] = useState<{ posts: SitePosts; accounts: SiteSocialAccounts } | null>(null);
   const [social, setSocial] = useState<SiteSocialLink[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
@@ -202,8 +203,13 @@ export default function SiteBuilderPage() {
           // The same overall rating visitors see: Google's when connected,
           // else worked out from every stored review.
           const rated = reviewList.filter((r) => r.rating);
-          const google = await fetchApi('/site-builder/google').catch(() => null);
+          const [google, metaStatus] = await Promise.all([
+            fetchApi('/site-builder/google').catch(() => null),
+            // Posts for the preview's Facebook and Instagram sections.
+            fetchApi('/site-builder/meta').catch(() => null),
+          ]);
           if (!active) return;
+          if (metaStatus?.posts && metaStatus?.accounts) setSocialFeed({ posts: metaStatus.posts, accounts: metaStatus.accounts });
           setReviewSummary(google?.average_rating != null
             ? { rating: Math.round(google.average_rating * 10) / 10, total: google.total_reviews ?? 0, write_review_url: null, google_url: null }
             : { rating: rated.length ? Math.round((rated.reduce((a, r) => a + Number(r.rating), 0) / rated.length) * 10) / 10 : null, total: rated.length, write_review_url: null, google_url: null });
@@ -219,8 +225,8 @@ export default function SiteBuilderPage() {
 
   const siteBase = siteCode ? `/${siteCode}/site` : '';
   const ctx: SiteContext | null = useMemo(() => restaurant && ({
-    restaurant, menu, reviews, reviewSummary, social, basePath: siteBase, orderUrl: `/order/${siteCode}`,
-  }), [restaurant, menu, reviews, reviewSummary, social, siteBase, siteCode]);
+    restaurant, menu, reviews, reviewSummary, social, posts: socialFeed?.posts, socialAccounts: socialFeed?.accounts, basePath: siteBase, orderUrl: `/order/${siteCode}`,
+  }), [restaurant, menu, reviews, reviewSummary, socialFeed, social, siteBase, siteCode]);
 
   // ---- Preview iframe --------------------------------------------------------
   useEffect(() => {
@@ -855,6 +861,7 @@ export default function SiteBuilderPage() {
                   <ThemePanel theme={theme} catalog={fontCatalog} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
                   <DomainPanel onError={setError} />
                   <GooglePanel onError={setError} onSaved={setNotice} />
+                  <MetaPanel onError={setError} onSaved={setNotice} onPosts={setSocialFeed} />
                   <IntegrationsPanel onError={setError} onSaved={setNotice} />
                 </>
               )}
@@ -1230,6 +1237,142 @@ function PagePanel({ meta, isHome, siteBase, onChange, onError }: {
         </div>
         <p className="text-xs text-base-content/50 mt-1">Shown when the page is shared on Facebook or WhatsApp. Your logo is used if empty.</p>
       </div>
+    </div>
+  );
+}
+
+type MetaStatus = {
+  available: boolean;
+  connected: boolean;
+  user_name: string | null;
+  page_id: string | null;
+  page_name: string | null;
+  instagram_username: string | null;
+  synced_at: string | null;
+  last_error: string | null;
+  posts?: SitePosts;
+  accounts?: SiteSocialAccounts;
+};
+
+type MetaPage = { id: string; name: string; picture: string | null; instagram: { id: string; username: string | null } | null };
+
+/**
+ * Facebook Page and Instagram: connect (Facebook's own sign-in), pick the
+ * Page - its linked Instagram business account comes with it - and the
+ * latest posts keep themselves up to date. Also feeds the preview's post
+ * sections.
+ */
+function MetaPanel({ onError, onSaved, onPosts }: {
+  onError: (message: string) => void;
+  onSaved: (message: string) => void;
+  onPosts: (data: { posts: SitePosts; accounts: SiteSocialAccounts }) => void;
+}) {
+  const [status, setStatus] = useState<MetaStatus | null>(null);
+  const [pages, setPages] = useState<MetaPage[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const { confirm, dialog } = useDialogs();
+
+  const refresh = useCallback(async () => {
+    const res: MetaStatus = await fetchApi('/site-builder/meta');
+    setStatus(res);
+    if (res.posts && res.accounts) onPosts({ posts: res.posts, accounts: res.accounts });
+    return res;
+  }, [onPosts]);
+
+  const loadPages = useCallback(async () => {
+    try {
+      setPages((await fetchApi('/site-builder/meta/pages')).pages);
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Could not read your Facebook Pages.'));
+    }
+  }, [onError]);
+
+  useEffect(() => {
+    let active = true;
+    fetchApi('/site-builder/meta').then((res: MetaStatus) => {
+      if (!active) return;
+      setStatus(res);
+      if (res.posts && res.accounts) onPosts({ posts: res.posts, accounts: res.accounts });
+      const result = new URLSearchParams(window.location.search).get('meta');
+      if (!result) return;
+      window.history.replaceState(null, '', window.location.pathname);
+      if (result === 'connected') { onSaved('Facebook connected. Choose the Page your website shows posts from.'); if (!res.page_id) loadPages(); }
+      else if (result === 'cancelled') onError('Connecting Facebook was cancelled.');
+      else onError('Facebook could not be connected. Please try again.');
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [loadPages, onError, onSaved, onPosts]);
+
+  if (!status) return null;
+
+  const run = async (work: () => Promise<unknown>, done: string) => {
+    setBusy(true);
+    try { await work(); await refresh(); onSaved(done); } catch (err) { onError(apiErrorMessage(err, 'Facebook did not answer. Please try again.')); } finally { setBusy(false); }
+  };
+
+  const connect = async () => {
+    setBusy(true);
+    try { window.location.href = (await fetchApi('/site-builder/meta/connect', { method: 'POST' })).url; } catch (err) { onError(apiErrorMessage(err, 'Could not start connecting Facebook.')); setBusy(false); }
+  };
+
+  const disconnect = async () => {
+    if (!(await confirm({ title: 'Disconnect Facebook and Instagram?', message: 'Their posts are removed from your website straight away.', action: 'Disconnect' }))) return;
+    run(() => fetchApi('/site-builder/meta', { method: 'DELETE' }), 'Facebook and Instagram disconnected.');
+  };
+
+  return (
+    <div className="space-y-2 border-t border-base-200 pt-4">
+      {dialog}
+      <span className="label-text text-xs font-medium flex items-center gap-1"><Share2 size={12} /> Facebook &amp; Instagram posts</span>
+      {!status.connected ? (
+        <>
+          <p className="text-xs text-base-content/60">Connect your Facebook Page to show its latest posts - and its linked Instagram account&apos;s - on your website.</p>
+          <button className="btn btn-sm btn-outline w-full" disabled={busy || !status.available} onClick={connect}>
+            {busy ? <span className="loading loading-spinner loading-xs" /> : <Globe size={14} />} Connect Facebook Page
+          </button>
+          {!status.available && <p className="text-[11px] text-warning">Not available on this server yet.</p>}
+        </>
+      ) : (
+        <>
+          <p className="text-xs text-base-content/70">Signed in as <b>{status.user_name ?? 'your Facebook account'}</b>.</p>
+          {status.page_id ? (
+            <div className="rounded-lg bg-base-200 p-2 text-xs space-y-1">
+              <div className="font-medium">{status.page_name}</div>
+              <div>{status.instagram_username ? `Instagram: @${status.instagram_username}` : 'No Instagram business account linked to this Page.'}</div>
+              {status.synced_at && <div className="text-base-content/60">Updated {when(status.synced_at)}</div>}
+              {status.last_error && <div className="text-error">{status.last_error}</div>}
+            </div>
+          ) : pages === null ? (
+            <button className="btn btn-xs btn-primary" onClick={loadPages}>Choose a Page</button>
+          ) : (
+            <ul className="space-y-1">
+              {pages.length === 0 && <li className="text-xs text-base-content/60">This Facebook account manages no Pages.</li>}
+              {pages.map((p) => (
+                <li key={p.id}>
+                  <button className="w-full text-left rounded-lg border border-base-300 hover:border-primary p-2 text-xs flex items-center gap-2" disabled={busy}
+                          onClick={() => run(() => fetchApi('/site-builder/meta/page', { method: 'PUT', body: JSON.stringify({ page_id: p.id }) }), `Posts from ${p.name} are in.`)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    {p.picture && <img src={p.picture} alt="" className="w-7 h-7 rounded" referrerPolicy="no-referrer" />}
+                    <span>
+                      <span className="font-medium block">{p.name}</span>
+                      <span className="text-base-content/60">{p.instagram?.username ? `+ Instagram @${p.instagram.username}` : 'No Instagram linked'}</span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            {status.page_id && (
+              <button className="btn btn-xs btn-outline flex-1" disabled={busy} onClick={() => run(() => fetchApi('/site-builder/meta/sync', { method: 'POST' }), 'Posts updated.')}>
+                {busy ? <span className="loading loading-spinner loading-xs" /> : <RotateCcw size={12} />} Update now
+              </button>
+            )}
+            {status.page_id && <button className="btn btn-xs btn-ghost" disabled={busy} onClick={() => { setStatus({ ...status, page_id: null }); loadPages(); }}>Change</button>}
+            <button className="btn btn-xs btn-ghost text-error" disabled={busy} onClick={disconnect}>Disconnect</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

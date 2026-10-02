@@ -75,6 +75,8 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
     menu: needsMenu ? await loadSiteMenu(code) : null,
     reviews: data.reviews ?? [],
     reviewSummary: data.review_summary,
+    posts: data.posts,
+    socialAccounts: data.social_accounts,
     social: data.social ?? [],
     basePath: base,
     // The site's own ordering page when it has one, so a visitor stays on it.

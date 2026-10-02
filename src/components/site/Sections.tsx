@@ -332,6 +332,71 @@ function Reviews({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   );
 }
 
+const postDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '');
+
+/** The Page's latest posts - stored by core-api's hourly sync, never fetched per visitor. */
+function FacebookPosts({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const posts = (ctx.posts?.facebook ?? [])
+    .filter((p) => (p.text || p.image) && (!on(props, 'with_photo') || p.image))
+    .slice(0, Number(str(props, 'count')) || 3);
+  const page = ctx.socialAccounts?.facebook;
+  if (posts.length === 0) return <EmptyHint ctx={ctx} label="Facebook posts" hint="Connect your Facebook Page in Site > Facebook & Instagram." />;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {posts.map((p, i) => (
+          <a key={i} href={p.url ?? page?.url ?? '#'} target="_blank" rel="noopener noreferrer" className="rounded-2xl overflow-hidden bg-base-100 text-base-content shadow-sm hover:shadow-md transition-shadow flex flex-col">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {p.image && <img src={p.image} alt="" className="w-full aspect-[4/3] object-cover" loading="lazy" referrerPolicy="no-referrer" />}
+            <div className="p-4 flex-1 flex flex-col">
+              {p.text && <p className="text-sm leading-relaxed whitespace-pre-line line-clamp-5">{p.text}</p>}
+              <span className="text-xs opacity-60 mt-auto pt-3">{postDate(p.time)}</span>
+            </div>
+          </a>
+        ))}
+      </div>
+      {on(props, 'show_follow') && page && (
+        <div className="text-center mt-8">
+          <a href={page.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline gap-2"><Globe size={16} /> Follow us on Facebook</a>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
+/** The linked Instagram account's latest photos and reels, as a grid. */
+function InstagramFeed({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const posts = (ctx.posts?.instagram ?? []).filter((p) => p.image).slice(0, Number(str(props, 'count')) || 8);
+  const account = ctx.socialAccounts?.instagram;
+  if (posts.length === 0) return <EmptyHint ctx={ctx} label="Instagram feed" hint="Connect your Facebook Page with its Instagram account in Site > Facebook & Instagram." />;
+  const cols = { '3': 'sm:grid-cols-3', '4': 'sm:grid-cols-4', '6': 'sm:grid-cols-3 lg:grid-cols-6' }[str(props, 'columns')] ?? 'sm:grid-cols-4';
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <div className={`grid grid-cols-2 ${cols} gap-2 sm:gap-3`}>
+        {posts.map((p, i) => (
+          <a key={i} href={p.url ?? account?.url ?? '#'} target="_blank" rel="noopener noreferrer" className="group block">
+            <div className="relative overflow-hidden rounded-xl aspect-square bg-base-200">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={p.image!} alt={p.text?.slice(0, 120) ?? ''} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" referrerPolicy="no-referrer" />
+              {p.type === 'VIDEO' && <span className="absolute top-2 right-2 badge badge-sm badge-neutral">Reel</span>}
+            </div>
+            {on(props, 'show_captions') && p.text && <p className="text-xs mt-1.5 line-clamp-2 opacity-80">{p.text}</p>}
+          </a>
+        ))}
+      </div>
+      {on(props, 'show_follow') && account && (
+        <div className="text-center mt-8">
+          <a href={account.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline gap-2"><Globe size={16} /> Follow {account.name}</a>
+        </div>
+      )}
+    </Shell>
+  );
+}
+
 function Reservations({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   return (
     <Shell props={props}>
@@ -462,6 +527,8 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   order_button: OrderButton,
   online_order: OnlineOrderSection,
   map: MapSection,
+  facebook_posts: FacebookPosts,
+  instagram_feed: InstagramFeed,
   branches: Branches,
   contact: Contact,
   featured: Featured,

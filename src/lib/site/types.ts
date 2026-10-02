@@ -66,6 +66,26 @@ export interface SiteReview {
   source?: string;
 }
 
+/** A Facebook or Instagram post, as stored by core-api's hourly sync. */
+export interface SitePost {
+  text: string | null;
+  image: string | null;
+  url: string | null;
+  type: string | null;
+  time: string | null;
+}
+
+export interface SitePosts {
+  facebook: SitePost[];
+  instagram: SitePost[];
+}
+
+/** Where Follow buttons go - the connected Page and Instagram account. */
+export interface SiteSocialAccounts {
+  facebook: { name: string; url: string } | null;
+  instagram: { name: string; url: string } | null;
+}
+
 /** The overall rating: Google's own when the profile is connected. */
 export interface SiteReviewSummary {
   rating: number | null;
@@ -84,6 +104,8 @@ export interface SiteContext {
   menu: SiteMenuData | null;
   reviews: SiteReview[];
   reviewSummary?: SiteReviewSummary | null;
+  posts?: SitePosts | null;
+  socialAccounts?: SiteSocialAccounts | null;
   social: SiteSocialLink[];
   /** In the editor's preview: forms do not submit and links do not navigate. */
   preview?: boolean;
