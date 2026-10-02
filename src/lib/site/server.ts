@@ -13,6 +13,8 @@ import type { SiteTags } from './track';
 const API = `${(process.env.API_INTERNAL_URL || 'http://127.0.0.1:8029').replace(/\/$/, '')}/api/v1`;
 
 export interface SitePageData {
+  /** Never published: the site shows a Coming soon page. */
+  coming_soon: boolean;
   restaurant: SiteRestaurant;
   theme: SiteTheme;
   fonts: SiteFonts;

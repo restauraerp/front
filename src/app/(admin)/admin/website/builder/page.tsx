@@ -708,7 +708,7 @@ export default function SiteBuilderPage() {
         {site?.live_version ? (
           <span className="badge badge-success badge-sm gap-1"><CheckCircle2 size={10} /> Live: version {site.live_version}</span>
         ) : (
-          <span className="badge badge-ghost badge-sm">Not published yet - visitors see a starter site</span>
+          <span className="badge badge-ghost badge-sm">Not published yet - visitors see a Coming soon page</span>
         )}
         {site?.live_published_at && <span className="text-base-content/50">published {when(site.live_published_at)}</span>}
         {site?.live_version && site.latest_version && site.live_version < site.latest_version && (

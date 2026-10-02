@@ -4,6 +4,7 @@ import type { Metadata } from 'next';
 import { SiteFrame, SiteSection } from '@/components/site/Sections';
 import { loadSiteMenu, loadSitePage } from '@/lib/site/server';
 import SiteTracking from '@/components/site/SiteTracking';
+import ComingSoon from '@/components/site/ComingSoon';
 import type { SiteContext } from '@/lib/site/types';
 
 /**
@@ -32,6 +33,10 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { code, slug } = await params;
   const data = await loadSitePage(code, (slug ?? []).join('/'));
   if (!data) return { title: 'Not found' };
+  if (data.coming_soon) {
+    // Nothing to index yet - and a placeholder must not be what Google keeps.
+    return { title: `${data.restaurant.name} - coming soon`, robots: { index: false, follow: false } };
+  }
 
   const title = data.page.meta_title
     || (data.page.title && data.page.title !== 'Home' ? `${data.page.title} · ${data.restaurant.name}` : data.restaurant.name);
@@ -83,6 +88,10 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
     orderUrl: data.order_page !== null ? at(data.order_page) : `/order/${encodeURIComponent(code)}`,
     menuUrl: menuPage ? at(menuPage.slug) : undefined,
   };
+
+  if (data.coming_soon) {
+    return <ComingSoon ctx={ctx} theme={data.theme} fonts={data.fonts} />;
+  }
 
   return (
     <>
