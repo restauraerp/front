@@ -8,7 +8,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3, Star, Share2,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3, Star, Share2, Bot,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
@@ -862,6 +862,7 @@ export default function SiteBuilderPage() {
                   <DomainPanel onError={setError} />
                   <GooglePanel onError={setError} onSaved={setNotice} />
                   <MetaPanel onError={setError} onSaved={setNotice} onPosts={setSocialFeed} />
+                  <McpPanel onError={setError} />
                   <IntegrationsPanel onError={setError} onSaved={async (message) => { setNotice(message); applyWorkspace(await fetchApi('/site-pages')); }} />
                 </>
               )}
@@ -1237,6 +1238,105 @@ function PagePanel({ meta, isHome, siteBase, onChange, onError }: {
         </div>
         <p className="text-xs text-base-content/50 mt-1">Shown when the page is shared on Facebook or WhatsApp. Your logo is used if empty.</p>
       </div>
+    </div>
+  );
+}
+
+type AccessToken = { id: number; name: string; created_at: string; last_used_at: string | null; expires_at: string | null };
+
+/**
+ * The command that adds the RestoraERP MCP server to Claude Code. The package
+ * lives in this repository (mcp/site-builder); NEXT_PUBLIC_SITE_MCP_COMMAND
+ * replaces the local path once it is installable another way (e.g. npx).
+ */
+const MCP_COMMAND = process.env.NEXT_PUBLIC_SITE_MCP_COMMAND || 'node /path/to/restauraerp.com/mcp/site-builder/dist/index.js';
+
+/**
+ * Claude & MCP: access tokens for the RestoraERP MCP server, so Claude Code
+ * (or another MCP client) can build this website. A token reaches the site
+ * builder only - core-api refuses it anywhere else - and is shown once.
+ */
+function McpPanel({ onError }: { onError: (message: string) => void }) {
+  const [tokens, setTokens] = useState<AccessToken[] | null>(null);
+  const [created, setCreated] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+  const { confirm, prompt, dialog } = useDialogs();
+
+  const load = useCallback(async () => {
+    try { setTokens((await fetchApi('/site-builder/access-tokens')).tokens); } catch { setTokens([]); }
+  }, []);
+  useEffect(() => {
+    let active = true;
+    fetchApi('/site-builder/access-tokens').then((res) => { if (active) setTokens(res.tokens); }).catch(() => { if (active) setTokens([]); });
+    return () => { active = false; };
+  }, []);
+
+  const apiUrl = typeof window !== 'undefined' ? `${window.location.origin}/api/v1` : '/api/v1';
+  const command = (token: string) =>
+    `claude mcp add restoraerp-site --env RESTORAERP_API_URL=${apiUrl} --env RESTORAERP_TOKEN=${token} -- ${MCP_COMMAND}`;
+
+  const copy = async (text: string, what: string) => {
+    try { await navigator.clipboard.writeText(text); setCopied(what); setTimeout(() => setCopied(null), 2000); } catch { onError('Could not copy - select the text and copy it instead.'); }
+  };
+
+  const create = async () => {
+    const name = await prompt({ title: 'New access token', label: 'What is it for?', placeholder: 'e.g. Claude Code on my laptop', initial: 'Claude Code', maxLength: 60, action: 'Create token', tone: 'btn-primary' });
+    if (!name) return;
+    setBusy(true);
+    try {
+      const res = await fetchApi('/site-builder/access-tokens', { method: 'POST', body: JSON.stringify({ name, expires_in_days: 90 }) });
+      setCreated(res.token);
+      await load();
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Could not create the token.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const revoke = async (t: AccessToken) => {
+    if (!(await confirm({ title: `Revoke "${t.name}"?`, message: 'Anything using it stops working straight away.', action: 'Revoke' }))) return;
+    try { await fetchApi(`/site-builder/access-tokens/${t.id}`, { method: 'DELETE' }); await load(); } catch (err) { onError(apiErrorMessage(err, 'Could not revoke the token.')); }
+  };
+
+  return (
+    <div className="space-y-2 border-t border-base-200 pt-4">
+      {dialog}
+      <span className="label-text text-xs font-medium flex items-center gap-1"><Bot size={12} /> Claude &amp; MCP</span>
+      <p className="text-xs text-base-content/60">
+        Build this website from Claude Code or another MCP client. A token works on the site builder only - never orders, accounts or staff - and expires in 90 days.
+      </p>
+
+      {created && (
+        <div className="rounded-lg border border-warning bg-warning/10 p-2 space-y-2 text-xs">
+          <p className="font-medium">Copy it now - it is not shown again.</p>
+          <div className="font-mono break-all bg-base-100 rounded p-2 select-all">{created}</div>
+          <button className="btn btn-xs btn-outline w-full" onClick={() => copy(created, 'token')}>{copied === 'token' ? 'Copied' : 'Copy token'}</button>
+          <p>Add the server to Claude Code:</p>
+          <div className="font-mono text-[11px] break-all bg-base-100 rounded p-2 select-all">{command(created)}</div>
+          <button className="btn btn-xs btn-primary w-full" onClick={() => copy(command(created), 'command')}>{copied === 'command' ? 'Copied' : 'Copy command'}</button>
+          <p className="text-base-content/60">Then ask Claude: &ldquo;Create my restaurant website&rdquo;. Nothing goes live until you agree to publish.</p>
+          <button className="btn btn-xs btn-ghost w-full" onClick={() => setCreated(null)}>Done</button>
+        </div>
+      )}
+
+      {tokens && tokens.length > 0 && (
+        <ul className="space-y-1">
+          {tokens.map((t) => (
+            <li key={t.id} className="flex items-center gap-2 text-xs rounded-lg bg-base-200 px-2 py-1.5">
+              <span className="flex-1 min-w-0">
+                <span className="font-medium block truncate">{t.name}</span>
+                <span className="text-base-content/60">{t.last_used_at ? `Used ${when(t.last_used_at)}` : 'Not used yet'}{t.expires_at ? ` · expires ${when(t.expires_at)}` : ''}</span>
+              </span>
+              <button className="btn btn-xs btn-ghost text-error" onClick={() => revoke(t)}>Revoke</button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <button className="btn btn-sm btn-outline w-full" disabled={busy || tokens === null} onClick={create}>
+        {busy ? <span className="loading loading-spinner loading-xs" /> : <Plus size={14} />} New access token
+      </button>
     </div>
   );
 }
