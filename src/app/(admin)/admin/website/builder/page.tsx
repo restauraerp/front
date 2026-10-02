@@ -8,7 +8,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
@@ -400,6 +400,25 @@ export default function SiteBuilderPage() {
     setNotice(`"${template.label}" applied. Change anything you like, then publish.`);
   };
 
+  /**
+   * Rebuilds this page from the restaurant's data as it is now - dishes,
+   * photos, reviews, branches. Undoable like a template; nothing is public
+   * until published. Fills the search description too, if it is empty.
+   */
+  const rebuildFromData = async () => {
+    if (sections.length > 0 && !confirm('Rebuild this page from your menu, photos, reviews and branches? It replaces the current sections - you can undo.')) return;
+    setError(null);
+    try {
+      const draft = await fetchApi('/site-builder/smart-draft');
+      change((draft.sections as Section[]).map((section) => ({ ...section, id: newId(), props: { ...section.props } })));
+      if (meta && !meta.meta_description && draft.meta_description) setMeta({ ...meta, meta_description: draft.meta_description });
+      setSelectedId(null);
+      setNotice('Page rebuilt from your restaurant\'s data. Change anything you like, then publish.');
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not rebuild the page.'));
+    }
+  };
+
   const addPage = async () => {
     const title = prompt('Name of the new page (e.g. About us):');
     if (!title?.trim()) return;
@@ -567,7 +586,10 @@ export default function SiteBuilderPage() {
               </div>
               {panel === 'page' ? (
                 <>
-                  <button className="btn btn-sm btn-outline w-full" onClick={openTemplates}><LayoutTemplate size={14} /> Start from a template</button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button className="btn btn-sm btn-outline" onClick={rebuildFromData} title="Builds the page from your menu, photos, reviews and branches"><Sparkles size={14} /> From my data</button>
+                    <button className="btn btn-sm btn-outline" onClick={openTemplates}><LayoutTemplate size={14} /> Template</button>
+                  </div>
                   <PagePanel meta={meta} isHome={!!current?.is_home} siteBase={siteBase} onChange={setMeta} onError={setError} />
                 </>
               ) : (
