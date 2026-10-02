@@ -1,5 +1,8 @@
 import React from 'react';
-import { MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart } from 'lucide-react';
+import {
+  MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart,
+  Home, UtensilsCrossed, CalendarCheck, Info, Images, FileText, type LucideIcon,
+} from 'lucide-react';
 import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { themeStyle, type SiteFonts, type SiteTheme } from '@/lib/site/themes';
@@ -546,6 +549,23 @@ export function SiteSection({ section, ctx }: { section: Section; ctx: SiteConte
   return Render ? <Render props={section.props} ctx={ctx} /> : null;
 }
 
+/** The menu's icon for each standard page; the owner's own pages get a page. */
+const PAGE_ICONS: Record<string, LucideIcon> = {
+  home: Home,
+  menu: UtensilsCrossed,
+  order: ShoppingBag,
+  reservations: CalendarCheck,
+  about: Info,
+  gallery: Images,
+  locations: MapPin,
+  contact: Phone,
+};
+
+function PageIcon({ page, size = 15 }: { page: SiteNavPage; size?: number }) {
+  const Icon = PAGE_ICONS[page.kind ?? (page.slug === '' ? 'home' : '')] ?? FileText;
+  return <Icon size={size} className="shrink-0" aria-hidden />;
+}
+
 /** The site's header and footer around a page's sections. */
 export function SiteFrame({ ctx, pages, theme, fonts, current, children }: {
   ctx: SiteContext;
@@ -577,10 +597,14 @@ export function SiteFrame({ ctx, pages, theme, fonts, current, children }: {
             <span className="font-bold text-lg truncate">{ctx.restaurant.name}</span>
           </a>
           <nav className="hidden lg:flex items-center gap-5 ml-auto text-sm">
-            {links.map((p) => <a key={p.slug} href={href(p.slug)} className={`link link-hover whitespace-nowrap ${linkClass(p)}`}>{p.title}</a>)}
+            {links.map((p) => (
+              <a key={p.slug} href={href(p.slug)} className={`link link-hover whitespace-nowrap inline-flex items-center gap-1.5 ${linkClass(p)}`}>
+                <PageIcon page={p} /> {p.title}
+              </a>
+            ))}
           </nav>
           {orderButton && (
-            <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto lg:ml-0">Order online</a>
+            <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto lg:ml-0 gap-1.5"><ShoppingBag size={15} aria-hidden /> Order online</a>
           )}
           {links.length > 0 && (
             // A details/summary menu: opens without any script, so it works
@@ -588,7 +612,7 @@ export function SiteFrame({ ctx, pages, theme, fonts, current, children }: {
             <details className={`dropdown dropdown-end lg:hidden ${orderButton ? '' : 'ml-auto'}`}>
               <summary className="btn btn-ghost btn-sm btn-square" aria-label="Menu"><MenuIcon size={20} /></summary>
               <ul className="menu dropdown-content bg-base-100 rounded-box shadow-lg border border-base-200 w-56 mt-2 p-2 z-40">
-                {links.map((p) => <li key={p.slug}><a href={href(p.slug)} className={linkClass(p)}>{p.title}</a></li>)}
+                {links.map((p) => <li key={p.slug}><a href={href(p.slug)} className={`gap-2 ${linkClass(p)}`}><PageIcon page={p} size={16} /> {p.title}</a></li>)}
               </ul>
             </details>
           )}
