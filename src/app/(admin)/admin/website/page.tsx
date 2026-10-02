@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { fetchApi } from '@/lib/api';
+import { useDialogs } from '@/components/ui/Dialogs';
 import {
   Globe, Share2, FileText, Star, Settings2, CheckCircle, XCircle, Plus, Pencil, Trash2, X, Save
 } from 'lucide-react';
@@ -15,6 +16,7 @@ const TABS = [
 
 /* ─── Website Settings ─── */
 function SettingsTab() {
+  const { confirm, alert, dialog } = useDialogs();
   const [settings, setSettings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any | null>(null);
@@ -33,11 +35,11 @@ function SettingsTab() {
       editing ? await fetchApi(`/website-settings/${editing.id}`, { method: 'PUT', body: JSON.stringify(form) })
                : await fetchApi('/website-settings', { method: 'POST', body: JSON.stringify(form) });
       setShowForm(false); setEditing(null); setForm({ key: '', value: '', type: 'string' }); load();
-    } catch { alert('Failed to save setting'); }
+    } catch { await alert({ title: 'Could not save the setting', message: 'Check the details and try again.', tone: 'btn-error' }); }
   };
 
   const del = async (id: number) => {
-    if (confirm('Delete this setting?')) { await fetchApi(`/website-settings/${id}`, { method: 'DELETE' }); load(); }
+    if (await confirm({ title: 'Delete this setting?', action: 'Delete' })) { await fetchApi(`/website-settings/${id}`, { method: 'DELETE' }); load(); }
   };
 
   const startEdit = (row: any) => {
@@ -48,6 +50,7 @@ function SettingsTab() {
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="flex justify-between items-center">
         <p className="text-sm text-base-content/50">Manage global brand and contact settings shown across the website.</p>
         <button className="btn btn-primary btn-sm gap-2" onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ key: '', value: '', type: 'string' }); }}>
@@ -120,6 +123,7 @@ function SettingsTab() {
 
 /* ─── Social Links ─── */
 function SocialTab() {
+  const { confirm, alert, dialog } = useDialogs();
   const [links, setLinks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any | null>(null);
@@ -140,10 +144,10 @@ function SocialTab() {
       editing ? await fetchApi(`/social-links/${editing.id}`, { method: 'PUT', body: JSON.stringify({...form, is_active: parseInt(form.is_active)}) })
                : await fetchApi('/social-links', { method: 'POST', body: JSON.stringify({...form, is_active: parseInt(form.is_active)}) });
       setShowForm(false); setEditing(null); setForm({ platform: 'facebook', url: '', is_active: '1' }); load();
-    } catch { alert('Failed to save social link'); }
+    } catch { await alert({ title: 'Could not save the social link', message: 'Check the details and try again.', tone: 'btn-error' }); }
   };
 
-  const del = async (id: number) => { if (confirm('Delete?')) { await fetchApi(`/social-links/${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id: number) => { if (await confirm({ title: 'Delete this social link?', action: 'Delete' })) { await fetchApi(`/social-links/${id}`, { method: 'DELETE' }); load(); } };
 
   const startEdit = (row: any) => {
     setEditing(row); setForm({ platform: row.platform || 'facebook', url: row.url || '', is_active: row.is_active ? '1' : '0' }); setShowForm(true);
@@ -151,6 +155,7 @@ function SocialTab() {
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="flex justify-between items-center">
         <p className="text-sm text-base-content/50">Configure social media profile links shown in the website footer and contact page.</p>
         <button className="btn btn-primary btn-sm gap-2" onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ platform: 'facebook', url: '', is_active: '1' }); }}>
@@ -212,6 +217,7 @@ function SocialTab() {
 
 /* ─── CMS Pages ─── */
 function PagesTab() {
+  const { confirm, alert, dialog } = useDialogs();
   const [pages, setPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any | null>(null);
@@ -230,10 +236,10 @@ function PagesTab() {
       editing ? await fetchApi(`/pages/${editing.id}`, { method: 'PUT', body: JSON.stringify(form) })
                : await fetchApi('/pages', { method: 'POST', body: JSON.stringify(form) });
       setShowForm(false); setEditing(null); setForm({ slug: '', title: '', content: '', meta_title: '', meta_description: '' }); load();
-    } catch { alert('Failed to save page'); }
+    } catch { await alert({ title: 'Could not save the page', message: 'Check the details and try again.', tone: 'btn-error' }); }
   };
 
-  const del = async (id: number) => { if (confirm('Delete this page?')) { await fetchApi(`/pages/${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id: number) => { if (await confirm({ title: 'Delete this page?', action: 'Delete' })) { await fetchApi(`/pages/${id}`, { method: 'DELETE' }); load(); } };
 
   const startEdit = (row: any) => {
     setEditing(row);
@@ -243,6 +249,7 @@ function PagesTab() {
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="flex justify-between items-center">
         <p className="text-sm text-base-content/50">Manage dynamic CMS pages (About, Privacy Policy, Terms, etc.).</p>
         <button className="btn btn-primary btn-sm gap-2" onClick={() => { setShowForm(!showForm); setEditing(null); setForm({ slug: '', title: '', content: '', meta_title: '', meta_description: '' }); }}>
@@ -315,6 +322,7 @@ function PagesTab() {
 
 /* ─── Google Reviews ─── */
 function ReviewsTab() {
+  const { confirm, alert, dialog } = useDialogs();
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<any | null>(null);
@@ -334,7 +342,7 @@ function ReviewsTab() {
       editing ? await fetchApi(`/google-reviews/${editing.id}`, { method: 'PUT', body: JSON.stringify(payload) })
                : await fetchApi('/google-reviews', { method: 'POST', body: JSON.stringify(payload) });
       setShowForm(false); setEditing(null); setForm({ author_name: '', rating: '5', text: '', time: '', is_displayed: '1' }); load();
-    } catch { alert('Failed to save review'); }
+    } catch { await alert({ title: 'Could not save the review', message: 'Check the details and try again.', tone: 'btn-error' }); }
   };
 
   const toggle = async (r: any) => {
@@ -342,7 +350,7 @@ function ReviewsTab() {
     load();
   };
 
-  const del = async (id: number) => { if (confirm('Delete?')) { await fetchApi(`/google-reviews/${id}`, { method: 'DELETE' }); load(); } };
+  const del = async (id: number) => { if (await confirm({ title: 'Delete this review?', action: 'Delete' })) { await fetchApi(`/google-reviews/${id}`, { method: 'DELETE' }); load(); } };
 
   const startEdit = (row: any) => {
     setEditing(row);
@@ -352,6 +360,7 @@ function ReviewsTab() {
 
   return (
     <div className="space-y-4">
+      {dialog}
       <div className="flex justify-between items-center">
         <p className="text-sm text-base-content/50">Import and curate Google Reviews shown publicly on the website.</p>
         <button className="btn btn-primary btn-sm gap-2" onClick={() => { setShowForm(!showForm); setEditing(null); }}>

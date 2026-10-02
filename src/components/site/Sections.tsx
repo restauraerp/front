@@ -1,17 +1,22 @@
 import React from 'react';
-import { MapPin, Phone, Mail, ShoppingBag, Star, Globe } from 'lucide-react';
-import type { Section, SectionProps, SiteContext } from '@/lib/site/types';
+import { MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart } from 'lucide-react';
+import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { themeStyle, type SiteTheme } from '@/lib/site/themes';
 import ReservationForm from './ReservationForm';
+import OnlineOrder from '@/app/order/[slug]/OnlineOrder';
 
 /**
  * How each site-builder component draws.
  *
  * Plain presentational components - no hooks, no fetching - so the same code
  * renders the public site on the server and the live preview in the editor.
- * Every value is rendered as text; there is no path for markup, matching the
- * "no custom code" rule core-api enforces on save.
+ * (The two interactive ones, the booking form and online ordering, are client
+ * components of their own.) Every value is rendered as text; there is no path
+ * for markup, matching the "no custom code" rule core-api enforces on save.
+ *
+ * A section with nothing to show - no photos chosen, no reviews picked - says
+ * so in the editor's preview, and is left out of the real site.
  */
 
 const BACKGROUNDS: Record<string, string> = {
@@ -73,9 +78,9 @@ function Text({ props }: { props: SectionProps }) {
   );
 }
 
-function ImageSection({ props }: { props: SectionProps }) {
+function ImageSection({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const image = storageUrl(str(props, 'image'));
-  if (!image) return <EmptyHint label="Image" hint="Choose a photo in the settings." />;
+  if (!image) return <EmptyHint ctx={ctx} label="Image" hint="Choose a photo in the settings." />;
   const full = str(props, 'width') === 'full';
 
   return (
@@ -94,7 +99,7 @@ function Spacer({ props }: { props: SectionProps }) {
 
 function Menu({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const menu = ctx.menu;
-  if (!menu) return <EmptyHint label="Menu" hint="The menu could not be loaded." />;
+  if (!menu) return <EmptyHint ctx={ctx} label="Menu" hint="The menu could not be loaded." />;
 
   const chosen = Array.isArray(props.categories) ? (props.categories as number[]) : [];
   const categories = menu.categories.filter((c) => chosen.length === 0 || chosen.includes(c.id));
@@ -163,6 +168,7 @@ function OrderButton({ props, ctx }: { props: SectionProps; ctx: SiteContext }) 
 
 function Branches({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const locations = ctx.menu?.locations ?? [];
+  if (locations.length === 0) return <EmptyHint ctx={ctx} label="Branches" hint="Add your branches in Settings > Locations." />;
   return (
     <Shell props={props}>
       <Heading text={str(props, 'heading')} />
@@ -172,6 +178,15 @@ function Branches({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
             <div className="font-semibold text-lg">{l.name}</div>
             {l.address && <div className="flex gap-2 mt-2 text-sm opacity-80"><MapPin size={16} className="shrink-0 mt-0.5" /> {l.address}</div>}
             {l.phone && <a href={`tel:${l.phone}`} className="flex gap-2 mt-1 text-sm link link-hover"><Phone size={16} className="shrink-0 mt-0.5" /> {l.phone}</a>}
+            {(l.map_url || l.address) && (
+              <a
+                href={l.map_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${ctx.restaurant.name} ${l.address}`)}`}
+                target="_blank" rel="noopener noreferrer"
+                className="btn btn-sm btn-outline mt-4 gap-1"
+              >
+                <Navigation size={14} /> Directions
+              </a>
+            )}
           </div>
         ))}
       </div>
@@ -181,6 +196,7 @@ function Branches({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
 
 function Contact({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const r = ctx.restaurant;
+  if (!r.phone && !r.email && !r.address) return <EmptyHint ctx={ctx} label="Contact" hint="Add your phone, email and address in Settings > Restaurant identity." />;
   return (
     <Shell props={props} className="text-center">
       <Heading text={str(props, 'heading')} />
@@ -204,7 +220,7 @@ function Featured({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   ).slice(0, count);
   const money = (n: number) => `${ctx.restaurant.currency}${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
-  if (items.length === 0) return <EmptyHint label="Featured dishes" hint="Add photos to your dishes in the catalog, or choose dishes in the settings." />;
+  if (items.length === 0) return <EmptyHint ctx={ctx} label="Featured dishes" hint="Add photos to your dishes in the catalog, or choose dishes in the settings." />;
 
   return (
     <Shell props={props}>
@@ -231,7 +247,7 @@ function Featured({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
 
 function Reviews({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const reviews = ctx.reviews.slice(0, Number(str(props, 'count')) || 3);
-  if (reviews.length === 0) return <EmptyHint label="Reviews" hint="Choose reviews to show in Website > Reviews." />;
+  if (reviews.length === 0) return <EmptyHint ctx={ctx} label="Reviews" hint="Choose reviews to show in Website > Reviews." />;
 
   return (
     <Shell props={props}>
@@ -262,7 +278,7 @@ function Reservations({ props, ctx }: { props: SectionProps; ctx: SiteContext })
 }
 
 function Social({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
-  if (ctx.social.length === 0) return <EmptyHint label="Social links" hint="Add your pages in Website > Social links." />;
+  if (ctx.social.length === 0) return <EmptyHint ctx={ctx} label="Social links" hint="Add your pages in Website > Social links." />;
 
   return (
     <Shell props={props} className="text-center">
@@ -281,7 +297,7 @@ function Social({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
 function linkFor(target: string, ctx: SiteContext, page?: string): string | null {
   switch (target) {
     case 'order': return ctx.orderUrl;
-    case 'menu': return `${ctx.basePath}/#menu`;
+    case 'menu': return ctx.menuUrl ?? `${ctx.basePath}/#menu`;
     case 'call': return ctx.restaurant.phone ? `tel:${ctx.restaurant.phone}` : null;
     case 'page': return page ? `${ctx.basePath}/${page}` : ctx.basePath || '/';
     default: return null;
@@ -308,9 +324,9 @@ function ImageText({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   );
 }
 
-function Gallery({ props }: { props: SectionProps }) {
+function Gallery({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const images = (Array.isArray(props.images) ? (props.images as string[]) : []).map(storageUrl).filter((u): u is string => !!u);
-  if (images.length === 0) return <EmptyHint label="Gallery" hint="Add photos in the settings." />;
+  if (images.length === 0) return <EmptyHint ctx={ctx} label="Gallery" hint="Add photos in the settings." />;
   const cols = { '2': 'sm:grid-cols-2', '3': 'sm:grid-cols-3', '4': 'sm:grid-cols-2 lg:grid-cols-4' }[str(props, 'columns')] ?? 'sm:grid-cols-3';
 
   return (
@@ -335,7 +351,36 @@ function ButtonSection({ props, ctx }: { props: SectionProps; ctx: SiteContext }
   );
 }
 
-function EmptyHint({ label, hint }: { label: string; hint: string }) {
+/**
+ * Online ordering inside the site. In the editor it is a stand-in: the real
+ * thing would load the menu and take orders from inside the preview.
+ */
+function OnlineOrderSection({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const heading = str(props, 'heading');
+
+  if (ctx.preview) {
+    return (
+      <section className="bg-base-200">
+        <div className="max-w-5xl mx-auto px-4 py-12 text-center space-y-3">
+          {heading && <h2 className="text-2xl sm:text-3xl font-bold">{heading}</h2>}
+          <ShoppingCart className="mx-auto text-primary" size={40} />
+          <p className="font-semibold">Online ordering</p>
+          <p className="text-sm opacity-70 max-w-md mx-auto">Your menu with photos and prices, the cart and checkout appear here, in your site&apos;s colours. Orders arrive like any online order.</p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section>
+      {heading && <h2 className="text-2xl sm:text-3xl font-bold text-center pt-10">{heading}</h2>}
+      <OnlineOrder slug={ctx.restaurant.code} embedded />
+    </section>
+  );
+}
+
+function EmptyHint({ ctx, label, hint }: { ctx: SiteContext; label: string; hint: string }) {
+  if (!ctx.preview) return null;
   return (
     <div className="max-w-5xl mx-auto px-4 py-10 text-center text-sm text-base-content/50 border border-dashed border-base-300 my-4 rounded-xl">
       <b>{label}</b> - {hint}
@@ -350,6 +395,7 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   spacer: Spacer,
   menu: Menu,
   order_button: OrderButton,
+  online_order: OnlineOrderSection,
   branches: Branches,
   contact: Contact,
   featured: Featured,
@@ -368,14 +414,20 @@ export function SiteSection({ section, ctx }: { section: Section; ctx: SiteConte
 }
 
 /** The site's header and footer around a page's sections. */
-export function SiteFrame({ ctx, pages, theme, children }: {
+export function SiteFrame({ ctx, pages, theme, current, children }: {
   ctx: SiteContext;
-  pages: { slug: string; title: string }[];
+  pages: SiteNavPage[];
   theme?: SiteTheme | null;
+  /** The slug of the page being shown ('' for home), to mark it in the menu. */
+  current?: string;
   children: React.ReactNode;
 }) {
   const logo = storageUrl(ctx.restaurant.logo_url);
   const href = (slug: string) => (slug ? `${ctx.basePath}/${slug}` : ctx.basePath || '/');
+  const orderButton = theme?.header_order_button !== false;
+  // The header's Order online button already goes to the ordering page.
+  const links = pages.length > 1 ? pages.filter((p) => !(orderButton && p.kind === 'order')) : [];
+  const linkClass = (p: SiteNavPage) => (p.slug === current ? 'font-semibold text-primary' : '');
 
   return (
     <div className="min-h-screen flex flex-col bg-base-100 text-base-content" style={themeStyle(theme)}>
@@ -386,18 +438,23 @@ export function SiteFrame({ ctx, pages, theme, children }: {
             {logo && <img src={logo} alt="" className="w-9 h-9 rounded-lg object-cover" />}
             <span className="font-bold text-lg truncate">{ctx.restaurant.name}</span>
           </a>
-          <nav className="hidden sm:flex items-center gap-5 ml-auto text-sm">
-            {pages.length > 1 && pages.map((p) => <a key={p.slug} href={href(p.slug)} className="link link-hover">{p.title}</a>)}
+          <nav className="hidden lg:flex items-center gap-5 ml-auto text-sm">
+            {links.map((p) => <a key={p.slug} href={href(p.slug)} className={`link link-hover whitespace-nowrap ${linkClass(p)}`}>{p.title}</a>)}
           </nav>
-          {theme?.header_order_button !== false && (
-            <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto sm:ml-0">Order online</a>
+          {orderButton && (
+            <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto lg:ml-0">Order online</a>
+          )}
+          {links.length > 0 && (
+            // A details/summary menu: opens without any script, so it works
+            // on the server-rendered page before anything has loaded.
+            <details className={`dropdown dropdown-end lg:hidden ${orderButton ? '' : 'ml-auto'}`}>
+              <summary className="btn btn-ghost btn-sm btn-square" aria-label="Menu"><MenuIcon size={20} /></summary>
+              <ul className="menu dropdown-content bg-base-100 rounded-box shadow-lg border border-base-200 w-56 mt-2 p-2 z-40">
+                {links.map((p) => <li key={p.slug}><a href={href(p.slug)} className={linkClass(p)}>{p.title}</a></li>)}
+              </ul>
+            </details>
           )}
         </div>
-        {pages.length > 1 && (
-          <nav className="sm:hidden flex gap-4 overflow-x-auto px-4 pb-2 text-sm">
-            {pages.map((p) => <a key={p.slug} href={href(p.slug)} className="link link-hover whitespace-nowrap">{p.title}</a>)}
-          </nav>
-        )}
       </header>
 
       <main className="flex-1">{children}</main>

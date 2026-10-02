@@ -8,7 +8,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
@@ -16,6 +16,7 @@ import type {
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { FONTS, PALETTES, DEFAULT_THEME, type SiteTheme } from '@/lib/site/themes';
+import { useDialogs } from '@/components/ui/Dialogs';
 
 /**
  * The in-house site builder.
@@ -40,10 +41,18 @@ import { FONTS, PALETTES, DEFAULT_THEME, type SiteTheme } from '@/lib/site/theme
  *     the frame stops taking pointer events, the drop point is worked out
  *     from its [data-section-id] elements (same origin, so readable), and the
  *     frame is told where to draw the drop line.
+ *
+ * Everything is a draft - each page, adding and deleting pages, their order,
+ * the theme, header and footer. Publish website sends the whole site live as
+ * a new numbered version; History lists the versions, puts the site back to
+ * one, or loads one into the editor. Confirmations are daisyUI dialogs
+ * (useDialogs), never the browser's own.
  */
 
 type PageRow = {
   id: number;
+  /** Which standard page it is (menu, gallery...); null for the owner's own. */
+  kind: string | null;
   title: string;
   slug: string;
   is_home: boolean;
@@ -51,9 +60,35 @@ type PageRow = {
   meta_description: string | null;
   og_image: string | null;
   sections: Section[];
-  is_published: boolean;
+  /** On the live site (in the live version). */
+  is_live: boolean;
+  /** Differs from the live version - or is not on the live site at all. */
   has_unpublished_changes: boolean;
 };
+
+type SiteStatus = {
+  live_version: number | null;
+  latest_version: number | null;
+  live_published_at: string | null;
+  has_unpublished_changes: boolean;
+};
+
+type StandardPage = { kind: string; title: string; added: boolean };
+
+type Version = {
+  id: number;
+  number: number;
+  note: string | null;
+  published_at: string;
+  published_by: string | null;
+  pages: string[];
+  is_live: boolean;
+};
+
+/** What every page-list endpoint answers with. */
+type Workspace = { site: SiteStatus; pages: PageRow[]; standard_pages: StandardPage[]; site_code?: string };
+
+const when = (iso: string | null) => (iso ? new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 type PageMeta = Pick<PageRow, 'title' | 'slug' | 'meta_title' | 'meta_description' | 'og_image'>;
 type History = { past: Section[][]; future: Section[][] };
@@ -91,12 +126,16 @@ export default function SiteBuilderPage() {
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [panel, setPanel] = useState<'page' | 'theme'>('page');
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
-  const [leftTab, setLeftTab] = useState<'sections' | 'add'>('sections');
+  const [leftTab, setLeftTab] = useState<'pages' | 'sections' | 'add'>('sections');
+  const [site, setSite] = useState<SiteStatus | null>(null);
+  const [standardPages, setStandardPages] = useState<StandardPage[]>([]);
+  const [modal, setModal] = useState<'publish' | 'add-page' | 'versions' | null>(null);
+  const { confirm, dialog } = useDialogs();
   const [templates, setTemplates] = useState<Record<string, { label: string; description: string; sections: Section[] }> | null>(null);
   const [dragging, setDragging] = useState<{ kind: 'palette' | 'section'; label: string } | null>(null);
   const [marker, setMarker] = useState<number | null>(null);
   const previewBox = useRef<HTMLDivElement>(null);
-  const [busy, setBusy] = useState<'save' | 'publish' | 'theme' | null>(null);
+  const [busy, setBusy] = useState<'save' | 'publish' | 'theme' | 'pages' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
@@ -106,6 +145,9 @@ export default function SiteBuilderPage() {
   const metaDirty = current !== null && meta !== null && JSON.stringify(metaOf(current)) !== JSON.stringify(meta);
   const dirty = current !== null && (JSON.stringify(current.sections) !== JSON.stringify(sections) || metaDirty);
   const selected = sections.find((s) => s.id === selectedId) ?? null;
+  const themeDirty = JSON.stringify(theme) !== JSON.stringify(savedTheme);
+  // Anything not yet live: unsaved edits here, or saved drafts.
+  const unpublished = dirty || themeDirty || !!site?.has_unpublished_changes;
 
   const openPage = useCallback((page: PageRow) => {
     setCurrentId(page.id);
@@ -113,6 +155,14 @@ export default function SiteBuilderPage() {
     setMeta(metaOf(page));
     setHistory({ past: [], future: [] });
     setSelectedId(null);
+  }, []);
+
+  /** Takes in a page-list answer: the pages, where the site stands, what can be added. */
+  const applyWorkspace = useCallback((w: Workspace) => {
+    setPages(w.pages);
+    setSite(w.site);
+    setStandardPages(w.standard_pages ?? []);
+    if (w.site_code) setSiteCode(w.site_code);
   }, []);
 
   useEffect(() => {
@@ -124,8 +174,7 @@ export default function SiteBuilderPage() {
         setDefs(components.components);
         setTheme(components.theme);
         setSavedTheme(components.theme);
-        setPages(list.pages);
-        setSiteCode(list.site_code ?? '');
+        applyWorkspace(list);
         const home = (list.pages as PageRow[]).find((p) => p.is_home) ?? list.pages[0];
         if (home) openPage(home);
 
@@ -151,7 +200,7 @@ export default function SiteBuilderPage() {
       }
     })();
     return () => { active = false; };
-  }, [openPage]);
+  }, [openPage, applyWorkspace]);
 
   const siteBase = siteCode ? `/${siteCode}/site` : '';
   const ctx: SiteContext | null = useMemo(() => restaurant && ({
@@ -178,12 +227,14 @@ export default function SiteBuilderPage() {
         theme,
         sections,
         selectedId,
-        pages: pages.filter((p) => p.is_published).map((p) => ({ slug: p.is_home ? '' : p.slug, title: p.title })),
+        // The draft site's navigation - what it will be once published.
+        pages: [...pages].sort((a, b) => Number(b.is_home) - Number(a.is_home)).map((p) => ({ slug: p.is_home ? '' : p.slug, title: p.title, kind: p.kind })),
+        current: current?.is_home ? '' : current?.slug ?? '',
         labels: Object.fromEntries(Object.entries(defs).map(([k, d]) => [k, d.label])),
         marker,
       },
     }, window.location.origin);
-  }, [previewReady, ctx, defs, theme, sections, selectedId, pages, marker]);
+  }, [previewReady, ctx, defs, theme, sections, selectedId, pages, marker, current]);
 
   // ---- Editing ----------------------------------------------------------------
   /** Every section edit goes through here, so it can be undone. */
@@ -333,6 +384,7 @@ export default function SiteBuilderPage() {
     const res = await fetchApi(`/site-pages/${current.id}`, { method: 'PUT', body: JSON.stringify(body) });
     const saved: PageRow = res.page;
     setPages((ps) => ps.map((p) => (p.id === saved.id ? saved : p)));
+    setSite(res.site);
     // The server cleans what it saves (ids, defaults) - keep the editor in step.
     setSections(saved.sections);
     setMeta(metaOf(saved));
@@ -343,7 +395,7 @@ export default function SiteBuilderPage() {
     setBusy('save'); setError(null); setNotice(null);
     try {
       await save();
-      setNotice('Draft saved. Visitors still see the published version until you publish.');
+      setNotice('Draft saved. Visitors see the live version until you publish the website.');
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the page.'));
     } finally {
@@ -351,29 +403,36 @@ export default function SiteBuilderPage() {
     }
   };
 
-  const handlePublish = async () => {
-    if (!current) return;
-    setBusy('publish'); setError(null); setNotice(null);
-    try {
-      if (dirty) await save();
-      const res = await fetchApi(`/site-pages/${current.id}/publish`, { method: 'POST' });
-      setPages((ps) => ps.map((p) => (p.id === res.page.id ? res.page : p)));
-      setNotice('Published - your site is updated.');
-    } catch (err) {
-      setError(apiErrorMessage(err, 'Could not publish the page.'));
-    } finally {
-      setBusy(null);
-    }
+  const persistTheme = async () => {
+    const res = await fetchApi('/site-builder/theme', { method: 'PUT', body: JSON.stringify(theme) });
+    setSavedTheme(res.theme);
+    setSite(res.site);
   };
 
   const saveTheme = async () => {
     setBusy('theme'); setError(null); setNotice(null);
     try {
-      const res = await fetchApi('/site-builder/theme', { method: 'PUT', body: JSON.stringify(theme) });
-      setSavedTheme(res.theme);
-      setNotice('Site settings saved - they apply to every page of your live site.');
+      await persistTheme();
+      setNotice('Site settings saved as a draft. They go live when you publish the website.');
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the theme.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  /** Publish website: saves what is open, then sends the whole site live as a new version. */
+  const publishSite = async (note: string) => {
+    setBusy('publish'); setError(null); setNotice(null);
+    try {
+      if (dirty) await save();
+      if (themeDirty) await persistTheme();
+      const res = await fetchApi('/site-builder/publish', { method: 'POST', body: JSON.stringify({ note: note.trim() || null }) });
+      applyWorkspace(res);
+      setModal(null);
+      setNotice(`Version ${res.version.number} is live - your website is updated.`);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not publish the website.'));
     } finally {
       setBusy(null);
     }
@@ -390,77 +449,176 @@ export default function SiteBuilderPage() {
     }
   };
 
-  const applyTemplate = (key: string) => {
+  const applyTemplate = async (key: string) => {
     const template = templates?.[key];
     if (!template) return;
-    if (sections.length > 0 && !confirm(`Replace this page's sections with the "${template.label}" layout? You can undo it.`)) return;
+    if (sections.length > 0 && !(await confirm({
+      title: `Use the "${template.label}" layout?`,
+      message: 'It replaces this page\'s sections. You can undo it, and nothing changes on your website until you publish.',
+      action: 'Replace sections',
+      tone: 'btn-primary',
+    }))) return;
     change(template.sections.map((section) => ({ ...section, id: newId(), props: { ...section.props } })));
     setSelectedId(null);
     setTemplates(null);
-    setNotice(`"${template.label}" applied. Change anything you like, then publish.`);
+    setNotice(`"${template.label}" applied. Change anything you like, then publish the website.`);
   };
 
   /**
-   * Rebuilds this page from the restaurant's data as it is now - dishes,
-   * photos, reviews, branches. Undoable like a template; nothing is public
-   * until published. Fills the search description too, if it is empty.
+   * Rebuilds a standard page from the restaurant's data as it is now -
+   * dishes, photos, reviews, branches. Undoable like a template; nothing is
+   * public until published. Fills the search description too, if it is empty.
    */
   const rebuildFromData = async () => {
-    if (sections.length > 0 && !confirm('Rebuild this page from your menu, photos, reviews and branches? It replaces the current sections - you can undo.')) return;
+    if (!current?.kind) return;
+    if (sections.length > 0 && !(await confirm({
+      title: 'Rebuild this page from your data?',
+      message: 'It is put together again from your menu, photos, reviews and branches, replacing the current sections. You can undo it.',
+      action: 'Rebuild page',
+      tone: 'btn-primary',
+    }))) return;
     setError(null);
     try {
-      const draft = await fetchApi('/site-builder/smart-draft');
+      const draft = await fetchApi(`/site-builder/smart-draft?kind=${encodeURIComponent(current.kind)}`);
       change((draft.sections as Section[]).map((section) => ({ ...section, id: newId(), props: { ...section.props } })));
       if (meta && !meta.meta_description && draft.meta_description) setMeta({ ...meta, meta_description: draft.meta_description });
       setSelectedId(null);
-      setNotice('Page rebuilt from your restaurant\'s data. Change anything you like, then publish.');
+      setNotice('Page rebuilt from your restaurant\'s data. Change anything you like, then publish the website.');
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not rebuild the page.'));
     }
   };
 
-  const addPage = async () => {
-    const title = prompt('Name of the new page (e.g. About us):');
-    if (!title?.trim()) return;
-    setError(null);
+  /** Unsaved edits on the open page would be lost by what comes next: ask first. */
+  const okToLeave = async () => !dirty || confirm({
+    title: 'Discard unsaved changes?',
+    message: `"${current?.title}" has changes that are not saved.`,
+    action: 'Discard changes',
+  });
+
+  /** Adds a standard page (by kind) or a blank one (by title), and opens it. */
+  const addPage = async (body: { kind: string } | { title: string }) => {
+    if (!(await okToLeave())) return;
+    setBusy('pages'); setError(null);
     try {
-      const res = await fetchApi('/site-pages', { method: 'POST', body: JSON.stringify({ title: title.trim() }) });
-      setPages((ps) => [...ps, res.page]);
+      const res = await fetchApi('/site-pages', { method: 'POST', body: JSON.stringify(body) });
+      const list: Workspace = await fetchApi('/site-pages');
+      applyWorkspace(list);
       openPage(res.page);
+      setModal(null);
+      setLeftTab('sections');
+      setNotice(`"${res.page.title}" added as a draft. It appears on your website when you publish.`);
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not add the page.'));
+    } finally {
+      setBusy(null);
     }
   };
 
-  const deletePage = async () => {
-    if (!current || current.is_home) return;
-    if (!confirm(`Delete the "${current.title}" page? It is removed from your site.`)) return;
+  const addMissingPages = async () => {
+    setBusy('pages'); setError(null);
     try {
-      await fetchApi(`/site-pages/${current.id}`, { method: 'DELETE' });
-      const rest = pages.filter((p) => p.id !== current.id);
-      setPages(rest);
-      const home = rest.find((p) => p.is_home) ?? rest[0];
-      if (home) openPage(home);
+      const res = await fetchApi('/site-builder/standard-pages', { method: 'POST' });
+      applyWorkspace(res);
+      setModal(null);
+      setLeftTab('pages');
+      setNotice(res.added.length ? `Added ${res.added.join(', ')}. They appear on your website when you publish.` : 'Your site already has every standard page.');
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not add the pages.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const deletePage = async (page: PageRow) => {
+    if (page.is_home) return;
+    if (!(await confirm({
+      title: `Delete the "${page.title}" page?`,
+      message: page.is_live
+        ? 'It stays on your live website until you next publish, and an earlier version can always bring it back.'
+        : 'It has never been published, so this cannot be undone.',
+      action: 'Delete page',
+    }))) return;
+    setError(null);
+    try {
+      const res: Workspace = await fetchApi(`/site-pages/${page.id}`, { method: 'DELETE' });
+      applyWorkspace(res);
+      if (page.id === currentId) {
+        const home = res.pages.find((p) => p.is_home) ?? res.pages[0];
+        if (home) openPage(home);
+      }
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not delete the page.'));
     }
   };
 
-  const switchPage = (id: number) => {
-    if (dirty && !confirm('You have unsaved changes on this page. Leave without saving?')) return;
+  /** Moves a page up or down the site's navigation. */
+  const movePage = async (index: number, to: number) => {
+    if (to < 0 || to >= pages.length) return;
+    const ids = arrayMove(pages, index, to).map((p) => p.id);
+    setPages(arrayMove(pages, index, to));
+    try {
+      applyWorkspace(await fetchApi('/site-builder/page-order', { method: 'PUT', body: JSON.stringify({ ids }) }));
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not change the page order.'));
+    }
+  };
+
+  const switchPage = async (id: number) => {
+    if (id === currentId || !(await okToLeave())) return;
     const page = pages.find((p) => p.id === id);
     if (page) openPage(page);
+  };
+
+  /** Puts the live site back to (or forward to) a version. Drafts are untouched. */
+  const makeLive = async (version: Version) => {
+    if (!(await confirm({
+      title: `Make version ${version.number} live?`,
+      message: 'Visitors see the website exactly as it was in that version, straight away. What you are editing is not changed.',
+      action: `Make version ${version.number} live`,
+      tone: 'btn-warning',
+    }))) return false;
+    try {
+      applyWorkspace(await fetchApi(`/site-builder/versions/${version.id}/make-live`, { method: 'POST' }));
+      setNotice(`Version ${version.number} is live.`);
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not change the live version.'));
+      return false;
+    }
+  };
+
+  /** Replaces everything in the editor with a version, to work from. */
+  const editVersion = async (version: Version) => {
+    if (!(await confirm({
+      title: `Open version ${version.number} in the editor?`,
+      message: 'Every page, the theme, header and footer in the editor are replaced with that version. Changes you have not published are lost. Your live website does not change until you publish.',
+      action: 'Replace and open',
+    }))) return false;
+    try {
+      const res = await fetchApi(`/site-builder/versions/${version.id}/edit`, { method: 'POST' });
+      applyWorkspace(res);
+      setTheme(res.theme);
+      setSavedTheme(res.theme);
+      const home = (res.pages as PageRow[]).find((p) => p.is_home) ?? res.pages[0];
+      if (home) openPage(home);
+      setNotice(`Version ${version.number} is in the editor. Change what you need, then publish the website.`);
+      return true;
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not open that version.'));
+      return false;
+    }
   };
 
   if (error && !defs) return <div className="alert alert-error">{error}</div>;
   if (!defs || !ctx || !meta) return <div className="flex justify-center py-20"><span className="loading loading-spinner loading-lg text-primary" /></div>;
 
-  const viewUrl = current ? `${siteBase}${current.is_home ? '' : `/${current.slug}`}` : siteBase;
+  // The live page; a page not published yet has no live address, so home.
+  const viewUrl = current?.is_live && !current.is_home ? `${siteBase}/${current.slug}` : siteBase;
   const groups: { kind: 'live' | 'content'; title: string; hint: string; Icon: typeof Zap }[] = [
     { kind: 'live', title: 'From your restaurant', hint: 'Filled from your menu, branches and settings - always up to date.', Icon: Zap },
     { kind: 'content', title: 'Your content', hint: 'Text and photos you write yourself.', Icon: Type },
   ];
-  const themeDirty = JSON.stringify(theme) !== JSON.stringify(savedTheme);
 
   return (
     <div className="space-y-3">
@@ -469,11 +627,10 @@ export default function SiteBuilderPage() {
         <h1 className="text-xl font-bold mr-2">Site builder</h1>
         <select className="select select-sm select-bordered" value={currentId ?? ''} onChange={(e) => switchPage(Number(e.target.value))}>
           {pages.map((p) => (
-            <option key={p.id} value={p.id}>{p.title}{p.is_home ? ' (home)' : ''}{p.is_published ? '' : ' - not published'}</option>
+            <option key={p.id} value={p.id}>{p.title}{p.is_home ? ' (home)' : ''}{p.is_live ? '' : ' - new'}</option>
           ))}
         </select>
-        <button className="btn btn-sm btn-ghost" onClick={addPage}><FilePlus size={14} /> Page</button>
-        {current && !current.is_home && <button className="btn btn-sm btn-ghost text-error" onClick={deletePage} aria-label="Delete page"><Trash2 size={14} /></button>}
+        <button className="btn btn-sm btn-ghost" onClick={() => setModal('add-page')}><FilePlus size={14} /> Page</button>
         <div className="flex-1" />
         <div className="join">
           <button className={`btn btn-sm join-item ${device === 'desktop' ? 'btn-active' : ''}`} onClick={() => setDevice('desktop')} title="Desktop"><Monitor size={14} /></button>
@@ -481,20 +638,43 @@ export default function SiteBuilderPage() {
         </div>
         <button className="btn btn-sm btn-ghost btn-square" onClick={undo} disabled={!history.past.length} title="Undo"><Undo2 size={16} /></button>
         <button className="btn btn-sm btn-ghost btn-square" onClick={redo} disabled={!history.future.length} title="Redo"><Redo2 size={16} /></button>
-        <a className="btn btn-sm btn-ghost" href={viewUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> View site</a>
+        <button className="btn btn-sm btn-ghost" onClick={() => setModal('versions')}><History size={14} /> History</button>
+        <a className="btn btn-sm btn-ghost" href={viewUrl} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} /> View live</a>
         <button className="btn btn-sm btn-outline" onClick={handleSave} disabled={!dirty || busy !== null}>
           {busy === 'save' ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save draft
         </button>
-        <button className="btn btn-sm btn-primary" onClick={handlePublish} disabled={busy !== null || (!dirty && !current?.has_unpublished_changes)}>
-          {busy === 'publish' ? <span className="loading loading-spinner loading-xs" /> : <Rocket size={14} />} Publish
+        <button className="btn btn-sm btn-primary" onClick={() => setModal('publish')} disabled={busy !== null || !unpublished}>
+          {busy === 'publish' ? <span className="loading loading-spinner loading-xs" /> : <Rocket size={14} />} Publish website
         </button>
       </div>
 
-      {error && <div className="alert alert-error text-sm py-2">{error}</div>}
-      {notice && <div className="alert alert-success text-sm py-2">{notice}</div>}
-      {current && (dirty || current.has_unpublished_changes) && !notice && (
-        <div className="text-xs text-warning">
-          {dirty ? 'Unsaved changes.' : 'Saved changes not published yet - visitors see the last published version.'}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+        {site?.live_version ? (
+          <span className="badge badge-success badge-sm gap-1"><CheckCircle2 size={10} /> Live: version {site.live_version}</span>
+        ) : (
+          <span className="badge badge-ghost badge-sm">Not published yet - visitors see a starter site</span>
+        )}
+        {site?.live_published_at && <span className="text-base-content/50">published {when(site.live_published_at)}</span>}
+        {site?.live_version && site.latest_version && site.live_version < site.latest_version && (
+          <span className="text-warning">An earlier version is live (latest is {site.latest_version}).</span>
+        )}
+        {unpublished && (
+          <span className="text-warning">
+            {dirty ? 'Unsaved changes on this page.' : 'Changes not published yet - visitors see the live version.'}
+          </span>
+        )}
+      </div>
+
+      {error && (
+        <div role="alert" className="alert alert-error text-sm py-2">
+          <span className="flex-1">{error}</span>
+          <button className="btn btn-xs btn-ghost" onClick={() => setError(null)} aria-label="Dismiss"><X size={12} /></button>
+        </div>
+      )}
+      {notice && (
+        <div role="status" className="alert alert-success text-sm py-2">
+          <span className="flex-1">{notice}</span>
+          <button className="btn btn-xs btn-ghost" onClick={() => setNotice(null)} aria-label="Dismiss"><X size={12} /></button>
         </div>
       )}
 
@@ -503,11 +683,35 @@ export default function SiteBuilderPage() {
         {/* Sections list, and the components to add */}
         <aside className="bg-base-100 border border-base-200 rounded-xl p-3 xl:sticky xl:top-20 max-h-[80vh] overflow-y-auto">
           <div className="join w-full mb-3">
-            <button className={`btn btn-sm join-item flex-1 ${leftTab === 'sections' ? 'btn-active' : ''}`} onClick={() => setLeftTab('sections')}>Sections</button>
-            <button className={`btn btn-sm join-item flex-1 ${leftTab === 'add' ? 'btn-active' : ''}`} onClick={() => setLeftTab('add')}><Plus size={12} /> Add</button>
+            <button className={`btn btn-sm join-item flex-1 px-1 ${leftTab === 'pages' ? 'btn-active' : ''}`} onClick={() => setLeftTab('pages')}><Files size={12} /> Pages</button>
+            <button className={`btn btn-sm join-item flex-1 px-1 ${leftTab === 'sections' ? 'btn-active' : ''}`} onClick={() => setLeftTab('sections')}>Sections</button>
+            <button className={`btn btn-sm join-item flex-1 px-1 ${leftTab === 'add' ? 'btn-active' : ''}`} onClick={() => setLeftTab('add')}><Plus size={12} /> Add</button>
           </div>
 
-          {leftTab === 'sections' ? (
+          {leftTab === 'pages' ? (
+            <div className="space-y-2">
+              <p className="text-xs text-base-content/60">Your website&apos;s pages, in menu-bar order. Click one to edit it.</p>
+              <ol className="space-y-1">
+                {pages.map((p, i) => (
+                  <li
+                    key={p.id}
+                    onClick={() => switchPage(p.id)}
+                    className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm cursor-pointer ${p.id === currentId ? 'bg-primary/10 ring-1 ring-primary' : 'hover:bg-base-200'}`}
+                  >
+                    {p.is_home ? <Home size={12} className="text-base-content/50 shrink-0" /> : <FileText size={12} className="text-base-content/40 shrink-0" />}
+                    <span className="flex-1 truncate">{p.title}</span>
+                    {!p.is_live ? <span className="badge badge-info badge-xs">new</span> : p.has_unpublished_changes && <span className="badge badge-warning badge-xs">changed</span>}
+                    <span className="hidden group-hover:flex items-center">
+                      <button className="btn btn-ghost btn-xs btn-square" onClick={(e) => { e.stopPropagation(); movePage(i, i - 1); }} disabled={i === 0} aria-label="Move up"><ArrowUp size={12} /></button>
+                      <button className="btn btn-ghost btn-xs btn-square" onClick={(e) => { e.stopPropagation(); movePage(i, i + 1); }} disabled={i === pages.length - 1} aria-label="Move down"><ArrowDown size={12} /></button>
+                      {!p.is_home && <button className="btn btn-ghost btn-xs btn-square text-error" onClick={(e) => { e.stopPropagation(); deletePage(p); }} aria-label={`Delete ${p.title}`}><Trash2 size={12} /></button>}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <button className="btn btn-sm btn-outline w-full" onClick={() => setModal('add-page')}><FilePlus size={14} /> Add a page</button>
+            </div>
+          ) : leftTab === 'sections' ? (
             <>
               {sections.length === 0 && <p className="text-xs text-base-content/60 py-4 text-center">Empty page. Open Add and drag a component in.</p>}
               <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
@@ -586,11 +790,14 @@ export default function SiteBuilderPage() {
               </div>
               {panel === 'page' ? (
                 <>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button className="btn btn-sm btn-outline" onClick={rebuildFromData} title="Builds the page from your menu, photos, reviews and branches"><Sparkles size={14} /> From my data</button>
+                  <div className={`grid gap-2 ${current?.kind ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                    {current?.kind && <button className="btn btn-sm btn-outline" onClick={rebuildFromData} title="Builds the page again from your menu, photos, reviews and branches"><Sparkles size={14} /> From my data</button>}
                     <button className="btn btn-sm btn-outline" onClick={openTemplates}><LayoutTemplate size={14} /> Template</button>
                   </div>
                   <PagePanel meta={meta} isHome={!!current?.is_home} siteBase={siteBase} onChange={setMeta} onError={setError} />
+                  {current && !current.is_home && (
+                    <button className="btn btn-sm btn-ghost text-error w-full" onClick={() => deletePage(current)}><Trash2 size={14} /> Delete this page</button>
+                  )}
                 </>
               ) : (
                 <>
@@ -605,8 +812,8 @@ export default function SiteBuilderPage() {
       </div>
 
       {templates && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setTemplates(null)}>
-          <div className="bg-base-100 rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <Modal onClose={() => setTemplates(null)} wide>
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-lg">Start from a template</h2>
               <button className="btn btn-sm btn-ghost btn-square" onClick={() => setTemplates(null)} aria-label="Close"><X size={16} /></button>
@@ -624,8 +831,32 @@ export default function SiteBuilderPage() {
               ))}
             </div>
           </div>
-        </div>
+        </Modal>
       )}
+
+      {modal === 'publish' && (
+        <PublishModal
+          pages={pages}
+          site={site}
+          themeChanged={themeDirty}
+          busy={busy === 'publish'}
+          onPublish={publishSite}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'add-page' && (
+        <AddPageModal
+          standardPages={standardPages}
+          busy={busy === 'pages'}
+          onAdd={addPage}
+          onAddMissing={addMissingPages}
+          onClose={() => setModal(null)}
+        />
+      )}
+      {modal === 'versions' && (
+        <VersionsModal onMakeLive={makeLive} onEdit={async (v) => { if (await editVersion(v)) setModal(null); }} onError={setError} onClose={() => setModal(null)} />
+      )}
+      {dialog}
 
       <DragOverlay dropAnimation={null}>
         {dragging && (
@@ -636,6 +867,179 @@ export default function SiteBuilderPage() {
       </DragOverlay>
       </DndContext>
     </div>
+  );
+}
+
+/** A daisyUI modal, open while it is rendered. Escape and the backdrop close it. */
+function Modal({ onClose, wide, children }: { onClose: () => void; wide?: boolean; children: React.ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useEffect(() => { ref.current?.showModal(); }, []);
+
+  return (
+    <dialog ref={ref} className="modal" onClose={onClose}>
+      <div className={`modal-box ${wide ? 'max-w-2xl' : ''}`}>
+        <button className="btn btn-sm btn-ghost btn-square absolute right-3 top-3" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        {children}
+      </div>
+      <form method="dialog" className="modal-backdrop"><button aria-label="Close">close</button></form>
+    </dialog>
+  );
+}
+
+/** Publish website: what goes live, an optional note, and the button. */
+function PublishModal({ pages, site, themeChanged, busy, onPublish, onClose }: {
+  pages: PageRow[];
+  site: SiteStatus | null;
+  themeChanged: boolean;
+  busy: boolean;
+  onPublish: (note: string) => void;
+  onClose: () => void;
+}) {
+  const [note, setNote] = useState('');
+  const added = pages.filter((p) => !p.is_live);
+  const changed = pages.filter((p) => p.is_live && p.has_unpublished_changes);
+  const next = (site?.latest_version ?? 0) + 1;
+
+  return (
+    <Modal onClose={onClose}>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onPublish(note); }}>
+        <h3 className="font-semibold text-lg flex items-center gap-2"><Rocket size={18} /> Publish website</h3>
+        <p className="text-sm text-base-content/70">
+          Everything in the editor goes live together as <b>version {next}</b>
+          {site?.live_version ? `, replacing version ${site.live_version}` : ''}. You can put an earlier version back at any time from History.
+        </p>
+        <ul className="text-sm space-y-1">
+          {added.map((p) => <li key={p.id} className="flex items-center gap-2"><span className="badge badge-info badge-xs">new</span> {p.title}</li>)}
+          {changed.map((p) => <li key={p.id} className="flex items-center gap-2"><span className="badge badge-warning badge-xs">changed</span> {p.title}</li>)}
+          {themeChanged && <li className="flex items-center gap-2"><span className="badge badge-warning badge-xs">changed</span> Theme, header or footer</li>}
+          {added.length === 0 && changed.length === 0 && !themeChanged && (
+            <li className="text-base-content/60">Page order, deleted pages or saved site settings.</li>
+          )}
+        </ul>
+        <label className="block">
+          <span className="label-text text-xs font-medium mb-1 block">Note for this version (optional)</span>
+          <input className="input input-bordered w-full" maxLength={200} placeholder="e.g. New Ramadan menu" value={note} onChange={(e) => setNote(e.target.value)} />
+        </label>
+        <div className="modal-action">
+          <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn btn-primary" disabled={busy}>
+            {busy ? <span className="loading loading-spinner loading-sm" /> : <Rocket size={16} />} Publish version {next}
+          </button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/** Add a page: a standard one, drafted from the restaurant's data, or a blank one. */
+function AddPageModal({ standardPages, busy, onAdd, onAddMissing, onClose }: {
+  standardPages: StandardPage[];
+  busy: boolean;
+  onAdd: (body: { kind: string } | { title: string }) => void;
+  onAddMissing: () => void;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const missing = standardPages.filter((p) => !p.added);
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="space-y-4">
+        <h3 className="font-semibold text-lg">Add a page</h3>
+        {missing.length > 0 ? (
+          <>
+            <p className="text-sm text-base-content/70">Standard restaurant pages, filled in from your menu, photos, branches and details. Change anything after.</p>
+            <div className="grid sm:grid-cols-2 gap-2">
+              {missing.map((p) => (
+                <button key={p.kind} className="text-left rounded-xl border border-base-300 p-3 hover:border-primary hover:bg-primary/5 disabled:opacity-50" disabled={busy} onClick={() => onAdd({ kind: p.kind })}>
+                  <div className="font-medium">{p.title}</div>
+                  <div className="text-xs text-base-content/60">{PAGE_HINTS[p.kind] ?? ''}</div>
+                </button>
+              ))}
+            </div>
+            {missing.length > 1 && (
+              <button className="btn btn-sm btn-outline" disabled={busy} onClick={onAddMissing}>
+                {busy ? <span className="loading loading-spinner loading-xs" /> : <Files size={14} />} Add all {missing.length}
+              </button>
+            )}
+          </>
+        ) : (
+          <p className="text-sm text-base-content/70">Your site has every standard page.</p>
+        )}
+        <form className="border-t border-base-200 pt-4 space-y-2" onSubmit={(e) => { e.preventDefault(); if (title.trim()) onAdd({ title: title.trim() }); }}>
+          <span className="label-text text-xs font-medium block">Or a blank page of your own</span>
+          <div className="join w-full">
+            <input className="input input-bordered join-item w-full" maxLength={120} placeholder="Page name, e.g. Catering" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <button type="submit" className="btn btn-primary join-item" disabled={busy || !title.trim()}>Add</button>
+          </div>
+        </form>
+      </div>
+    </Modal>
+  );
+}
+
+const PAGE_HINTS: Record<string, string> = {
+  menu: 'Your full menu by category.',
+  order: 'Online ordering inside your website.',
+  reservations: 'A table booking form.',
+  about: 'Your story, with a photo.',
+  gallery: 'A grid of photos.',
+  locations: 'Your branches, with directions.',
+  contact: 'Phone, email, address and social links.',
+};
+
+/** Every published version: which is live, put one back, or open one in the editor. */
+function VersionsModal({ onMakeLive, onEdit, onError, onClose }: {
+  onMakeLive: (v: Version) => Promise<boolean>;
+  onEdit: (v: Version) => void;
+  onError: (message: string) => void;
+  onClose: () => void;
+}) {
+  const [versions, setVersions] = useState<Version[] | null>(null);
+
+  const load = useCallback(() => {
+    fetchApi('/site-builder/versions')
+      .then((res) => setVersions(res.versions))
+      .catch((err) => { onError(apiErrorMessage(err, 'Could not load the versions.')); setVersions([]); });
+  }, [onError]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return (
+    <Modal onClose={onClose} wide>
+      <div className="space-y-4">
+        <h3 className="font-semibold text-lg flex items-center gap-2"><History size={18} /> Website versions</h3>
+        <p className="text-sm text-base-content/70">Each time you publish, the whole website is kept as a version. Put an earlier one back live, or open one in the editor to work from.</p>
+        {versions === null ? (
+          <div className="flex justify-center py-8"><span className="loading loading-spinner" /></div>
+        ) : versions.length === 0 ? (
+          <p className="text-sm text-base-content/60 py-4 text-center">Nothing published yet. Publish the website to create version 1.</p>
+        ) : (
+          <ul className="divide-y divide-base-200">
+            {versions.map((v) => (
+              <li key={v.id} className="py-3 flex flex-wrap items-start gap-3">
+                <div className="flex-1 min-w-48">
+                  <div className="font-medium flex items-center gap-2">
+                    Version {v.number}
+                    {v.is_live && <span className="badge badge-success badge-sm">live</span>}
+                  </div>
+                  {v.note && <div className="text-sm">{v.note}</div>}
+                  <div className="text-xs text-base-content/60">
+                    {when(v.published_at)}{v.published_by ? ` by ${v.published_by}` : ''} · {v.pages.length} page{v.pages.length === 1 ? '' : 's'}
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {!v.is_live && (
+                    <button className="btn btn-xs btn-outline" onClick={async () => { if (await onMakeLive(v)) load(); }}><RotateCcw size={12} /> Make live</button>
+                  )}
+                  <button className="btn btn-xs btn-ghost" onClick={() => onEdit(v)}><PencilLine size={12} /> Open in editor</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Modal>
   );
 }
 
@@ -854,7 +1258,7 @@ function DomainPanel({ onError }: { onError: (message: string) => void }) {
   );
 }
 
-/** Site-wide colours and type. Saved separately: it applies to the live site at once. */
+/** Site-wide colours, type, header and footer - a draft like the pages, live on Publish website. */
 function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
   theme: SiteTheme;
   dirty: boolean;
@@ -907,7 +1311,7 @@ function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
       <button className="btn btn-sm btn-primary w-full" disabled={!dirty || saving} onClick={onSave}>
         {saving ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save site settings
       </button>
-      <p className="text-xs text-base-content/50">These apply to every page of your live site as soon as they are saved - no need to publish.</p>
+      <p className="text-xs text-base-content/50">Saved as a draft for every page. Visitors see them when you publish the website.</p>
     </div>
   );
 }

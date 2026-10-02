@@ -1,4 +1,4 @@
-import type { Section, SiteMenuData, SiteRestaurant, SiteReview, SiteSocialLink } from './types';
+import type { Section, SiteMenuData, SiteNavPage, SiteRestaurant, SiteReview, SiteSocialLink } from './types';
 import type { SiteTheme } from './themes';
 
 /**
@@ -14,9 +14,14 @@ const API = `${(process.env.API_INTERNAL_URL || 'http://127.0.0.1:8029').replace
 export interface SitePageData {
   restaurant: SiteRestaurant;
   theme: SiteTheme;
-  pages: { slug: string; title: string }[];
+  /** The live version's number; null for a site never published. */
+  version: number | null;
+  pages: SiteNavPage[];
+  /** The page holding online ordering, if the site has one. */
+  order_page: string | null;
   page: {
     title: string;
+    kind: string | null;
     meta_title: string | null;
     meta_description: string | null;
     og_image: string | null;
@@ -35,7 +40,7 @@ async function get<T>(path: string): Promise<T | null> {
   }
 }
 
-/** A published page of a restaurant's site, or null when there is none. */
+/** A page of a restaurant's live site, or null when there is none. */
 export function loadSitePage(code: string, slug: string): Promise<SitePageData | null> {
   return get<SitePageData>(`/site/${encodeURIComponent(code)}${slug ? `/${encodeURIComponent(slug)}` : ''}`);
 }

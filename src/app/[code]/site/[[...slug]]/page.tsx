@@ -65,18 +65,23 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
   if (!data) notFound();
 
   const needsMenu = data.page.sections.some((s) => LIVE_TYPES.includes(s.type));
+  const base = await basePath(code);
+  const at = (slug: string) => (slug ? `${base}/${slug}` : base || '/');
+  const menuPage = data.pages.find((p) => p.kind === 'menu');
 
   const ctx: SiteContext = {
     restaurant: data.restaurant,
     menu: needsMenu ? await loadSiteMenu(code) : null,
     reviews: data.reviews ?? [],
     social: data.social ?? [],
-    basePath: await basePath(code),
-    orderUrl: `/order/${encodeURIComponent(code)}`,
+    basePath: base,
+    // The site's own ordering page when it has one, so a visitor stays on it.
+    orderUrl: data.order_page !== null ? at(data.order_page) : `/order/${encodeURIComponent(code)}`,
+    menuUrl: menuPage ? at(menuPage.slug) : undefined,
   };
 
   return (
-    <SiteFrame ctx={ctx} theme={data.theme} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
+    <SiteFrame ctx={ctx} theme={data.theme} current={(slug ?? [])[0] ?? ''} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
       {data.page.sections.map((section) => (
         <SiteSection key={section.id} section={section} ctx={ctx} />
       ))}

@@ -46,7 +46,15 @@ export interface SiteRestaurant {
 export interface SiteMenuData {
   categories: { id: number; name: string }[];
   products: { id: number; name: string; description: string | null; price: number; category_id: number | null; image_url: string | null }[];
-  locations: { id: number; name: string; address: string | null; phone: string | null }[];
+  locations: { id: number; name: string; address: string | null; phone: string | null; map_url?: string | null }[];
+}
+
+/** A page in the site's navigation. */
+export interface SiteNavPage {
+  slug: string;
+  title: string;
+  /** Which standard page it is (menu, order...), null for the owner's own. */
+  kind?: string | null;
 }
 
 export interface SiteReview {
@@ -69,8 +77,10 @@ export interface SiteContext {
   preview?: boolean;
   /** Where the site's own links start: '' on a subdomain, '/{code}/site' otherwise. */
   basePath: string;
-  /** Online ordering, which lives outside the site pages. */
+  /** Where Order buttons go: the site's own ordering page, or the order link. */
   orderUrl: string;
+  /** Where Menu buttons go: the site's Menu page, if it has one. */
+  menuUrl?: string;
 }
 
 export const storageUrl = (path: string | null | undefined): string | null =>

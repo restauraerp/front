@@ -7,7 +7,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical } from 'lucide-react';
 import { SiteFrame, SiteSection } from '@/components/site/Sections';
-import type { Section, SiteContext } from '@/lib/site/types';
+import type { Section, SiteContext, SiteNavPage } from '@/lib/site/types';
 import type { SiteTheme } from '@/lib/site/themes';
 
 /**
@@ -30,7 +30,9 @@ import type { SiteTheme } from '@/lib/site/themes';
  */
 type PreviewState = {
   ctx: SiteContext;
-  pages: { slug: string; title: string }[];
+  pages: SiteNavPage[];
+  /** The page being edited, to mark it in the menu. */
+  current: string;
   theme: SiteTheme;
   sections: Section[];
   selectedId: string | null;
@@ -88,7 +90,7 @@ export default function SitePreviewPage() {
 
   return (
     <div onClickCapture={(e) => { if ((e.target as HTMLElement).closest('a')) e.preventDefault(); }}>
-      <SiteFrame ctx={ctx} pages={state.pages} theme={state.theme}>
+      <SiteFrame ctx={ctx} pages={state.pages} theme={state.theme} current={state.current}>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={state.sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
             {state.sections.map((s, i) => (
