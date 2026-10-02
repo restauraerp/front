@@ -862,7 +862,7 @@ export default function SiteBuilderPage() {
                   <DomainPanel onError={setError} />
                   <GooglePanel onError={setError} onSaved={setNotice} />
                   <MetaPanel onError={setError} onSaved={setNotice} onPosts={setSocialFeed} />
-                  <IntegrationsPanel onError={setError} onSaved={setNotice} />
+                  <IntegrationsPanel onError={setError} onSaved={async (message) => { setNotice(message); applyWorkspace(await fetchApi('/site-pages')); }} />
                 </>
               )}
               <p className="text-xs text-base-content/50">Click a section in the preview or the list to change it.</p>
@@ -1504,13 +1504,16 @@ type Integrations = {
   has_ga4_api_secret: boolean;
   sends_meta: boolean;
   sends_ga4: boolean;
+  /** The ids on the live site - the draft ones go live on Publish website. */
+  live: Record<'gtm_id' | 'ga4_id' | 'meta_pixel_id' | 'clarity_id', string | null>;
 };
 
 /**
  * The website's measurement tags, and the secrets core-api needs to report
- * orders and bookings server-side. Live as soon as saved - wiring, not
- * content, so not part of Publish website. Secrets are write-only: the field
- * stays empty, and typing in it replaces the stored one.
+ * orders and bookings server-side. The tag ids are a draft like everything
+ * else, live on Publish website; the secrets apply on save and are never
+ * published. Secrets are write-only: the field stays empty, and typing in it
+ * replaces the stored one.
  */
 function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) => void; onSaved: (message: string) => void }) {
   const [info, setInfo] = useState<Integrations | null>(null);
@@ -1544,7 +1547,7 @@ function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) =>
       const res: Integrations = await fetchApi('/site-builder/integrations', { method: 'PUT', body: JSON.stringify(body) });
       setInfo(res);
       setForm((f) => ({ ...f, meta_capi_token: '', ga4_api_secret: '' }));
-      onSaved('Integrations saved - they are live on your website now.');
+      onSaved('Integrations saved. New tag ids go live when you publish the website.');
     } catch (err) {
       onError(apiErrorMessage(err, 'Could not save the integrations.'));
     } finally {
@@ -1554,7 +1557,10 @@ function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) =>
 
   const input = (key: string, label: string, placeholder: string, hint?: string) => (
     <label className="block">
-      <span className="label-text text-xs font-medium mb-1 block">{label}</span>
+      <span className="label-text text-xs font-medium mb-1 flex items-center gap-1">
+        {label}
+        {key in info.live && (info.live[key as keyof Integrations['live']] ?? '') !== (form[key] ?? '') && <span className="badge badge-warning badge-xs">not published</span>}
+      </span>
       <input className="input input-sm input-bordered w-full font-mono" placeholder={placeholder} value={form[key] ?? ''} onChange={set(key)} />
       {hint && <span className="text-[11px] text-base-content/50">{hint}</span>}
     </label>
@@ -1576,7 +1582,7 @@ function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) =>
   return (
     <form className="space-y-3 border-t border-base-200 pt-4" onSubmit={(e) => { e.preventDefault(); save(); }}>
       <span className="label-text text-xs font-medium flex items-center gap-1"><BarChart3 size={12} /> Tracking and analytics</span>
-      <p className="text-xs text-base-content/60">Your own tags on every page of your website and on online ordering. Live as soon as you save.</p>
+      <p className="text-xs text-base-content/60">Your own tags on every page of your website and on online ordering. Saved as a draft - they go live when you publish the website.</p>
       {input('gtm_id', 'Google Tag Manager', 'GTM-XXXXXXX')}
       {input('ga4_id', 'Google Analytics 4', 'G-XXXXXXXXXX')}
       {input('meta_pixel_id', 'Meta (Facebook) pixel', '1234567890123456')}
@@ -1584,7 +1590,7 @@ function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) =>
 
       <div className="divider my-1 text-xs">Server-side conversions</div>
       <p className="text-xs text-base-content/60">
-        Orders and table bookings are also reported from our server, so ad blockers and browsers that block cookies do not hide them.
+        Orders and table bookings are also reported from our server, so ad blockers and browsers that block cookies do not hide them. They go to the published pixel and GA4 property; these secrets apply as soon as you save.
       </p>
       {secret('meta_capi_token', 'Meta Conversions API token', info.has_meta_capi_token)}
       <span className="text-[11px] text-base-content/50 block -mt-2">Events Manager &gt; your pixel &gt; Settings &gt; Conversions API &gt; Generate access token.</span>
