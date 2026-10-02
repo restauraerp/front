@@ -1,4 +1,5 @@
-import type { Section, SiteMenuData, SiteRestaurant } from './types';
+import type { Section, SiteMenuData, SiteRestaurant, SiteReview, SiteSocialLink } from './types';
+import type { SiteTheme } from './themes';
 
 /**
  * Server-side reads for the public site.
@@ -12,8 +13,17 @@ const API = `${(process.env.API_INTERNAL_URL || 'http://127.0.0.1:8029').replace
 
 export interface SitePageData {
   restaurant: SiteRestaurant;
+  theme: SiteTheme;
   pages: { slug: string; title: string }[];
-  page: { title: string; sections: Section[] };
+  page: {
+    title: string;
+    meta_title: string | null;
+    meta_description: string | null;
+    og_image: string | null;
+    sections: Section[];
+  };
+  reviews: SiteReview[];
+  social: SiteSocialLink[];
 }
 
 async function get<T>(path: string): Promise<T | null> {

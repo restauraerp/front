@@ -1,7 +1,9 @@
 import React from 'react';
-import { MapPin, Phone, Mail, ShoppingBag } from 'lucide-react';
+import { MapPin, Phone, Mail, ShoppingBag, Star, Globe } from 'lucide-react';
 import type { Section, SectionProps, SiteContext } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
+import { themeStyle, type SiteTheme } from '@/lib/site/themes';
+import ReservationForm from './ReservationForm';
 
 /**
  * How each site-builder component draws.
@@ -38,7 +40,7 @@ function Hero({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const image = storageUrl(str(props, 'image'));
   const left = str(props, 'align') === 'left';
   const button = str(props, 'button');
-  const href = button === 'order' ? ctx.orderUrl : button === 'menu' ? `${ctx.basePath}/#menu` : null;
+  const href = linkFor(button, ctx);
 
   return (
     <section
@@ -191,6 +193,148 @@ function Contact({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   );
 }
 
+function Featured({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const products = ctx.menu?.products ?? [];
+  const chosen = Array.isArray(props.products) ? (props.products as number[]) : [];
+  const count = Number(str(props, 'count')) || 3;
+  // Chosen dishes in the order picked; otherwise the first dishes with photos.
+  const items = (chosen.length
+    ? chosen.map((id) => products.find((p) => p.id === id)).filter((p): p is NonNullable<typeof p> => !!p)
+    : products.filter((p) => p.image_url)
+  ).slice(0, count);
+  const money = (n: number) => `${ctx.restaurant.currency}${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+
+  if (items.length === 0) return <EmptyHint label="Featured dishes" hint="Add photos to your dishes in the catalog, or choose dishes in the settings." />;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {items.map((item) => {
+          const image = storageUrl(item.image_url);
+          return (
+            <div key={item.id} className="rounded-2xl overflow-hidden bg-base-100 text-base-content shadow">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {image && <img src={image} alt="" className="w-full aspect-[4/3] object-cover" />}
+              <div className="p-4">
+                <div className="font-semibold text-lg">{item.name}</div>
+                {item.description && <p className="text-sm opacity-70 mt-1 line-clamp-2">{item.description}</p>}
+                {on(props, 'show_prices') && <div className="font-bold text-primary mt-2">{money(item.price)}</div>}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Shell>
+  );
+}
+
+function Reviews({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const reviews = ctx.reviews.slice(0, Number(str(props, 'count')) || 3);
+  if (reviews.length === 0) return <EmptyHint label="Reviews" hint="Choose reviews to show in Website > Reviews." />;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        {reviews.map((r, i) => (
+          <figure key={i} className="rounded-2xl bg-base-100 text-base-content p-5 shadow-sm">
+            <div className="flex gap-0.5 text-warning" aria-label={`${r.rating} out of 5`}>
+              {Array.from({ length: 5 }, (_, n) => <Star key={n} size={16} fill={n < r.rating ? 'currentColor' : 'none'} />)}
+            </div>
+            {r.text && <blockquote className="mt-3 text-sm leading-relaxed opacity-90 line-clamp-6">{r.text}</blockquote>}
+            {r.author && <figcaption className="mt-3 text-sm font-semibold">{r.author}</figcaption>}
+          </figure>
+        ))}
+      </div>
+    </Shell>
+  );
+}
+
+function Reservations({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      {str(props, 'intro') && <p className="text-center opacity-80 -mt-4 mb-8 whitespace-pre-line">{str(props, 'intro')}</p>}
+      <ReservationForm code={ctx.restaurant.code} locations={ctx.menu?.locations ?? []} preview={ctx.preview} />
+    </Shell>
+  );
+}
+
+function Social({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  if (ctx.social.length === 0) return <EmptyHint label="Social links" hint="Add your pages in Website > Social links." />;
+
+  return (
+    <Shell props={props} className="text-center">
+      <Heading text={str(props, 'heading')} />
+      <div className="flex flex-wrap justify-center gap-3">
+        {ctx.social.map((l) => (
+          <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="btn btn-outline gap-2 capitalize">
+            <Globe size={16} /> {l.platform || 'Visit'}
+          </a>
+        ))}
+      </div>
+    </Shell>
+  );
+}
+
+function linkFor(target: string, ctx: SiteContext, page?: string): string | null {
+  switch (target) {
+    case 'order': return ctx.orderUrl;
+    case 'menu': return `${ctx.basePath}/#menu`;
+    case 'call': return ctx.restaurant.phone ? `tel:${ctx.restaurant.phone}` : null;
+    case 'page': return page ? `${ctx.basePath}/${page}` : ctx.basePath || '/';
+    default: return null;
+  }
+}
+
+function ImageText({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const image = storageUrl(str(props, 'image'));
+  const right = str(props, 'image_side') === 'right';
+  const href = linkFor(str(props, 'button'), ctx);
+
+  return (
+    <Shell props={props}>
+      <div className={`grid gap-8 items-center ${image ? 'md:grid-cols-2' : ''}`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {image && <img src={image} alt="" className={`w-full rounded-2xl object-cover aspect-[4/3] ${right ? 'md:order-2' : ''}`} />}
+        <div>
+          {str(props, 'heading') && <h2 className="text-2xl sm:text-3xl font-bold mb-4">{str(props, 'heading')}</h2>}
+          {str(props, 'body') && <p className="text-base sm:text-lg leading-relaxed whitespace-pre-line opacity-90">{str(props, 'body')}</p>}
+          {href && str(props, 'button_label') && <a href={href} className="btn btn-primary mt-6">{str(props, 'button_label')}</a>}
+        </div>
+      </div>
+    </Shell>
+  );
+}
+
+function Gallery({ props }: { props: SectionProps }) {
+  const images = (Array.isArray(props.images) ? (props.images as string[]) : []).map(storageUrl).filter((u): u is string => !!u);
+  if (images.length === 0) return <EmptyHint label="Gallery" hint="Add photos in the settings." />;
+  const cols = { '2': 'sm:grid-cols-2', '3': 'sm:grid-cols-3', '4': 'sm:grid-cols-2 lg:grid-cols-4' }[str(props, 'columns')] ?? 'sm:grid-cols-3';
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <div className={`grid grid-cols-2 ${cols} gap-3`}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {images.map((src) => <img key={src} src={src} alt="" className="w-full aspect-square object-cover rounded-xl" />)}
+      </div>
+    </Shell>
+  );
+}
+
+function ButtonSection({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const href = linkFor(str(props, 'target'), ctx, str(props, 'page'));
+  if (!href) return null;
+
+  return (
+    <Shell props={props} className={str(props, 'align') === 'left' ? 'text-left' : 'text-center'}>
+      <a href={href} className="btn btn-primary btn-lg">{str(props, 'label') || 'Learn more'}</a>
+    </Shell>
+  );
+}
+
 function EmptyHint({ label, hint }: { label: string; hint: string }) {
   return (
     <div className="max-w-5xl mx-auto px-4 py-10 text-center text-sm text-base-content/50 border border-dashed border-base-300 my-4 rounded-xl">
@@ -208,6 +352,13 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   order_button: OrderButton,
   branches: Branches,
   contact: Contact,
+  featured: Featured,
+  reviews: Reviews,
+  reservations: Reservations,
+  social: Social,
+  image_text: ImageText,
+  gallery: Gallery,
+  button: ButtonSection,
 };
 
 /** One section, or nothing for a type this build does not know. */
@@ -217,12 +368,17 @@ export function SiteSection({ section, ctx }: { section: Section; ctx: SiteConte
 }
 
 /** The site's header and footer around a page's sections. */
-export function SiteFrame({ ctx, pages, children }: { ctx: SiteContext; pages: { slug: string; title: string }[]; children: React.ReactNode }) {
+export function SiteFrame({ ctx, pages, theme, children }: {
+  ctx: SiteContext;
+  pages: { slug: string; title: string }[];
+  theme?: SiteTheme | null;
+  children: React.ReactNode;
+}) {
   const logo = storageUrl(ctx.restaurant.logo_url);
   const href = (slug: string) => (slug ? `${ctx.basePath}/${slug}` : ctx.basePath || '/');
 
   return (
-    <div className="min-h-screen flex flex-col bg-base-100 text-base-content">
+    <div className="min-h-screen flex flex-col bg-base-100 text-base-content" style={themeStyle(theme)}>
       <header className="sticky top-0 z-30 bg-base-100/95 backdrop-blur border-b border-base-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center gap-4">
           <a href={href('')} className="flex items-center gap-2 min-w-0">

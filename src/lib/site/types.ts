@@ -7,7 +7,7 @@
  * GET /site-builder/components, and these types mirror it for rendering.
  */
 
-export type SectionProps = Record<string, string | boolean | number | number[]>;
+export type SectionProps = Record<string, string | boolean | number | number[] | string[]>;
 
 export interface Section {
   id: string;
@@ -16,17 +16,19 @@ export interface Section {
 }
 
 export interface FieldDefinition {
-  type: 'text' | 'textarea' | 'enum' | 'bool' | 'image' | 'categories';
+  type: 'text' | 'textarea' | 'enum' | 'bool' | 'image' | 'images' | 'categories' | 'products' | 'page';
   label: string;
   max?: number;
   options?: string[];
-  default: string | boolean | number[];
+  default: string | boolean | number[] | string[];
 }
 
 export interface ComponentDefinition {
   label: string;
   kind: 'live' | 'content';
   description: string;
+  /** The module a restaurant needs for this component (Reservations: crm). */
+  requires?: string;
   fields: Record<string, FieldDefinition>;
 }
 
@@ -47,9 +49,24 @@ export interface SiteMenuData {
   locations: { id: number; name: string; address: string | null; phone: string | null }[];
 }
 
+export interface SiteReview {
+  author: string | null;
+  rating: number;
+  text: string | null;
+}
+
+export interface SiteSocialLink {
+  platform: string;
+  url: string;
+}
+
 export interface SiteContext {
   restaurant: SiteRestaurant;
   menu: SiteMenuData | null;
+  reviews: SiteReview[];
+  social: SiteSocialLink[];
+  /** In the editor's preview: forms do not submit and links do not navigate. */
+  preview?: boolean;
   /** Where the site's own links start: '' on a subdomain, '/{code}/site' otherwise. */
   basePath: string;
   /** Online ordering, which lives outside the site pages. */

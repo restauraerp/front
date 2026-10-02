@@ -19,7 +19,8 @@ import type { SiteContext } from '@/lib/site/types';
  */
 type Params = { code: string; slug?: string[] };
 
-const LIVE_TYPES = ['menu', 'branches', 'order_button'];
+/** Sections that draw on the menu data (products, categories, branches). */
+const LIVE_TYPES = ['menu', 'branches', 'featured', 'reservations'];
 
 async function basePath(code: string): Promise<string> {
   const base = (await headers()).get('x-site-base');
@@ -31,9 +32,28 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const data = await loadSitePage(code, (slug ?? []).join('/'));
   if (!data) return { title: 'Not found' };
 
+  const title = data.page.meta_title
+    || (data.page.title && data.page.title !== 'Home' ? `${data.page.title} · ${data.restaurant.name}` : data.restaurant.name);
+  const description = data.page.meta_description
+    || `${data.restaurant.name}${data.restaurant.address ? ` - ${data.restaurant.address}` : ''}. Menu, branches and online ordering.`;
+
+  // Link previews need an absolute address; build it from the host the page
+  // was asked for, so it is right on a subdomain and on the path form alike.
+  const h = await headers();
+  const host = h.get('x-forwarded-host') || h.get('host');
+  const origin = host ? `${h.get('x-forwarded-proto') || 'https'}://${host}` : undefined;
+  const image = data.page.og_image ?? data.restaurant.logo_url;
+
   return {
-    title: data.page.title && data.page.title !== 'Home' ? `${data.page.title} · ${data.restaurant.name}` : data.restaurant.name,
-    description: `${data.restaurant.name}${data.restaurant.address ? ` - ${data.restaurant.address}` : ''}. Menu, branches and online ordering.`,
+    title,
+    description,
+    openGraph: {
+      title,
+      description,
+      siteName: data.restaurant.name,
+      type: 'website',
+      ...(image && origin ? { images: [`${origin}/storage/${image}`] } : {}),
+    },
   };
 }
 
@@ -49,12 +69,14 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
   const ctx: SiteContext = {
     restaurant: data.restaurant,
     menu: needsMenu ? await loadSiteMenu(code) : null,
+    reviews: data.reviews ?? [],
+    social: data.social ?? [],
     basePath: await basePath(code),
     orderUrl: `/order/${encodeURIComponent(code)}`,
   };
 
   return (
-    <SiteFrame ctx={ctx} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
+    <SiteFrame ctx={ctx} theme={data.theme} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
       {data.page.sections.map((section) => (
         <SiteSection key={section.id} section={section} ctx={ctx} />
       ))}
