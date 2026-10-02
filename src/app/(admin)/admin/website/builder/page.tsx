@@ -1,6 +1,12 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  DndContext, DragOverlay, KeyboardSensor, MouseSensor, TouchSensor, closestCenter, useDraggable, useDroppable, useSensor, useSensors,
+  type DragEndEvent, type DragMoveEvent, type DragStartEvent,
+} from '@dnd-kit/core';
+import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
   Monitor, Smartphone, Palette, FileText,
 } from 'lucide-react';
@@ -23,6 +29,17 @@ import { FONTS, PALETTES, DEFAULT_THEME, type SiteTheme } from '@/lib/site/theme
  *
  * The preview is an iframe (/{code}/site-preview) rendering the site's own
  * components with real data, so the phone view is a real phone layout.
+ *
+ * Drag and drop is dnd-kit throughout - mouse, touch (after a short press)
+ * and keyboard:
+ *   - the Sections list is sortable;
+ *   - inside the preview, each section has a handle; the frame reports the
+ *     move (site-preview-reorder) and this page applies it;
+ *   - components drag from the Add panel onto the Sections list or the
+ *     preview. A drag cannot cross into an iframe, so while one is under way
+ *     the frame stops taking pointer events, the drop point is worked out
+ *     from its [data-section-id] elements (same origin, so readable), and the
+ *     frame is told where to draw the drop line.
  */
 
 type PageRow = {
@@ -43,6 +60,16 @@ type History = { past: Section[][]; future: Section[][] };
 type Product = SiteMenuData['products'][number];
 
 const newId = () => Math.random().toString(36).slice(2, 10);
+const PALETTE_PREFIX = 'palette:';
+const OUTLINE_END = 'outline-end';
+
+/** Where the pointer is during a drag: where it started, moved by the drag. */
+function pointerOf(e: DragMoveEvent | DragEndEvent): { x: number; y: number } | null {
+  const start = e.activatorEvent as MouseEvent | TouchEvent | null;
+  if (!start) return null;
+  const point = 'touches' in start ? start.touches[0] ?? start.changedTouches[0] : start;
+  return point ? { x: point.clientX + e.delta.x, y: point.clientY + e.delta.y } : null;
+}
 const metaOf = (p: PageRow): PageMeta => ({
   title: p.title, slug: p.slug, meta_title: p.meta_title ?? '', meta_description: p.meta_description ?? '', og_image: p.og_image ?? '',
 });
@@ -64,11 +91,13 @@ export default function SiteBuilderPage() {
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [panel, setPanel] = useState<'page' | 'theme'>('page');
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [leftTab, setLeftTab] = useState<'sections' | 'add'>('sections');
+  const [dragging, setDragging] = useState<{ kind: 'palette' | 'section'; label: string } | null>(null);
+  const [marker, setMarker] = useState<number | null>(null);
+  const previewBox = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState<'save' | 'publish' | 'theme' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [previewReady, setPreviewReady] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
 
@@ -150,9 +179,10 @@ export default function SiteBuilderPage() {
         selectedId,
         pages: pages.filter((p) => p.is_published).map((p) => ({ slug: p.is_home ? '' : p.slug, title: p.title })),
         labels: Object.fromEntries(Object.entries(defs).map(([k, d]) => [k, d.label])),
+        marker,
       },
     }, window.location.origin);
-  }, [previewReady, ctx, defs, theme, sections, selectedId, pages]);
+  }, [previewReady, ctx, defs, theme, sections, selectedId, pages, marker]);
 
   // ---- Editing ----------------------------------------------------------------
   /** Every section edit goes through here, so it can be undone. */
@@ -178,20 +208,97 @@ export default function SiteBuilderPage() {
   const defaultsFor = (type: string): SectionProps =>
     Object.fromEntries(Object.entries(defs?.[type]?.fields ?? {}).map(([k, f]) => [k, f.default])) as SectionProps;
 
-  const addSection = (type: string) => {
+  /** Adds a component at `index`, or below the selected section (else at the end). */
+  const addSection = (type: string, index?: number) => {
     const section: Section = { id: newId(), type, props: defaultsFor(type) };
-    const at = selected ? sections.indexOf(selected) + 1 : sections.length;
+    const at = index ?? (selected ? sections.indexOf(selected) + 1 : sections.length);
     change([...sections.slice(0, at), section, ...sections.slice(at)]);
     setSelectedId(section.id);
-    setPickerOpen(false);
   };
 
   const move = (from: number, to: number) => {
     if (to < 0 || to >= sections.length || from === to) return;
-    const next = [...sections];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    change(next);
+    change(arrayMove(sections, from, to));
+  };
+
+  // A section dragged inside the preview. Re-subscribed every render (no
+  // dependency list) so it always applies the move to the current sections.
+  useEffect(() => {
+    const onMessage = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin || e.data?.type !== 'site-preview-reorder') return;
+      move(Number(e.data.from), Number(e.data.to));
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  });
+
+  // ---- Drag and drop ----------------------------------------------------------
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  /**
+   * Where in the page a component dropped at this point would go, read from
+   * the preview frame's section elements; null when the point is not over it.
+   * Also scrolls the frame when the point nears its top or bottom edge.
+   */
+  const dropIndexAt = (point: { x: number; y: number }): number | null => {
+    const iframe = frame.current;
+    const box = previewBox.current?.getBoundingClientRect();
+    if (!iframe || !box || point.x < box.left || point.x > box.right || point.y < box.top || point.y > box.bottom) return null;
+
+    const frameRect = iframe.getBoundingClientRect();
+    const y = point.y - frameRect.top;
+    const win = iframe.contentWindow;
+    if (win) {
+      if (y < 60) win.scrollBy(0, -24);
+      else if (y > frameRect.height - 60) win.scrollBy(0, 24);
+    }
+
+    const els = Array.from(iframe.contentDocument?.querySelectorAll<HTMLElement>('[data-section-id]') ?? []);
+    const index = els.findIndex((el) => {
+      const r = el.getBoundingClientRect();
+      return y < r.top + r.height / 2;
+    });
+    return index === -1 ? els.length : index;
+  };
+
+  const onDragStart = ({ active }: DragStartEvent) => {
+    const id = String(active.id);
+    const type = id.startsWith(PALETTE_PREFIX) ? id.slice(PALETTE_PREFIX.length) : sections.find((s) => s.id === id)?.type;
+    setDragging({ kind: id.startsWith(PALETTE_PREFIX) ? 'palette' : 'section', label: defs?.[type ?? '']?.label ?? 'Section' });
+  };
+
+  const onDragMove = (e: DragMoveEvent) => {
+    if (!String(e.active.id).startsWith(PALETTE_PREFIX)) return;
+    const point = pointerOf(e);
+    setMarker(point ? dropIndexAt(point) : null);
+  };
+
+  const endDrag = () => { setDragging(null); setMarker(null); };
+
+  const onDragEnd = (e: DragEndEvent) => {
+    const id = String(e.active.id);
+    const overId = e.over ? String(e.over.id) : null;
+
+    if (id.startsWith(PALETTE_PREFIX)) {
+      const type = id.slice(PALETTE_PREFIX.length);
+      const point = pointerOf(e);
+      const intoPreview = point ? dropIndexAt(point) : null;
+
+      if (intoPreview !== null) addSection(type, intoPreview);
+      else if (overId === OUTLINE_END) addSection(type, sections.length);
+      else if (overId) {
+        const at = sections.findIndex((s) => s.id === overId);
+        if (at >= 0) addSection(type, at);
+      }
+      if (intoPreview !== null || overId) setLeftTab('sections');
+    } else if (overId && overId !== id && overId !== OUTLINE_END) {
+      move(sections.findIndex((s) => s.id === id), sections.findIndex((s) => s.id === overId));
+    }
+    endDrag();
   };
 
   const duplicate = (index: number) => {
@@ -350,51 +457,70 @@ export default function SiteBuilderPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[240px_1fr_310px] gap-3 items-start">
-        {/* Outline */}
-        <aside className="bg-base-100 border border-base-200 rounded-xl p-3 xl:sticky xl:top-20">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-sm">Sections</span>
-            <button className="btn btn-xs btn-primary" onClick={() => setPickerOpen(true)}><Plus size={12} /> Add</button>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={onDragStart} onDragMove={onDragMove} onDragEnd={onDragEnd} onDragCancel={endDrag}>
+      <div className="grid grid-cols-1 xl:grid-cols-[250px_1fr_310px] gap-3 items-start">
+        {/* Sections list, and the components to add */}
+        <aside className="bg-base-100 border border-base-200 rounded-xl p-3 xl:sticky xl:top-20 max-h-[80vh] overflow-y-auto">
+          <div className="join w-full mb-3">
+            <button className={`btn btn-sm join-item flex-1 ${leftTab === 'sections' ? 'btn-active' : ''}`} onClick={() => setLeftTab('sections')}>Sections</button>
+            <button className={`btn btn-sm join-item flex-1 ${leftTab === 'add' ? 'btn-active' : ''}`} onClick={() => setLeftTab('add')}><Plus size={12} /> Add</button>
           </div>
-          {sections.length === 0 && <p className="text-xs text-base-content/60 py-4 text-center">Empty page. Add a section to start.</p>}
-          <ol className="space-y-1">
-            {sections.map((s, i) => {
-              const def = defs[s.type];
-              return (
-                <li
-                  key={s.id}
-                  draggable
-                  onDragStart={() => setDragIndex(i)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => { if (dragIndex !== null) move(dragIndex, i); setDragIndex(null); }}
-                  onDragEnd={() => setDragIndex(null)}
-                  onClick={() => setSelectedId(s.id)}
-                  className={`group flex items-center gap-1 rounded-lg px-2 py-1.5 text-sm cursor-pointer ${selectedId === s.id ? 'bg-primary/10 ring-1 ring-primary' : 'hover:bg-base-200'} ${dragIndex === i ? 'opacity-40' : ''}`}
-                >
-                  <GripVertical size={14} className="text-base-content/30 cursor-grab shrink-0" />
-                  {def?.kind === 'live' ? <Zap size={12} className="text-warning shrink-0" /> : <Type size={12} className="text-base-content/40 shrink-0" />}
-                  <span className="flex-1 truncate">{def?.label ?? s.type}</span>
-                  <span className="hidden group-hover:flex items-center">
-                    <button className="btn btn-ghost btn-xs btn-square" onClick={(e) => { e.stopPropagation(); move(i, i - 1); }} disabled={i === 0} aria-label="Move up"><ArrowUp size={12} /></button>
-                    <button className="btn btn-ghost btn-xs btn-square" onClick={(e) => { e.stopPropagation(); move(i, i + 1); }} disabled={i === sections.length - 1} aria-label="Move down"><ArrowDown size={12} /></button>
-                    <button className="btn btn-ghost btn-xs btn-square" onClick={(e) => { e.stopPropagation(); duplicate(i); }} aria-label="Duplicate"><Copy size={12} /></button>
-                    <button className="btn btn-ghost btn-xs btn-square text-error" onClick={(e) => { e.stopPropagation(); remove(i); }} aria-label="Delete"><Trash2 size={12} /></button>
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+
+          {leftTab === 'sections' ? (
+            <>
+              {sections.length === 0 && <p className="text-xs text-base-content/60 py-4 text-center">Empty page. Open Add and drag a component in.</p>}
+              <SortableContext items={sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+                <ol className="space-y-1">
+                  {sections.map((s, i) => (
+                    <OutlineItem
+                      key={s.id}
+                      section={s}
+                      def={defs[s.type]}
+                      selected={selectedId === s.id}
+                      first={i === 0}
+                      last={i === sections.length - 1}
+                      onSelect={() => setSelectedId(s.id)}
+                      onUp={() => move(i, i - 1)}
+                      onDown={() => move(i, i + 1)}
+                      onDuplicate={() => duplicate(i)}
+                      onRemove={() => remove(i)}
+                    />
+                  ))}
+                </ol>
+              </SortableContext>
+              <OutlineEnd active={dragging?.kind === 'palette'} />
+            </>
+          ) : (
+            <div className="space-y-4">
+              <p className="text-xs text-base-content/60">Drag a component onto the page or the Sections list - or click to add it below the selected section.</p>
+              {groups.map(({ kind, title, hint, Icon }) => (
+                <div key={kind}>
+                  <div className="flex items-center gap-1 font-semibold text-xs uppercase tracking-wide text-base-content/60"><Icon size={12} /> {title}</div>
+                  <p className="text-[11px] text-base-content/50 mb-1">{hint}</p>
+                  <div className="space-y-1">
+                    {Object.entries(defs).filter(([, d]) => d.kind === kind).map(([type, d]) => (
+                      <PaletteItem key={type} type={type} def={d} onAdd={() => { addSection(type); setLeftTab('sections'); }} />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </aside>
 
         {/* Preview */}
-        <div className="rounded-xl border border-base-200 bg-base-200/60 p-2 flex justify-center">
+        <div
+          ref={previewBox}
+          className={`rounded-xl border bg-base-200/60 p-2 flex justify-center ${dragging?.kind === 'palette' ? 'border-primary border-dashed' : 'border-base-200'}`}
+        >
           <iframe
             ref={frame}
             src={`/${encodeURIComponent(siteCode)}/site-preview`}
             title="Site preview"
             className="bg-white rounded-lg shadow-sm transition-all"
-            style={{ width: device === 'phone' ? 390 : '100%', height: '75vh', border: 0 }}
+            // While something is being dragged here the frame must not swallow
+            // the pointer, or the drag would stop at its edge.
+            style={{ width: device === 'phone' ? 390 : '100%', height: '75vh', border: 0, pointerEvents: dragging ? 'none' : 'auto' }}
           />
         </div>
 
@@ -428,31 +554,95 @@ export default function SiteBuilderPage() {
         </aside>
       </div>
 
-      {/* Component picker */}
-      {pickerOpen && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setPickerOpen(false)}>
-          <div className="bg-base-100 rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5 space-y-5" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-lg">Add a section</h2>
-              <button className="btn btn-sm btn-ghost btn-square" onClick={() => setPickerOpen(false)} aria-label="Close"><X size={16} /></button>
-            </div>
-            {groups.map(({ kind, title, hint, Icon }) => (
-              <div key={kind}>
-                <div className="flex items-center gap-2 font-semibold text-sm"><Icon size={14} /> {title}</div>
-                <p className="text-xs text-base-content/60 mb-2">{hint}</p>
-                <div className="grid sm:grid-cols-2 gap-2">
-                  {Object.entries(defs).filter(([, d]) => d.kind === kind).map(([type, d]) => (
-                    <button key={type} className="text-left rounded-xl border border-base-300 p-3 hover:border-primary hover:bg-primary/5" onClick={() => addSection(type)}>
-                      <div className="font-medium">{d.label}</div>
-                      <div className="text-xs text-base-content/60">{d.description}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+      <DragOverlay dropAnimation={null}>
+        {dragging && (
+          <div className="badge badge-primary badge-lg gap-1 shadow-lg cursor-grabbing">
+            <GripVertical size={12} /> {dragging.label}
           </div>
-        </div>
-      )}
+        )}
+      </DragOverlay>
+      </DndContext>
+    </div>
+  );
+}
+
+/** One row of the Sections list: sortable by its handle, with the usual actions. */
+function OutlineItem({ section, def, selected, first, last, onSelect, onUp, onDown, onDuplicate, onRemove }: {
+  section: Section;
+  def: ComponentDefinition | undefined;
+  selected: boolean;
+  first: boolean;
+  last: boolean;
+  onSelect: () => void;
+  onUp: () => void;
+  onDown: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging, isOver } = useSortable({ id: section.id });
+  const stop = (fn: () => void) => (e: React.MouseEvent) => { e.stopPropagation(); fn(); };
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      onClick={onSelect}
+      className={`group flex items-center gap-1 rounded-lg px-1.5 py-1.5 text-sm cursor-pointer bg-base-100 ${isDragging ? 'opacity-40' : ''} ${selected ? 'bg-primary/10 ring-1 ring-primary' : 'hover:bg-base-200'} ${isOver ? 'ring-1 ring-primary/50' : ''}`}
+    >
+      <button
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        type="button"
+        onClick={(e) => e.stopPropagation()}
+        className="btn btn-ghost btn-xs btn-square cursor-grab active:cursor-grabbing touch-none"
+        aria-label={`Drag ${def?.label ?? section.type} to move it`}
+      >
+        <GripVertical size={14} className="text-base-content/40" />
+      </button>
+      {def?.kind === 'live' ? <Zap size={12} className="text-warning shrink-0" /> : <Type size={12} className="text-base-content/40 shrink-0" />}
+      <span className="flex-1 truncate">{def?.label ?? section.type}</span>
+      <span className="hidden group-hover:flex items-center">
+        <button className="btn btn-ghost btn-xs btn-square" onClick={stop(onUp)} disabled={first} aria-label="Move up"><ArrowUp size={12} /></button>
+        <button className="btn btn-ghost btn-xs btn-square" onClick={stop(onDown)} disabled={last} aria-label="Move down"><ArrowDown size={12} /></button>
+        <button className="btn btn-ghost btn-xs btn-square" onClick={stop(onDuplicate)} aria-label="Duplicate"><Copy size={12} /></button>
+        <button className="btn btn-ghost btn-xs btn-square text-error" onClick={stop(onRemove)} aria-label="Delete"><Trash2 size={12} /></button>
+      </span>
+    </li>
+  );
+}
+
+/** The drop zone under the Sections list: a component dropped here goes last. */
+function OutlineEnd({ active }: { active: boolean }) {
+  const { setNodeRef, isOver } = useDroppable({ id: OUTLINE_END });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`mt-2 rounded-lg border border-dashed text-center text-xs py-3 transition-colors ${active ? (isOver ? 'border-primary bg-primary/10 text-primary' : 'border-base-300 text-base-content/50') : 'hidden'}`}
+    >
+      Drop here to add at the end
+    </div>
+  );
+}
+
+/** A component in the Add panel: drag it onto the page, or click to add it. */
+function PaletteItem({ type, def, onAdd }: { type: string; def: ComponentDefinition; onAdd: () => void }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `${PALETTE_PREFIX}${type}` });
+
+  return (
+    <div
+      ref={setNodeRef}
+      {...attributes}
+      {...listeners}
+      onClick={onAdd}
+      className={`flex items-start gap-2 rounded-lg border border-base-300 p-2 cursor-grab active:cursor-grabbing hover:border-primary hover:bg-primary/5 select-none ${isDragging ? 'opacity-40' : ''}`}
+      title={def.description}
+    >
+      <GripVertical size={14} className="text-base-content/30 mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <div className="text-sm font-medium">{def.label}</div>
+        <div className="text-[11px] text-base-content/60 line-clamp-2">{def.description}</div>
+      </div>
     </div>
   );
 }
