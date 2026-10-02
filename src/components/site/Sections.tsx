@@ -4,6 +4,7 @@ import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site
 import { storageUrl } from '@/lib/site/types';
 import { themeStyle, type SiteTheme } from '@/lib/site/themes';
 import ReservationForm from './ReservationForm';
+import SiteMap from './SiteMap';
 import OnlineOrder from '@/app/order/[slug]/OnlineOrder';
 
 /**
@@ -190,6 +191,20 @@ function Branches({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
           </div>
         ))}
       </div>
+    </Shell>
+  );
+}
+
+function MapSection({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const chosen = Array.isArray(props.locations) ? (props.locations as number[]) : [];
+  const all = ctx.menu?.locations ?? [];
+  const branches = chosen.length ? all.filter((l) => chosen.includes(l.id)) : all;
+  if (branches.length === 0) return <EmptyHint ctx={ctx} label="Map" hint="Add your branches in Settings > Locations." />;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      <SiteMap restaurant={ctx.restaurant.name} branches={branches} layout={str(props, 'layout')} height={str(props, 'height')} />
     </Shell>
   );
 }
@@ -396,6 +411,7 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   menu: Menu,
   order_button: OrderButton,
   online_order: OnlineOrderSection,
+  map: MapSection,
   branches: Branches,
   contact: Contact,
   featured: Featured,

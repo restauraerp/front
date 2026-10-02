@@ -16,7 +16,7 @@ export interface Section {
 }
 
 export interface FieldDefinition {
-  type: 'text' | 'textarea' | 'enum' | 'bool' | 'image' | 'images' | 'categories' | 'products' | 'page';
+  type: 'text' | 'textarea' | 'enum' | 'bool' | 'image' | 'images' | 'categories' | 'products' | 'locations' | 'page';
   label: string;
   max?: number;
   options?: string[];

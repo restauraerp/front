@@ -21,7 +21,7 @@ import type { SiteContext } from '@/lib/site/types';
 type Params = { code: string; slug?: string[] };
 
 /** Sections that draw on the menu data (products, categories, branches). */
-const LIVE_TYPES = ['menu', 'branches', 'featured', 'reservations'];
+const LIVE_TYPES = ['menu', 'branches', 'featured', 'reservations', 'map'];
 
 async function basePath(code: string): Promise<string> {
   const base = (await headers()).get('x-site-base');

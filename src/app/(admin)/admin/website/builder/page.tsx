@@ -776,6 +776,7 @@ export default function SiteBuilderPage() {
               def={defs[selected.type]}
               props={selected.props}
               categories={menu?.categories ?? []}
+              locations={menu?.locations ?? []}
               products={menu?.products ?? []}
               pages={pages}
               onChange={setProp}
@@ -1426,10 +1427,11 @@ function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
 }
 
 /** The selected section's settings, drawn from its definition. */
-function SettingsPanel({ def, props, categories, products, pages, onChange, onError, onClose }: {
+function SettingsPanel({ def, props, categories, locations, products, pages, onChange, onError, onClose }: {
   def: ComponentDefinition;
   props: SectionProps;
   categories: { id: number; name: string }[];
+  locations: { id: number; name: string }[];
   products: Product[];
   pages: PageRow[];
   onChange: (key: string, value: SectionProps[string]) => void;
@@ -1446,17 +1448,18 @@ function SettingsPanel({ def, props, categories, products, pages, onChange, onEr
         <button className="btn btn-xs btn-ghost btn-square" onClick={onClose} aria-label="Close settings"><X size={14} /></button>
       </div>
       {Object.entries(def.fields).map(([key, field]) => (
-        <Field key={key} name={key} field={field} value={props[key]} categories={categories} products={products} pages={pages} onChange={onChange} onError={onError} />
+        <Field key={key} name={key} field={field} value={props[key]} categories={categories} locations={locations} products={products} pages={pages} onChange={onChange} onError={onError} />
       ))}
     </div>
   );
 }
 
-function Field({ name, field, value, categories, products, pages, onChange, onError }: {
+function Field({ name, field, value, categories, locations, products, pages, onChange, onError }: {
   name: string;
   field: FieldDefinition;
   value: SectionProps[string] | undefined;
   categories: { id: number; name: string }[];
+  locations: { id: number; name: string }[];
   products: Product[];
   pages: PageRow[];
   onChange: (key: string, value: SectionProps[string]) => void;
@@ -1504,15 +1507,16 @@ function Field({ name, field, value, categories, products, pages, onChange, onEr
         </label>
       );
     case 'categories':
-    case 'products': {
+    case 'products':
+    case 'locations': {
       const chosen = Array.isArray(value) ? (value as number[]) : [];
-      const options = field.type === 'categories' ? categories : products;
+      const options = field.type === 'categories' ? categories : field.type === 'locations' ? locations : products;
       const needle = search.trim().toLowerCase();
       const shown = options.filter((o) => !needle || o.name.toLowerCase().includes(needle)).slice(0, 60);
       return (
         <div>{label}
           <p className="text-xs text-base-content/50 mb-1">
-            {field.type === 'categories' ? 'None ticked shows every category.' : `${chosen.length} chosen. None chosen shows dishes with photos.`}
+            {field.type === 'categories' ? 'None ticked shows every category.' : field.type === 'locations' ? 'None ticked shows every branch.' : `${chosen.length} chosen. None chosen shows dishes with photos.`}
           </p>
           {field.type === 'products' && (
             <input className="input input-xs input-bordered w-full mb-1" placeholder="Search dishes" value={search} onChange={(e) => setSearch(e.target.value)} />
