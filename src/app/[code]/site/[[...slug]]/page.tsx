@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { SiteFrame, SiteSection } from '@/components/site/Sections';
 import { loadSiteMenu, loadSitePage } from '@/lib/site/server';
+import SiteTracking from '@/components/site/SiteTracking';
 import type { SiteContext } from '@/lib/site/types';
 
 /**
@@ -81,10 +82,13 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
   };
 
   return (
+    <>
+    <SiteTracking tags={data.tracking} />
     <SiteFrame ctx={ctx} theme={data.theme} current={(slug ?? [])[0] ?? ''} pages={data.pages.length ? data.pages : [{ slug: '', title: 'Home' }]}>
       {data.page.sections.map((section) => (
         <SiteSection key={section.id} section={section} ctx={ctx} />
       ))}
     </SiteFrame>
+    </>
   );
 }

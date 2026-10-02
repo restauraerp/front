@@ -1,5 +1,6 @@
 'use client';
 import React, { useState } from 'react';
+import { siteTrack, trackingContext } from '@/lib/site/track';
 import { CalendarCheck } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 
@@ -35,13 +36,14 @@ export default function ReservationForm({ code, locations, preview }: {
       const res = await fetch(`${API_BASE_URL}/site/${encodeURIComponent(code)}/reservations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ ...form, location_id: Number(form.location_id), guests: Number(form.guests), notes: form.notes || null }),
+        body: JSON.stringify({ ...form, location_id: Number(form.location_id), guests: Number(form.guests), notes: form.notes || null, tracking: trackingContext() }),
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) {
         const first = body?.errors ? (Object.values(body.errors)[0] as string[])[0] : null;
         throw new Error(first || body?.message || 'Your request could not be sent. Please call us instead.');
       }
+      siteTrack('generate_lead', { eventId: `reservation-${body.reservation_id}` });
       setStatus('sent');
     } catch (err) {
       setError((err as Error).message);

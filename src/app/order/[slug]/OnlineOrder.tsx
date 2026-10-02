@@ -4,6 +4,8 @@ import { Minus, Plus, Search, ShoppingBag, ShoppingCart, MapPin, Phone, CheckCir
 import { API_BASE_URL } from '@/lib/api';
 import MyOrders from './MyOrders';
 import { readTrackedOrders, trackOrder } from './trackedOrders';
+import SiteTracking from '@/components/site/SiteTracking';
+import { siteTrack, trackingContext, type SiteTags } from '@/lib/site/track';
 
 /**
  * Online ordering: the restaurant's order link, /order/{restaurant-code}, and
@@ -21,11 +23,14 @@ type Restaurant = { code: string; name: string; address: string | null; phone: s
 type Location = { id: number; name: string; address: string | null; phone: string | null };
 type Category = { id: number; name: string };
 type Product = { id: number; name: string; description: string | null; price: number; category_id: number | null; image_url: string | null; location_ids: number[] | null };
-type Menu = { restaurant: Restaurant; accepting_orders: boolean; order_types: string[]; locations: Location[]; categories: Category[]; products: Product[] };
+type Menu = { restaurant: Restaurant; accepting_orders: boolean; order_types: string[]; locations: Location[]; categories: Category[]; products: Product[]; tracking: SiteTags | null };
 type Placed = { order_id: number; tracking_key: string; token_number: number | null; order_type: string; location: Location; subtotal: number; tax_amount: number; total: number; currency: string };
 type Cart = Record<number, number>;
 
 const TYPE_LABEL: Record<string, string> = { takeaway: 'Pickup', delivery: 'Delivery' };
+
+/** What ad platforms are told prices are in (the guest sees the restaurant's symbol). */
+const ISO_CURRENCY = process.env.NEXT_PUBLIC_SITE_CURRENCY || 'BDT';
 
 function storageUrl(path: string | null): string | null {
   if (!path) return null;
@@ -136,13 +141,26 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
   const currency = menu?.restaurant.currency ?? '৳';
   const money = (n: number) => `${currency}${n.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
-  const setQty = (id: number, qty: number) =>
+  const setQty = (id: number, qty: number) => {
+    const product = productById.get(id);
+    const added = qty - (cart[id] ?? 0);
+    if (product && added > 0) {
+      siteTrack('add_to_cart', { value: product.price * added, currency: ISO_CURRENCY, items: [{ id, name: product.name, price: product.price, quantity: added }] });
+    }
     setCart((c) => {
       const next = { ...c };
       if (qty <= 0) delete next[id];
       else next[id] = Math.min(qty, 99);
       return next;
     });
+  };
+
+  const items = () => lines.map((l) => ({ id: l.product.id, name: l.product.name, price: l.product.price, quantity: l.qty }));
+
+  const openCart = () => {
+    siteTrack('begin_checkout', { value: subtotal, currency: ISO_CURRENCY, items: items() });
+    setCartOpen(true);
+  };
 
   const placeOrder = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,6 +182,7 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
           delivery_address: orderType === 'delivery' ? address : null,
           note: note || null,
           items: lines.map((l) => ({ product_id: l.product.id, qty: l.qty })),
+          tracking: trackingContext(),
         }),
       });
       const body = await res.json().catch(() => null);
@@ -171,6 +190,10 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
         const first = body?.errors ? (Object.values(body.errors)[0] as string[])[0] : null;
         throw new Error(first || body?.message || 'Your order could not be placed. Please try again.');
       }
+      siteTrack('purchase', {
+        value: body.total, currency: ISO_CURRENCY, items: items(), transactionId: String(body.order_id),
+        eventId: `order-${body.order_id}`, gaServer: menu?.tracking?.ga4_server,
+      });
       writeStored(customerKey, { name, phone, address });
       setCart({});
       setNote('');
@@ -202,11 +225,15 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
   }
 
   const { restaurant } = menu;
+  // On its own the order link loads the restaurant's tags; inside the website
+  // the site page already has.
+  const tags = embedded ? null : <SiteTracking tags={menu.tracking} />;
   const logo = storageUrl(restaurant.logo_url);
 
   if (placed) {
     return (
       <div className={`${screen} py-10 bg-base-200 flex items-center justify-center p-4`}>
+        {tags}
         <div className="card bg-base-100 shadow max-w-md w-full"><div className="card-body items-center text-center gap-3">
           <CheckCircle2 className="text-success" size={52} />
           <h1 className="text-xl font-semibold">Order placed</h1>
@@ -270,6 +297,7 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
   if (view === 'orders') {
     return (
       <div className={`${screen} bg-base-200 pb-10`}>
+        {tags}
         {header}
         <MyOrders slug={slug} onBack={() => { setView('menu'); setTrackedCount(readTrackedOrders(slug).length); }} />
       </div>
@@ -278,6 +306,7 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
 
   return (
     <div className={`${screen} bg-base-200 pb-28`}>
+      {tags}
       {header}
 
       <main className="max-w-5xl mx-auto px-4 py-4 space-y-4">
@@ -352,7 +381,7 @@ export default function OnlineOrder({ slug, embedded = false }: { slug: string; 
 
       {itemCount > 0 && !cartOpen && (
         <div className="fixed bottom-0 inset-x-0 p-3 bg-base-100 border-t border-base-300">
-          <button className="btn btn-primary w-full max-w-5xl mx-auto flex justify-between" onClick={() => setCartOpen(true)}>
+          <button className="btn btn-primary w-full max-w-5xl mx-auto flex justify-between" onClick={openCart}>
             <span className="flex items-center gap-2"><ShoppingBag size={16} /> {itemCount} item{itemCount === 1 ? '' : 's'}</span>
             <span>View order · {money(subtotal)}</span>
           </button>

@@ -8,7 +8,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2, Sparkles, History, Home, Files, RotateCcw, PencilLine, BarChart3,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
@@ -803,6 +803,7 @@ export default function SiteBuilderPage() {
                 <>
                   <ThemePanel theme={theme} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
                   <DomainPanel onError={setError} />
+                  <IntegrationsPanel onError={setError} onSaved={setNotice} />
                 </>
               )}
               <p className="text-xs text-base-content/50">Click a section in the preview or the list to change it.</p>
@@ -1184,6 +1185,114 @@ function PagePanel({ meta, isHome, siteBase, onChange, onError }: {
         <p className="text-xs text-base-content/50 mt-1">Shown when the page is shared on Facebook or WhatsApp. Your logo is used if empty.</p>
       </div>
     </div>
+  );
+}
+
+type Integrations = {
+  gtm_id: string | null;
+  ga4_id: string | null;
+  meta_pixel_id: string | null;
+  clarity_id: string | null;
+  meta_test_event_code: string | null;
+  has_meta_capi_token: boolean;
+  has_ga4_api_secret: boolean;
+  sends_meta: boolean;
+  sends_ga4: boolean;
+};
+
+/**
+ * The website's measurement tags, and the secrets core-api needs to report
+ * orders and bookings server-side. Live as soon as saved - wiring, not
+ * content, so not part of Publish website. Secrets are write-only: the field
+ * stays empty, and typing in it replaces the stored one.
+ */
+function IntegrationsPanel({ onError, onSaved }: { onError: (message: string) => void; onSaved: (message: string) => void }) {
+  const [info, setInfo] = useState<Integrations | null>(null);
+  const [form, setForm] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetchApi('/site-builder/integrations')
+      .then((res: Integrations) => {
+        if (!active) return;
+        setInfo(res);
+        setForm({ gtm_id: res.gtm_id ?? '', ga4_id: res.ga4_id ?? '', meta_pixel_id: res.meta_pixel_id ?? '', clarity_id: res.clarity_id ?? '', meta_test_event_code: res.meta_test_event_code ?? '' });
+      })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  if (!info) return null;
+
+  const set = (key: string) => (e: React.ChangeEvent<HTMLInputElement>) => setForm({ ...form, [key]: e.target.value.trim() });
+  const save = async (extra: Record<string, string> = {}) => {
+    setBusy(true);
+    try {
+      const body: Record<string, string | null> = {};
+      for (const [k, v] of Object.entries({ ...form, ...extra })) {
+        // Secrets are only sent when typed (or cleared on purpose).
+        if ((k === 'meta_capi_token' || k === 'ga4_api_secret') && v === '' && !(k in extra)) continue;
+        body[k] = v === '' ? null : v;
+      }
+      const res: Integrations = await fetchApi('/site-builder/integrations', { method: 'PUT', body: JSON.stringify(body) });
+      setInfo(res);
+      setForm((f) => ({ ...f, meta_capi_token: '', ga4_api_secret: '' }));
+      onSaved('Integrations saved - they are live on your website now.');
+    } catch (err) {
+      onError(apiErrorMessage(err, 'Could not save the integrations.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const input = (key: string, label: string, placeholder: string, hint?: string) => (
+    <label className="block">
+      <span className="label-text text-xs font-medium mb-1 block">{label}</span>
+      <input className="input input-sm input-bordered w-full font-mono" placeholder={placeholder} value={form[key] ?? ''} onChange={set(key)} />
+      {hint && <span className="text-[11px] text-base-content/50">{hint}</span>}
+    </label>
+  );
+
+  const secret = (key: 'meta_capi_token' | 'ga4_api_secret', label: string, isSet: boolean) => (
+    <label className="block">
+      <span className="label-text text-xs font-medium mb-1 flex items-center gap-1">
+        {label} {isSet && <span className="badge badge-success badge-xs">set</span>}
+      </span>
+      <div className="join w-full">
+        <input type="password" autoComplete="off" className="input input-sm input-bordered join-item w-full font-mono"
+               placeholder={isSet ? 'Saved - type to replace' : 'Paste to set'} value={form[key] ?? ''} onChange={set(key)} />
+        {isSet && <button type="button" className="btn btn-sm join-item" disabled={busy} onClick={() => save({ [key]: '' })}>Remove</button>}
+      </div>
+    </label>
+  );
+
+  return (
+    <form className="space-y-3 border-t border-base-200 pt-4" onSubmit={(e) => { e.preventDefault(); save(); }}>
+      <span className="label-text text-xs font-medium flex items-center gap-1"><BarChart3 size={12} /> Tracking and analytics</span>
+      <p className="text-xs text-base-content/60">Your own tags on every page of your website and on online ordering. Live as soon as you save.</p>
+      {input('gtm_id', 'Google Tag Manager', 'GTM-XXXXXXX')}
+      {input('ga4_id', 'Google Analytics 4', 'G-XXXXXXXXXX')}
+      {input('meta_pixel_id', 'Meta (Facebook) pixel', '1234567890123456')}
+      {input('clarity_id', 'Microsoft Clarity', 'abcd1234ef')}
+
+      <div className="divider my-1 text-xs">Server-side conversions</div>
+      <p className="text-xs text-base-content/60">
+        Orders and table bookings are also reported from our server, so ad blockers and browsers that block cookies do not hide them.
+      </p>
+      {secret('meta_capi_token', 'Meta Conversions API token', info.has_meta_capi_token)}
+      <span className="text-[11px] text-base-content/50 block -mt-2">Events Manager &gt; your pixel &gt; Settings &gt; Conversions API &gt; Generate access token.</span>
+      {input('meta_test_event_code', 'Meta test event code (optional)', 'TEST12345', 'Only while testing in Events Manager - remove it after.')}
+      {secret('ga4_api_secret', 'GA4 Measurement Protocol API secret', info.has_ga4_api_secret)}
+      <span className="text-[11px] text-base-content/50 block -mt-2">Analytics &gt; Admin &gt; Data streams &gt; your stream &gt; Measurement Protocol API secrets.</span>
+      <div className="flex flex-wrap gap-1 text-[11px]">
+        <span className={`badge badge-xs ${info.sends_meta ? 'badge-success' : 'badge-ghost'}`}>Meta server-side {info.sends_meta ? 'on' : 'off'}</span>
+        <span className={`badge badge-xs ${info.sends_ga4 ? 'badge-success' : 'badge-ghost'}`}>Google server-side {info.sends_ga4 ? 'on' : 'off'}</span>
+      </div>
+      <button type="submit" className="btn btn-sm btn-primary w-full" disabled={busy}>
+        {busy ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save integrations
+      </button>
+    </form>
   );
 }
 
