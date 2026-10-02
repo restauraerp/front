@@ -389,7 +389,9 @@ export function SiteFrame({ ctx, pages, theme, children }: {
           <nav className="hidden sm:flex items-center gap-5 ml-auto text-sm">
             {pages.length > 1 && pages.map((p) => <a key={p.slug} href={href(p.slug)} className="link link-hover">{p.title}</a>)}
           </nav>
-          <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto sm:ml-0">Order online</a>
+          {theme?.header_order_button !== false && (
+            <a href={ctx.orderUrl} className="btn btn-primary btn-sm ml-auto sm:ml-0">Order online</a>
+          )}
         </div>
         {pages.length > 1 && (
           <nav className="sm:hidden flex gap-4 overflow-x-auto px-4 pb-2 text-sm">
@@ -401,9 +403,23 @@ export function SiteFrame({ ctx, pages, theme, children }: {
       <main className="flex-1">{children}</main>
 
       <footer className="bg-neutral text-neutral-content">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row gap-2 justify-between text-sm">
-          <span>© {new Date().getFullYear()} {ctx.restaurant.name}</span>
-          <span className="opacity-60">Powered by RestoraERP</span>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-4 text-sm">
+          {(theme?.footer_text || (theme?.footer_social !== false && ctx.social.length > 0)) && (
+            <div className="flex flex-col sm:flex-row gap-3 justify-between sm:items-center">
+              {theme?.footer_text ? <p className="opacity-80 whitespace-pre-line">{theme.footer_text}</p> : <span />}
+              {theme?.footer_social !== false && ctx.social.length > 0 && (
+                <div className="flex flex-wrap gap-3">
+                  {ctx.social.map((l) => (
+                    <a key={l.url} href={l.url} target="_blank" rel="noopener noreferrer" className="link link-hover capitalize">{l.platform || 'Social'}</a>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="flex flex-col sm:flex-row gap-2 justify-between">
+            <span>© {new Date().getFullYear()} {ctx.restaurant.name}</span>
+            <span className="opacity-60">Powered by RestoraERP</span>
+          </div>
         </div>
       </footer>
     </div>

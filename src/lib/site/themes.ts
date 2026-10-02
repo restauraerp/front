@@ -39,12 +39,18 @@ export const FONTS: Record<string, { label: string; family: string }> = {
   bangla: { label: 'Bangla', family: 'var(--font-hind-siliguri), var(--font-inter), sans-serif' },
 };
 
+/** Site-wide settings: the theme, and the header and footer every page shares. */
 export interface SiteTheme {
   palette: string;
   font: string;
+  header_order_button?: boolean;
+  footer_social?: boolean;
+  footer_text?: string;
 }
 
-export const DEFAULT_THEME: SiteTheme = { palette: 'emerald', font: 'modern' };
+export const DEFAULT_THEME: SiteTheme = {
+  palette: 'emerald', font: 'modern', header_order_button: true, footer_social: true, footer_text: '',
+};
 
 /** The style to put on the site's outer element. */
 export function themeStyle(theme: SiteTheme | null | undefined): React.CSSProperties {

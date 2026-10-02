@@ -8,7 +8,7 @@ import { SortableContext, arrayMove, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities';
 import {
   ArrowDown, ArrowUp, Copy, ExternalLink, GripVertical, Plus, Redo2, Trash2, Undo2, Upload, X, Zap, Type, Save, Rocket, FilePlus,
-  Monitor, Smartphone, Palette, FileText,
+  Monitor, Smartphone, Palette, FileText, LayoutTemplate, Globe, CheckCircle2,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
@@ -92,6 +92,7 @@ export default function SiteBuilderPage() {
   const [panel, setPanel] = useState<'page' | 'theme'>('page');
   const [device, setDevice] = useState<'desktop' | 'phone'>('desktop');
   const [leftTab, setLeftTab] = useState<'sections' | 'add'>('sections');
+  const [templates, setTemplates] = useState<Record<string, { label: string; description: string; sections: Section[] }> | null>(null);
   const [dragging, setDragging] = useState<{ kind: 'palette' | 'section'; label: string } | null>(null);
   const [marker, setMarker] = useState<number | null>(null);
   const previewBox = useRef<HTMLDivElement>(null);
@@ -370,12 +371,33 @@ export default function SiteBuilderPage() {
     try {
       const res = await fetchApi('/site-builder/theme', { method: 'PUT', body: JSON.stringify(theme) });
       setSavedTheme(res.theme);
-      setNotice('Theme saved - it applies to every page of your live site.');
+      setNotice('Site settings saved - they apply to every page of your live site.');
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not save the theme.'));
     } finally {
       setBusy(null);
     }
+  };
+
+  /** Replaces this page's sections with a ready-made layout - undoable, and nothing is public until published. */
+  const openTemplates = async () => {
+    setError(null);
+    try {
+      const res = await fetchApi('/site-builder/templates');
+      setTemplates(res.templates);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not load the templates.'));
+    }
+  };
+
+  const applyTemplate = (key: string) => {
+    const template = templates?.[key];
+    if (!template) return;
+    if (sections.length > 0 && !confirm(`Replace this page's sections with the "${template.label}" layout? You can undo it.`)) return;
+    change(template.sections.map((section) => ({ ...section, id: newId(), props: { ...section.props } })));
+    setSelectedId(null);
+    setTemplates(null);
+    setNotice(`"${template.label}" applied. Change anything you like, then publish.`);
   };
 
   const addPage = async () => {
@@ -541,18 +563,47 @@ export default function SiteBuilderPage() {
             <div className="space-y-4">
               <div className="join w-full">
                 <button className={`btn btn-sm join-item flex-1 ${panel === 'page' ? 'btn-active' : ''}`} onClick={() => setPanel('page')}><FileText size={14} /> Page</button>
-                <button className={`btn btn-sm join-item flex-1 ${panel === 'theme' ? 'btn-active' : ''}`} onClick={() => setPanel('theme')}><Palette size={14} /> Theme</button>
+                <button className={`btn btn-sm join-item flex-1 ${panel === 'theme' ? 'btn-active' : ''}`} onClick={() => setPanel('theme')}><Palette size={14} /> Site</button>
               </div>
               {panel === 'page' ? (
-                <PagePanel meta={meta} isHome={!!current?.is_home} siteBase={siteBase} onChange={setMeta} onError={setError} />
+                <>
+                  <button className="btn btn-sm btn-outline w-full" onClick={openTemplates}><LayoutTemplate size={14} /> Start from a template</button>
+                  <PagePanel meta={meta} isHome={!!current?.is_home} siteBase={siteBase} onChange={setMeta} onError={setError} />
+                </>
               ) : (
-                <ThemePanel theme={theme} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
+                <>
+                  <ThemePanel theme={theme} dirty={themeDirty} saving={busy === 'theme'} onChange={setTheme} onSave={saveTheme} />
+                  <DomainPanel onError={setError} />
+                </>
               )}
               <p className="text-xs text-base-content/50">Click a section in the preview or the list to change it.</p>
             </div>
           )}
         </aside>
       </div>
+
+      {templates && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setTemplates(null)}>
+          <div className="bg-base-100 rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-lg">Start from a template</h2>
+              <button className="btn btn-sm btn-ghost btn-square" onClick={() => setTemplates(null)} aria-label="Close"><X size={16} /></button>
+            </div>
+            <p className="text-sm text-base-content/60">Each layout fills itself with your menu, branches and details. Replaces this page&apos;s sections - you can undo, and nothing changes on your site until you publish.</p>
+            <div className="grid sm:grid-cols-2 gap-3">
+              {Object.entries(templates).map(([key, t]) => (
+                <button key={key} className="text-left rounded-xl border border-base-300 p-4 hover:border-primary hover:bg-primary/5" onClick={() => applyTemplate(key)}>
+                  <div className="font-semibold">{t.label}</div>
+                  <div className="text-xs text-base-content/60 mt-1">{t.description}</div>
+                  <div className="flex flex-wrap gap-1 mt-2">
+                    {t.sections.map((sec) => <span key={sec.id} className="badge badge-ghost badge-xs">{defs[sec.type]?.label ?? sec.type}</span>)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       <DragOverlay dropAnimation={null}>
         {dragging && (
@@ -710,6 +761,77 @@ function PagePanel({ meta, isHome, siteBase, onChange, onError }: {
   );
 }
 
+type DomainInfo = { subdomain: string; domain: string | null; verified: boolean; cname_target: string; server_ip: string | null };
+
+/**
+ * Where the site is reached: its restauraerp subdomain, and optionally the
+ * restaurant's own domain - added here, pointed at us in DNS, then verified.
+ */
+function DomainPanel({ onError }: { onError: (message: string) => void }) {
+  const [info, setInfo] = useState<DomainInfo | null>(null);
+  const [value, setValue] = useState('');
+  const [busy, setBusy] = useState<'save' | 'verify' | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    fetchApi('/site-builder/domain')
+      .then((res: DomainInfo) => { if (active) { setInfo(res); setValue(res.domain ?? ''); } })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  if (!info) return null;
+
+  const run = async (kind: 'save' | 'verify') => {
+    setBusy(kind);
+    try {
+      const res: DomainInfo = kind === 'save'
+        ? await fetchApi('/site-builder/domain', { method: 'PUT', body: JSON.stringify({ domain: value.trim() || null }) })
+        : await fetchApi('/site-builder/domain/verify', { method: 'POST' });
+      setInfo(res);
+      setValue(res.domain ?? '');
+    } catch (err) {
+      onError(apiErrorMessage(err, kind === 'save' ? 'Could not save the domain.' : 'Could not verify the domain.'));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="space-y-2 border-t border-base-200 pt-4">
+      <span className="label-text text-xs font-medium flex items-center gap-1"><Globe size={12} /> Web address</span>
+      <p className="text-sm">
+        <a className="link link-primary break-all" href={`https://${info.subdomain}`} target="_blank" rel="noopener noreferrer">{info.subdomain}</a>
+      </p>
+
+      <span className="label-text text-xs font-medium block pt-2">Your own domain (optional)</span>
+      <div className="join w-full">
+        <input className="input input-sm input-bordered join-item w-full" placeholder="banglabistro.com" value={value} onChange={(e) => setValue(e.target.value)} />
+        <button className="btn btn-sm join-item" disabled={busy !== null || value.trim() === (info.domain ?? '')} onClick={() => run('save')}>
+          {busy === 'save' ? <span className="loading loading-spinner loading-xs" /> : 'Save'}
+        </button>
+      </div>
+
+      {info.domain && (info.verified ? (
+        <p className="text-xs text-success flex items-center gap-1"><CheckCircle2 size={12} /> {info.domain} is connected.</p>
+      ) : (
+        <div className="text-xs space-y-2 rounded-lg bg-base-200 p-3">
+          <p>At your domain provider, add this record, then press Check:</p>
+          <div className="font-mono bg-base-100 rounded p-2 break-all">
+            CNAME&nbsp; {info.domain} &rarr; {info.cname_target}
+          </div>
+          {info.server_ip && (
+            <p className="text-base-content/60">If your provider does not allow a CNAME on the bare domain, use an A record to <span className="font-mono">{info.server_ip}</span>.</p>
+          )}
+          <button className="btn btn-xs btn-primary" disabled={busy !== null} onClick={() => run('verify')}>
+            {busy === 'verify' ? <span className="loading loading-spinner loading-xs" /> : 'Check'}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 /** Site-wide colours and type. Saved separately: it applies to the live site at once. */
 function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
   theme: SiteTheme;
@@ -747,10 +869,23 @@ function ThemePanel({ theme, dirty, saving, onChange, onSave }: {
           ))}
         </div>
       </div>
+      <div className="space-y-2">
+        <span className="label-text text-xs font-medium block">Header and footer</span>
+        <label className="flex items-center justify-between gap-3 cursor-pointer text-sm">
+          Order online button in the header
+          <input type="checkbox" className="toggle toggle-sm toggle-primary" checked={theme.header_order_button !== false} onChange={(e) => onChange({ ...theme, header_order_button: e.target.checked })} />
+        </label>
+        <label className="flex items-center justify-between gap-3 cursor-pointer text-sm">
+          Social links in the footer
+          <input type="checkbox" className="toggle toggle-sm toggle-primary" checked={theme.footer_social !== false} onChange={(e) => onChange({ ...theme, footer_social: e.target.checked })} />
+        </label>
+        <textarea className="textarea textarea-bordered w-full text-sm" rows={2} maxLength={200} placeholder="Footer text, e.g. Open every day 11am - 11pm"
+                  value={theme.footer_text ?? ''} onChange={(e) => onChange({ ...theme, footer_text: e.target.value })} />
+      </div>
       <button className="btn btn-sm btn-primary w-full" disabled={!dirty || saving} onClick={onSave}>
-        {saving ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save theme
+        {saving ? <span className="loading loading-spinner loading-xs" /> : <Save size={14} />} Save site settings
       </button>
-      <p className="text-xs text-base-content/50">The theme applies to every page of your live site as soon as it is saved - no need to publish.</p>
+      <p className="text-xs text-base-content/50">These apply to every page of your live site as soon as they are saved - no need to publish.</p>
     </div>
   );
 }
