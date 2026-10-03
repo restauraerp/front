@@ -30,6 +30,7 @@ export type BookingSummary = {
   next: string[];
   guest_name: string;
   guest_phone: string;
+  guest_email: string | null;
   event_type: string;
   event_title: string | null;
   guests: number;
@@ -60,6 +61,7 @@ export type BookingDetail = BookingSummary & {
   handled_at: string | null;
   called_at: string | null;
   called_by: string | null;
+  last_emailed_at: string | null;
   payments: Payment[];
   created_at: string;
 };

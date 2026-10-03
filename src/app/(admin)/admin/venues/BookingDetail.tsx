@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Ban, Check, CheckCheck, Pencil, Phone, PhoneCall, RotateCcw, Trash2, Users, Wallet, X, MapPin, Clock, Printer } from 'lucide-react';
+import { Ban, Check, CheckCheck, Pencil, Phone, PhoneCall, RotateCcw, Trash2, Users, Wallet, X, MapPin, Clock, Printer, Mail } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Modal, useDialogs } from '@/components/ui/Dialogs';
 import { EVENT_TYPES, PAYMENT_METHODS, STATUS_BADGE, longDate, money, time12, type BookingDetail as Detail } from './types';
@@ -55,6 +55,19 @@ export default function BookingDetail({ booking: initial, onClose, onChanged, on
     run(() => fetchApi(`/venue-bookings/${b.id}/status`, { method: 'POST', body: JSON.stringify({ status, reason }) }));
   };
 
+  const [emailNotice, setEmailNotice] = useState<string | null>(null);
+  const sendEmail = async () => {
+    setBusy(true); setError(null); setEmailNotice(null);
+    try {
+      const res = await fetchApi(`/venue-bookings/${b.id}/email`, { method: 'POST' });
+      setEmailNotice(`Sent to ${res.to}.`);
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not send the email.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const addPayment = (e: React.FormEvent) => {
     e.preventDefault();
     run(async () => {
@@ -95,6 +108,24 @@ export default function BookingDetail({ booking: initial, onClose, onChanged, on
           {b.called_at
             ? <span className="text-xs text-success flex items-center gap-1"><PhoneCall size={12} /> Called {new Date(b.called_at).toLocaleString()}{b.called_by ? ` by ${b.called_by}` : ''}</span>
             : open && <button className="btn btn-xs btn-ghost border-base-300" disabled={busy} onClick={() => run(() => fetchApi(`/venue-bookings/${b.id}/called`, { method: 'POST' }))}><PhoneCall size={12} /> I called the guest</button>}
+          <div className="basis-full flex flex-wrap items-center gap-2 text-sm">
+            <Mail size={14} className="text-base-content/50" />
+            {b.guest_email ? (
+              <>
+                <a className="link link-hover" href={`mailto:${b.guest_email}`}>{b.guest_email}</a>
+                <span className="text-xs text-base-content/50">
+                  Emailed automatically when confirmed, declined or paid{b.last_emailed_at ? ` · last ${new Date(b.last_emailed_at).toLocaleString()}` : ''}
+                </span>
+                {(b.status === 'Pending' || b.status === 'Confirmed' || b.status === 'Completed') && (
+                  <button className="btn btn-xs btn-outline gap-1" disabled={busy} onClick={sendEmail}>
+                    <Mail size={12} /> Email {b.status === 'Pending' ? 'quotation' : 'confirmation'}
+                  </button>
+                )}
+              </>
+            ) : (
+              <span className="text-xs text-warning">No email - add one (Edit) to send the guest booking emails.</span>
+            )}
+          </div>
         </div>
 
         <div className="grid md:grid-cols-2 gap-4">
@@ -137,6 +168,7 @@ export default function BookingDetail({ booking: initial, onClose, onChanged, on
         {b.notes && <p className="text-sm bg-base-200 rounded-lg px-3 py-2 whitespace-pre-line">{b.notes}</p>}
         {b.decline_reason && <p className="text-sm text-error">{b.status}: {b.decline_reason}</p>}
         {b.handled_by && b.handled_at && <p className="text-xs text-base-content/50">{b.status === 'Declined' ? 'Declined' : 'Confirmed'} by {b.handled_by}, {new Date(b.handled_at).toLocaleString()}</p>}
+        {emailNotice && <div role="status" className="alert alert-success text-sm py-2">{emailNotice}</div>}
         {error && <div role="alert" className="alert alert-error text-sm py-2 whitespace-pre-line">{error}</div>}
 
         <div className="flex flex-wrap gap-2 justify-end border-t border-base-200 pt-3">

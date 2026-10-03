@@ -30,6 +30,7 @@ export default function BookingForm({ booking, venues, packages, initialDate, on
     event_title: booking?.event_title ?? '',
     name: booking?.guest_name ?? '',
     phone: booking?.guest_phone ?? '',
+    email: booking?.guest_email ?? '',
     package_id: booking?.package?.id ? String(booking.package.id) : '',
     discount: String(booking?.discount ?? 0),
     notes: booking?.notes ?? '',
@@ -73,7 +74,7 @@ export default function BookingForm({ booking, venues, packages, initialDate, on
     e.preventDefault();
     setSaving(true); setError(null);
     try {
-      const body = { ...pricing, event_title: form.event_title || null, name: form.name, phone: form.phone, notes: form.notes || null, ...(booking ? {} : { status: form.status }) };
+      const body = { ...pricing, event_title: form.event_title || null, name: form.name, phone: form.phone, email: form.email || null, notes: form.notes || null, ...(booking ? {} : { status: form.status }) };
       const saved = booking
         ? await fetchApi(`/venue-bookings/${booking.id}`, { method: 'PUT', body: JSON.stringify(body) })
         : await fetchApi('/venue-bookings', { method: 'POST', body: JSON.stringify(body) });
@@ -126,6 +127,9 @@ export default function BookingForm({ booking, venues, packages, initialDate, on
           </label>
           <label className="block">{label('Phone (to confirm)')}
             <input required type="tel" inputMode="tel" maxLength={20} placeholder="01XXXXXXXXX" className="input input-bordered w-full" value={form.phone} onChange={set('phone')} />
+          </label>
+          <label className="block">{label('Email (booking emails go here)')}
+            <input type="email" maxLength={191} placeholder="guest@example.com" className="input input-bordered w-full" value={form.email} onChange={set('email')} />
           </label>
           <label className="block">{label('Food package')}
             <select className="select select-bordered w-full" value={form.package_id} onChange={set('package_id')}>

@@ -13,8 +13,9 @@ const EVENT_TYPES: Record<string, string> = {
 /**
  * The Venues section's enquiry form. Posts to core-api's
  * POST /site/{code}/venue-enquiries, which files it in Venues as a tentative
- * booking with the guest's phone. Nothing here says the venue is booked: the
- * restaurant calls back. In the editor's preview it does not submit.
+ * booking. The guest is kept informed by email - no phone or WhatsApp
+ * verification; the phone is a contact number. Nothing here says the venue
+ * is booked. In the editor's preview it does not submit.
  */
 export default function VenueEnquiryForm({ code, venues, preview, selected }: {
   code: string;
@@ -23,7 +24,7 @@ export default function VenueEnquiryForm({ code, venues, preview, selected }: {
   selected?: number | null;
 }) {
   const [form, setForm] = useState(() => ({
-    name: '', phone: '', hall_id: String(selected ?? venues[0]?.id ?? ''), event_type: 'birthday',
+    name: '', email: '', phone: '', hall_id: String(selected ?? venues[0]?.id ?? ''), event_type: 'birthday',
     date: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10), start_time: '18:00', end_time: '22:00', guests: '50', notes: '',
   }));
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
@@ -61,7 +62,7 @@ export default function VenueEnquiryForm({ code, venues, preview, selected }: {
       <div className="rounded-2xl bg-base-100 text-base-content p-8 text-center max-w-xl mx-auto">
         <PartyPopper className="mx-auto text-success" size={40} />
         <h3 className="text-xl font-semibold mt-3">Enquiry sent</h3>
-        <p className="opacity-70 mt-1">Thank you, {form.name}. We will call {form.phone} about your event.</p>
+        <p className="opacity-70 mt-1">Thank you, {form.name}. We have emailed {form.email} and will get back to you about your event.</p>
       </div>
     );
   }
@@ -71,7 +72,8 @@ export default function VenueEnquiryForm({ code, venues, preview, selected }: {
   return (
     <form onSubmit={submit} className="rounded-2xl bg-base-100 text-base-content p-5 sm:p-6 max-w-2xl mx-auto grid gap-3 sm:grid-cols-2">
       <input required maxLength={100} className="input input-bordered w-full" placeholder="Your name" value={form.name} onChange={set('name')} />
-      <input required type="tel" maxLength={20} className="input input-bordered w-full" placeholder="Mobile number" value={form.phone} onChange={set('phone')} />
+      <input required type="email" maxLength={191} className="input input-bordered w-full" placeholder="Email - we reply here" value={form.email} onChange={set('email')} />
+      <input required type="tel" maxLength={20} className="input input-bordered w-full sm:col-span-2" placeholder="Mobile number" value={form.phone} onChange={set('phone')} />
       {venues.length > 1 && (
         <select required className="select select-bordered w-full" value={form.hall_id} onChange={set('hall_id')} aria-label="Venue">
           {venues.map((v) => <option key={v.id} value={v.id}>{v.name}{v.capacity ? ` (up to ${v.capacity})` : ''}</option>)}
