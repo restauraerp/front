@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
-  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink, SitePosts, SiteSocialAccounts, SiteVenue,
+  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink, SitePosts, SiteSocialAccounts, SiteVenue, SiteRoomType,
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
@@ -128,6 +128,7 @@ export default function SiteBuilderPage() {
   const [reviewSummary, setReviewSummary] = useState<SiteReviewSummary | null>(null);
   const [socialFeed, setSocialFeed] = useState<{ posts: SitePosts; accounts: SiteSocialAccounts } | null>(null);
   const [venues, setVenues] = useState<SiteVenue[]>([]);
+  const [roomTypes, setRoomTypes] = useState<SiteRoomType[]>([]);
   const [social, setSocial] = useState<SiteSocialLink[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
@@ -211,6 +212,10 @@ export default function SiteBuilderPage() {
             // Venues for the preview's Venues section (none without the permission).
             fetchApi('/venues').catch(() => null),
           ]);
+          // Room types for the preview's Hotel rooms section (none without the module).
+          fetchApi('/hotel/room-types').then((res) => {
+            if (active) setRoomTypes(((res?.room_types ?? []) as (SiteRoomType & { is_active: boolean })[]).filter((t) => t.is_active));
+          }).catch(() => {});
           if (!active) return;
           setVenues(((venueList?.venues ?? []) as (SiteVenue & { is_active: boolean; location: { name: string } | null })[])
             .filter((v) => v.is_active)
@@ -231,8 +236,8 @@ export default function SiteBuilderPage() {
 
   const siteBase = siteCode ? `/${siteCode}/site` : '';
   const ctx: SiteContext | null = useMemo(() => restaurant && ({
-    restaurant, menu, reviews, reviewSummary, social, posts: socialFeed?.posts, socialAccounts: socialFeed?.accounts, venues, basePath: siteBase, orderUrl: `/order/${siteCode}`,
-  }), [restaurant, menu, reviews, reviewSummary, socialFeed, venues, social, siteBase, siteCode]);
+    restaurant, menu, reviews, reviewSummary, social, posts: socialFeed?.posts, socialAccounts: socialFeed?.accounts, venues, roomTypes, basePath: siteBase, orderUrl: `/order/${siteCode}`,
+  }), [restaurant, menu, reviews, reviewSummary, socialFeed, venues, roomTypes, social, siteBase, siteCode]);
 
   // ---- Preview iframe --------------------------------------------------------
   useEffect(() => {
@@ -1044,6 +1049,7 @@ const PAGE_HINTS: Record<string, string> = {
   order: 'Online ordering inside your website.',
   reservations: 'A table booking form.',
   events: 'Your venues for events, with an enquiry form.',
+  rooms: 'Your hotel rooms - guests check dates and request a room.',
   about: 'Your story, with a photo.',
   gallery: 'A grid of photos.',
   locations: 'Your branches, with directions.',

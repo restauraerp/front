@@ -78,6 +78,21 @@ export interface SiteVenue {
   location: string | null;
 }
 
+/** A hotel room type (Hotel), as the website shows it. */
+export interface SiteRoomType {
+  id: number;
+  name: string;
+  description: string | null;
+  max_adults: number;
+  max_children: number;
+  rate: number;
+  weekend_rate: number | null;
+  beds: string | null;
+  size_sqft: number | null;
+  amenities: string[];
+  photos: string[];
+}
+
 /** A Facebook or Instagram post, as stored by core-api's hourly sync. */
 export interface SitePost {
   text: string | null;
@@ -118,6 +133,7 @@ export interface SiteContext {
   reviewSummary?: SiteReviewSummary | null;
   posts?: SitePosts | null;
   venues?: SiteVenue[];
+  roomTypes?: SiteRoomType[];
   socialAccounts?: SiteSocialAccounts | null;
   social: SiteSocialLink[];
   /** In the editor's preview: forms do not submit and links do not navigate. */

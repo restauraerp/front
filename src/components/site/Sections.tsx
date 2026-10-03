@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart,
-  Home, UtensilsCrossed, CalendarCheck, Info, Images, FileText, PartyPopper, Users, type LucideIcon,
+  Home, UtensilsCrossed, CalendarCheck, Info, Images, FileText, PartyPopper, Users, BedDouble, type LucideIcon,
 } from 'lucide-react';
 import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
@@ -10,6 +10,7 @@ import { googleFontsUrl } from '@/lib/site/fonts';
 import ReservationForm from './ReservationForm';
 import SiteMap from './SiteMap';
 import VenueEnquiryForm from './VenueEnquiryForm';
+import HotelRooms from './HotelRooms';
 import OnlineOrder from '@/app/order/[slug]/OnlineOrder';
 
 /**
@@ -401,6 +402,20 @@ function InstagramFeed({ props, ctx }: { props: SectionProps; ctx: SiteContext }
   );
 }
 
+/** Hotel rooms: room types, a date search and a booking request. */
+function Rooms({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const rooms = ctx.roomTypes ?? [];
+  if (rooms.length === 0) return <EmptyHint ctx={ctx} label="Hotel rooms" hint="Add room types and their rooms in Hotel." />;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      {str(props, 'intro') && <p className="text-center opacity-80 -mt-4 mb-8 max-w-2xl mx-auto whitespace-pre-line">{str(props, 'intro')}</p>}
+      <HotelRooms code={ctx.restaurant.code} rooms={rooms} currency={ctx.restaurant.currency} showPrices={props.show_prices !== false} preview={ctx.preview} />
+    </Shell>
+  );
+}
+
 /** The restaurant's venues for events, with an enquiry form. */
 function Venues({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   const venues = ctx.venues ?? [];
@@ -562,6 +577,7 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   online_order: OnlineOrderSection,
   map: MapSection,
   venues: Venues,
+  rooms: Rooms,
   facebook_posts: FacebookPosts,
   instagram_feed: InstagramFeed,
   branches: Branches,
@@ -588,6 +604,7 @@ const PAGE_ICONS: Record<string, LucideIcon> = {
   order: ShoppingBag,
   reservations: CalendarCheck,
   events: PartyPopper,
+  rooms: BedDouble,
   about: Info,
   gallery: Images,
   locations: MapPin,

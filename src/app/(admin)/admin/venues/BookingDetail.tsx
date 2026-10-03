@@ -179,7 +179,10 @@ export default function BookingDetail({ booking: initial, onClose, onChanged, on
             </a>
           </div>
           {[...b.next].sort((x, y) => order.indexOf(x) - order.indexOf(y)).map((status) => {
-            const a = ACTIONS[status];
+            // Back from Completed is an undo, not a confirmation.
+            const a = status === 'Confirmed' && b.status === 'Completed'
+              ? { label: 'Undo completed', className: 'btn-ghost border-base-300', Icon: RotateCcw }
+              : ACTIONS[status];
             return a && (
               <button key={status} className={`btn btn-sm gap-1 ${a.className}`} disabled={busy} onClick={() => move(status)}>
                 {busy ? <span className="loading loading-spinner loading-xs" /> : <a.Icon size={14} />} {a.label}

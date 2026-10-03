@@ -83,6 +83,7 @@ export default async function RestaurantSitePage({ params }: { params: Promise<P
     posts: data.posts,
     socialAccounts: data.social_accounts,
     venues: data.venues ?? [],
+    roomTypes: data.room_types ?? [],
     social: data.social ?? [],
     basePath: base,
     // The site's own ordering page when it has one, so a visitor stays on it.

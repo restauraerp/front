@@ -330,7 +330,13 @@ function BookingCard({ booking: b, busy, onAct, onCalled, onCopy, onEdit }: {
 
       <div className="flex md:flex-col flex-wrap gap-2 md:w-40 shrink-0 md:items-stretch">
         {actions.map((status) => {
-          const a = ACTIONS[status];
+          // Back to Confirmed from Seated or No-show is an undo, not an approval;
+          // back to Seated from Completed likewise.
+          const a = status === 'Confirmed' && b.status !== 'Pending'
+            ? { label: b.status === 'Seated' ? 'Undo seated' : 'Undo no-show', className: 'btn-ghost border-base-300', Icon: RotateCcw }
+            : status === 'Seated' && b.status === 'Completed'
+              ? { label: 'Undo completed', className: 'btn-ghost border-base-300', Icon: RotateCcw }
+              : ACTIONS[status];
           if (!a) return null;
           return (
             <button key={status} className={`btn btn-sm gap-1 ${a.className}`} disabled={busy} onClick={() => onAct(status)}>

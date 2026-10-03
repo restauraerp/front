@@ -41,6 +41,7 @@ import {
   Plug,
   CalendarCheck,
   PartyPopper,
+  BedDouble,
 } from 'lucide-react';
 
 const navItems = [
@@ -49,6 +50,8 @@ const navItems = [
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
   { href: '/admin/bookings', label: 'Bookings', icon: CalendarCheck },
   { href: '/admin/venues', label: 'Venues', icon: PartyPopper },
+  // The hotel add-on module; only restaurants that run a hotel have it.
+  { href: '/admin/hotel', label: 'Hotel', icon: BedDouble },
   { href: '/admin/catalog', label: 'Catalog', icon: Package },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
@@ -78,6 +81,7 @@ const routePermissions: Record<string, string> = {
   // Part of CRM: absent from packages without it, like the endpoint.
   '/admin/bookings': 'manage_reservations',
   '/admin/venues': 'manage_venue_bookings',
+  '/admin/hotel': 'manage_hotel',
   '/admin/catalog': 'view_catalog',
   '/admin/inventory': 'view_inventory',
   '/admin/kiosk': 'view_kitchen_kiosk',
