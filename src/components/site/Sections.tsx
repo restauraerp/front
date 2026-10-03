@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   MapPin, Phone, Mail, ShoppingBag, Star, Globe, Navigation, Menu as MenuIcon, ShoppingCart,
-  Home, UtensilsCrossed, CalendarCheck, Info, Images, FileText, type LucideIcon,
+  Home, UtensilsCrossed, CalendarCheck, Info, Images, FileText, PartyPopper, Users, type LucideIcon,
 } from 'lucide-react';
 import type { Section, SectionProps, SiteContext, SiteNavPage } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
@@ -9,6 +9,7 @@ import { themeStyle, type SiteFonts, type SiteTheme } from '@/lib/site/themes';
 import { googleFontsUrl } from '@/lib/site/fonts';
 import ReservationForm from './ReservationForm';
 import SiteMap from './SiteMap';
+import VenueEnquiryForm from './VenueEnquiryForm';
 import OnlineOrder from '@/app/order/[slug]/OnlineOrder';
 
 /**
@@ -400,6 +401,36 @@ function InstagramFeed({ props, ctx }: { props: SectionProps; ctx: SiteContext }
   );
 }
 
+/** The restaurant's venues for events, with an enquiry form. */
+function Venues({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
+  const venues = ctx.venues ?? [];
+  if (venues.length === 0) return <EmptyHint ctx={ctx} label="Venues & events" hint="Add your halls in Venues, and switch them on for bookings." />;
+  const money = (n: number) => `${ctx.restaurant.currency}${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`;
+
+  return (
+    <Shell props={props}>
+      <Heading text={str(props, 'heading')} />
+      {str(props, 'intro') && <p className="text-center opacity-80 -mt-4 mb-8 max-w-2xl mx-auto whitespace-pre-line">{str(props, 'intro')}</p>}
+      <div className={`grid grid-cols-1 ${venues.length > 1 ? 'md:grid-cols-2' : 'max-w-xl mx-auto'} ${venues.length > 2 ? 'lg:grid-cols-3' : ''} gap-5 mb-10`}>
+        {venues.map((v) => (
+          <div key={v.id} className="rounded-2xl bg-base-100 text-base-content p-5 shadow-sm space-y-2">
+            <div className="font-semibold text-lg">{v.name}</div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm opacity-80">
+              <span className="flex items-center gap-1"><Users size={15} /> {v.min_guests ? `${v.min_guests}-${v.capacity}` : `Up to ${v.capacity}`} guests</span>
+              {v.location && <span className="flex items-center gap-1"><MapPin size={15} /> {v.location}</span>}
+            </div>
+            {v.description && <p className="text-sm opacity-80 whitespace-pre-line">{v.description}</p>}
+            {on(props, 'show_prices') && v.price > 0 && (
+              <div className="font-semibold text-primary">From {money(v.price)} {v.rent_type === 'per_hour' ? 'per hour' : 'per event'}</div>
+            )}
+          </div>
+        ))}
+      </div>
+      {props.show_form !== false && <VenueEnquiryForm code={ctx.restaurant.code} venues={venues} preview={ctx.preview} />}
+    </Shell>
+  );
+}
+
 function Reservations({ props, ctx }: { props: SectionProps; ctx: SiteContext }) {
   return (
     <Shell props={props}>
@@ -530,6 +561,7 @@ const RENDERERS: Record<string, (p: { props: SectionProps; ctx: SiteContext }) =
   order_button: OrderButton,
   online_order: OnlineOrderSection,
   map: MapSection,
+  venues: Venues,
   facebook_posts: FacebookPosts,
   instagram_feed: InstagramFeed,
   branches: Branches,
@@ -555,6 +587,7 @@ const PAGE_ICONS: Record<string, LucideIcon> = {
   menu: UtensilsCrossed,
   order: ShoppingBag,
   reservations: CalendarCheck,
+  events: PartyPopper,
   about: Info,
   gallery: Images,
   locations: MapPin,

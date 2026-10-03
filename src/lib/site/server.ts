@@ -1,4 +1,4 @@
-import type { Section, SiteMenuData, SiteNavPage, SitePosts, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialAccounts, SiteSocialLink } from './types';
+import type { Section, SiteMenuData, SiteNavPage, SitePosts, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialAccounts, SiteSocialLink, SiteVenue } from './types';
 import type { SiteFonts, SiteTheme } from './themes';
 import type { SiteTags } from './track';
 
@@ -37,6 +37,7 @@ export interface SitePageData {
   review_summary: SiteReviewSummary | null;
   posts: SitePosts;
   social_accounts: SiteSocialAccounts | null;
+  venues: SiteVenue[];
   social: SiteSocialLink[];
 }
 

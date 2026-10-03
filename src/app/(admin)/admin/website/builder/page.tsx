@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import type {
-  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink, SitePosts, SiteSocialAccounts,
+  ComponentDefinition, FieldDefinition, Section, SectionProps, SiteContext, SiteMenuData, SiteRestaurant, SiteReview, SiteReviewSummary, SiteSocialLink, SitePosts, SiteSocialAccounts, SiteVenue,
 } from '@/lib/site/types';
 import { storageUrl } from '@/lib/site/types';
 import { DEFAULT_THEME, facesOf, type SiteTheme } from '@/lib/site/themes';
@@ -127,6 +127,7 @@ export default function SiteBuilderPage() {
   const [reviews, setReviews] = useState<SiteReview[]>([]);
   const [reviewSummary, setReviewSummary] = useState<SiteReviewSummary | null>(null);
   const [socialFeed, setSocialFeed] = useState<{ posts: SitePosts; accounts: SiteSocialAccounts } | null>(null);
+  const [venues, setVenues] = useState<SiteVenue[]>([]);
   const [social, setSocial] = useState<SiteSocialLink[]>([]);
   const [theme, setTheme] = useState<SiteTheme>(DEFAULT_THEME);
   const [savedTheme, setSavedTheme] = useState<SiteTheme>(DEFAULT_THEME);
@@ -203,12 +204,17 @@ export default function SiteBuilderPage() {
           // The same overall rating visitors see: Google's when connected,
           // else worked out from every stored review.
           const rated = reviewList.filter((r) => r.rating);
-          const [google, metaStatus] = await Promise.all([
+          const [google, metaStatus, venueList] = await Promise.all([
             fetchApi('/site-builder/google').catch(() => null),
             // Posts for the preview's Facebook and Instagram sections.
             fetchApi('/site-builder/meta').catch(() => null),
+            // Venues for the preview's Venues section (none without the permission).
+            fetchApi('/venues').catch(() => null),
           ]);
           if (!active) return;
+          setVenues(((venueList?.venues ?? []) as (SiteVenue & { is_active: boolean; location: { name: string } | null })[])
+            .filter((v) => v.is_active)
+            .map((v) => ({ ...v, location: (v.location as unknown as { name: string } | null)?.name ?? null })));
           if (metaStatus?.posts && metaStatus?.accounts) setSocialFeed({ posts: metaStatus.posts, accounts: metaStatus.accounts });
           setReviewSummary(google?.average_rating != null
             ? { rating: Math.round(google.average_rating * 10) / 10, total: google.total_reviews ?? 0, write_review_url: null, google_url: null }
@@ -225,8 +231,8 @@ export default function SiteBuilderPage() {
 
   const siteBase = siteCode ? `/${siteCode}/site` : '';
   const ctx: SiteContext | null = useMemo(() => restaurant && ({
-    restaurant, menu, reviews, reviewSummary, social, posts: socialFeed?.posts, socialAccounts: socialFeed?.accounts, basePath: siteBase, orderUrl: `/order/${siteCode}`,
-  }), [restaurant, menu, reviews, reviewSummary, socialFeed, social, siteBase, siteCode]);
+    restaurant, menu, reviews, reviewSummary, social, posts: socialFeed?.posts, socialAccounts: socialFeed?.accounts, venues, basePath: siteBase, orderUrl: `/order/${siteCode}`,
+  }), [restaurant, menu, reviews, reviewSummary, socialFeed, venues, social, siteBase, siteCode]);
 
   // ---- Preview iframe --------------------------------------------------------
   useEffect(() => {
@@ -1037,6 +1043,7 @@ const PAGE_HINTS: Record<string, string> = {
   menu: 'Your full menu by category.',
   order: 'Online ordering inside your website.',
   reservations: 'A table booking form.',
+  events: 'Your venues for events, with an enquiry form.',
   about: 'Your story, with a photo.',
   gallery: 'A grid of photos.',
   locations: 'Your branches, with directions.',

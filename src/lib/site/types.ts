@@ -66,6 +66,18 @@ export interface SiteReview {
   source?: string;
 }
 
+/** A venue the restaurant hires out for events (Venues), as the site shows it. */
+export interface SiteVenue {
+  id: number;
+  name: string;
+  description: string | null;
+  capacity: number | null;
+  min_guests: number | null;
+  price: number;
+  rent_type: 'per_event' | 'per_hour';
+  location: string | null;
+}
+
 /** A Facebook or Instagram post, as stored by core-api's hourly sync. */
 export interface SitePost {
   text: string | null;
@@ -105,6 +117,7 @@ export interface SiteContext {
   reviews: SiteReview[];
   reviewSummary?: SiteReviewSummary | null;
   posts?: SitePosts | null;
+  venues?: SiteVenue[];
   socialAccounts?: SiteSocialAccounts | null;
   social: SiteSocialLink[];
   /** In the editor's preview: forms do not submit and links do not navigate. */

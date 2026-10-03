@@ -1,6 +1,6 @@
 'use client';
 import React, { useState } from 'react';
-import { Ban, Check, CheckCheck, Pencil, Phone, PhoneCall, RotateCcw, Trash2, Users, Wallet, X, MapPin, Clock } from 'lucide-react';
+import { Ban, Check, CheckCheck, Pencil, Phone, PhoneCall, RotateCcw, Trash2, Users, Wallet, X, MapPin, Clock, Printer } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Modal, useDialogs } from '@/components/ui/Dialogs';
 import { EVENT_TYPES, PAYMENT_METHODS, STATUS_BADGE, longDate, money, time12, type BookingDetail as Detail } from './types';
@@ -140,7 +140,12 @@ export default function BookingDetail({ booking: initial, onClose, onChanged, on
         {error && <div role="alert" className="alert alert-error text-sm py-2 whitespace-pre-line">{error}</div>}
 
         <div className="flex flex-wrap gap-2 justify-end border-t border-base-200 pt-3">
-          {open && <button className="btn btn-sm btn-ghost gap-1 mr-auto" disabled={busy} onClick={() => onEdit(b)}><Pencil size={14} /> Edit</button>}
+          <div className="flex gap-1 mr-auto">
+            {open && <button className="btn btn-sm btn-ghost gap-1" disabled={busy} onClick={() => onEdit(b)}><Pencil size={14} /> Edit</button>}
+            <a className="btn btn-sm btn-ghost gap-1" href={`/venue-print/${b.id}`} target="_blank" rel="noopener noreferrer">
+              <Printer size={14} /> {b.status === 'Pending' ? 'Quotation' : b.status === 'Completed' ? 'Invoice' : 'Confirmation'}
+            </a>
+          </div>
           {[...b.next].sort((x, y) => order.indexOf(x) - order.indexOf(y)).map((status) => {
             const a = ACTIONS[status];
             return a && (
