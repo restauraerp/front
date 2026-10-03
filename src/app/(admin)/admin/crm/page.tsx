@@ -24,7 +24,7 @@ export default function CRMDashboard() {
           fetchApi('/customers?per_page=1').catch(() => null),
           // Not asked for at all without the entitlement - the call would only
           // ever 403, and a console full of them hides real errors.
-          hasBookings ? fetchApi('/reservations?per_page=1').catch(() => null) : null,
+          hasBookings && can('manage_reservations') ? fetchApi('/reservations?view=upcoming&per_page=1').catch(() => null) : null,
         ]);
 
         const getCount = (res: any) => res?.total || res?.meta?.total || (Array.isArray(res?.data) ? res.data.length : 0) || (Array.isArray(res) ? res.length : 0) || 0;
@@ -62,14 +62,14 @@ export default function CRMDashboard() {
         {hasBookings && (
         <Card title={<div className="flex items-center gap-2"><CalendarDays className="text-primary" size={20} /> Reservations</div>}>
           <div className="mb-4">
-            <p className="text-base-content/70 mb-2">View and manage table and hall reservations.</p>
+            <p className="text-base-content/70 mb-2">Approve or decline table booking requests and take bookings by phone.</p>
             {loading ? (
               <div className="skeleton h-8 w-24"></div>
             ) : (
               <div className="text-3xl font-bold text-primary">{stats.reservations} <span className="text-sm font-normal text-base-content/60">Bookings</span></div>
             )}
           </div>
-          <Link href="/admin/crm/reservations" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage Reservations &rarr;</Link>
+          <Link href="/admin/bookings" className="text-primary font-medium hover:underline inline-flex items-center gap-1">Manage table bookings &rarr;</Link>
         </Card>
         )}
 

@@ -39,12 +39,14 @@ import {
   Languages,
   X,
   Plug,
+  CalendarCheck,
 } from 'lucide-react';
 
 const navItems = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/admin/pos', label: 'POS System', icon: ShoppingCart },
   { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+  { href: '/admin/bookings', label: 'Bookings', icon: CalendarCheck },
   { href: '/admin/catalog', label: 'Catalog', icon: Package },
   { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
   { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
@@ -71,6 +73,8 @@ const routePermissions: Record<string, string> = {
   '/admin': 'view_dashboard',
   '/admin/pos': 'view_pos',
   '/admin/orders': 'view_orders',
+  // Part of CRM: absent from packages without it, like the endpoint.
+  '/admin/bookings': 'manage_reservations',
   '/admin/catalog': 'view_catalog',
   '/admin/inventory': 'view_inventory',
   '/admin/kiosk': 'view_kitchen_kiosk',
