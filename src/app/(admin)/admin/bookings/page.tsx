@@ -1,7 +1,7 @@
 'use client';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  CalendarCheck, Check, Copy, Globe, MapPin, Pencil, Phone, PhoneCall, Plus, RotateCcw, Search, Users, X, Armchair, UserCheck, UserX, Ban, Store,
+  CalendarCheck, Check, Copy, Globe, MapPin, Pencil, Phone, PhoneCall, Plus, RotateCcw, Search, Users, X, Armchair, UserCheck, UserX, Ban, Store, Mail,
 } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Modal, useDialogs } from '@/components/ui/Dialogs';
@@ -25,6 +25,7 @@ type Booking = {
   next: string[];
   guest_name: string | null;
   guest_phone: string | null;
+  guest_email: string | null;
   guests: number | null;
   at: string | null;
   date: string | null;
@@ -38,6 +39,7 @@ type Booking = {
   handled_at: string | null;
   called_at: string | null;
   called_by: string | null;
+  last_emailed_at: string | null;
   created_at: string | null;
 };
 
@@ -166,7 +168,7 @@ export default function BookingsPage() {
     if (status === 'Declined') return setDeclining(booking);
     if (status === 'Cancelled' && !(await confirm({
       title: `Cancel ${booking.guest_name}'s booking?`,
-      message: 'Let the guest know - they are not told automatically. It can be reopened later.',
+      message: booking.guest_email ? `The guest is emailed at ${booking.guest_email}. It can be reopened later.` : 'There is no email on this booking - let the guest know by phone. It can be reopened later.',
       action: 'Cancel booking',
     }))) return;
     if (status === 'No-show' && !(await confirm({ title: 'Mark as a no-show?', message: `${booking.guest_name} did not come.`, action: 'Mark no-show', tone: 'btn-warning' }))) return;
@@ -310,6 +312,9 @@ function BookingCard({ booking: b, busy, onAct, onCalled, onCopy, onEdit }: {
           </div>
         )}
 
+        {b.guest_email
+          ? <div className="text-xs text-base-content/60 flex items-center gap-1"><Mail size={12} /> <a className="link link-hover" href={`mailto:${b.guest_email}`}>{b.guest_email}</a>{b.last_emailed_at ? ` · emailed ${ago(b.last_emailed_at)}` : ''}</div>
+          : open && <div className="text-xs text-base-content/50 flex items-center gap-1"><Mail size={12} /> No email - the guest is not emailed about this booking</div>}
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-base-content/70">
           <span className="flex items-center gap-1"><Users size={14} /> {b.guests} guest{b.guests === 1 ? '' : 's'}</span>
           {b.location && <span className="flex items-center gap-1"><MapPin size={14} /> {b.location.name}</span>}
@@ -394,7 +399,9 @@ function DeclineModal({ booking, onClose, onDecline }: { booking: Booking; onClo
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); onDecline(reason.trim()); }}>
         <h3 className="font-semibold text-lg">Decline {booking.guest_name}&apos;s booking?</h3>
         <p className="text-sm text-base-content/70">
-          Please call <a className="link link-primary" href={`tel:${booking.guest_phone}`}>{booking.guest_phone}</a> to let them know - they are not told automatically.
+          {booking.guest_email
+            ? <>They are emailed at {booking.guest_email}{reason ? ' with your reason' : ''}. You can also call <a className="link link-primary" href={`tel:${booking.guest_phone}`}>{booking.guest_phone}</a>.</>
+            : <>There is no email on this booking - please call <a className="link link-primary" href={`tel:${booking.guest_phone}`}>{booking.guest_phone}</a> to let them know.</>}
         </p>
         <div className="flex flex-wrap gap-1">
           {DECLINE_REASONS.map((r) => (
@@ -425,6 +432,7 @@ function BookingForm({ booking, locations, onClose, onSaved }: {
   const [form, setForm] = useState({
     name: booking?.guest_name ?? '',
     phone: booking?.guest_phone ?? '',
+    email: booking?.guest_email ?? '',
     location_id: String(booking?.location?.id ?? locations[0]?.id ?? ''),
     date: booking?.date ?? today,
     time: booking?.time ?? '19:00',
@@ -456,6 +464,7 @@ function BookingForm({ booking, locations, onClose, onSaved }: {
         guests: Number(form.guests),
         table_id: form.table_id ? Number(form.table_id) : null,
         notes: form.notes || null,
+        email: form.email || null,
       };
       const saved = booking
         ? await fetchApi(`/reservations/${booking.id}`, { method: 'PUT', body: JSON.stringify(body) })
@@ -479,6 +488,9 @@ function BookingForm({ booking, locations, onClose, onSaved }: {
           </label>
           <label className="block"><span className="label-text text-xs font-medium mb-1 block">Phone (to confirm)</span>
             <input required type="tel" inputMode="tel" maxLength={20} placeholder="01XXXXXXXXX" className="input input-bordered w-full" value={form.phone} onChange={set('phone')} />
+          </label>
+          <label className="block sm:col-span-2"><span className="label-text text-xs font-medium mb-1 block">Email (optional - the guest is emailed when approved, declined or cancelled)</span>
+            <input type="email" maxLength={191} placeholder="guest@example.com" className="input input-bordered w-full" value={form.email} onChange={set('email')} />
           </label>
           <label className="block"><span className="label-text text-xs font-medium mb-1 block">Date</span>
             <input required type="date" className="input input-bordered w-full" value={form.date} onChange={set('date')} />

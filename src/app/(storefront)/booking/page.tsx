@@ -79,6 +79,7 @@ function BookingForm() {
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify({
           name: formData.name,
+          email: formData.email,
           phone: formData.phone,
           location_id: Number(formData.location_id),
           date: formData.date,
@@ -118,7 +119,7 @@ function BookingForm() {
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
           <h2 style={{ color: '#065f46', marginBottom: '1rem' }}>Request sent</h2>
           <p style={{ color: '#047857', marginBottom: '2rem' }}>
-            Thank you, {formData.name}. We will call {formData.phone} to confirm your table.
+            Thank you, {formData.name}. We have emailed {formData.email} and will confirm your table shortly.
           </p>
           <Button
             onClick={() => {
@@ -181,7 +182,7 @@ function BookingForm() {
             
             <Input label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required />
             <Input label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="01XXXXXXXXX" required />
-            <Input label="Email Address (optional)" name="email" type="email" value={formData.email} onChange={handleInputChange} />
+            <Input label="Email Address (we confirm here)" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
             
             <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
               <h3 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 600 }}>3. Reservation Details</h3>

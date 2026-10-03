@@ -8,8 +8,9 @@ import { API_BASE_URL } from '@/lib/api';
  * The Reservations section's form - the one part of a site that sends data.
  *
  * Posts to core-api's POST /site/{code}/reservations, which files the request
- * in CRM > Reservations as Pending for the restaurant to confirm. Nothing here
- * claims a table is booked: the guest is told the restaurant will confirm.
+ * in Bookings as Pending for the restaurant to confirm. The guest is kept
+ * informed by email - no phone or WhatsApp verification; the phone is the
+ * number staff call. Nothing here claims a table is booked.
  * In the editor's preview it does not submit.
  */
 export default function ReservationForm({ code, locations, preview }: {
@@ -19,7 +20,7 @@ export default function ReservationForm({ code, locations, preview }: {
 }) {
   const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = useState({
-    name: '', phone: '', location_id: String(locations[0]?.id ?? ''), date: today, time: '19:00', guests: '2', notes: '',
+    name: '', email: '', phone: '', location_id: String(locations[0]?.id ?? ''), date: today, time: '19:00', guests: '2', notes: '',
   });
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +57,7 @@ export default function ReservationForm({ code, locations, preview }: {
       <div className="rounded-2xl bg-base-100 text-base-content p-8 text-center max-w-xl mx-auto">
         <CalendarCheck className="mx-auto text-success" size={40} />
         <h3 className="text-xl font-semibold mt-3">Request sent</h3>
-        <p className="opacity-70 mt-1">Thank you, {form.name}. We will call {form.phone} to confirm your table.</p>
+        <p className="opacity-70 mt-1">Thank you, {form.name}. We have emailed {form.email} and will confirm your table shortly.</p>
       </div>
     );
   }
@@ -65,6 +66,7 @@ export default function ReservationForm({ code, locations, preview }: {
     <form onSubmit={submit} className="rounded-2xl bg-base-100 text-base-content p-5 sm:p-6 max-w-2xl mx-auto grid gap-3 sm:grid-cols-2">
       <input required maxLength={100} className="input input-bordered w-full" placeholder="Your name" value={form.name} onChange={set('name')} />
       <input required type="tel" maxLength={20} className="input input-bordered w-full" placeholder="Mobile number" value={form.phone} onChange={set('phone')} />
+      <input required type="email" maxLength={191} className="input input-bordered w-full sm:col-span-2" placeholder="Email - we confirm here" value={form.email} onChange={set('email')} />
       {locations.length > 1 && (
         <select required className="select select-bordered w-full sm:col-span-2" value={form.location_id} onChange={set('location_id')}>
           {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
