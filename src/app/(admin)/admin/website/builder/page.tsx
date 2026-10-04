@@ -139,6 +139,7 @@ export default function SiteBuilderPage() {
   const [standardPages, setStandardPages] = useState<StandardPage[]>([]);
   const [modal, setModal] = useState<'publish' | 'add-page' | 'versions' | null>(null);
   const [starters, setStarters] = useState<Starter[] | null>(null);
+  const [starterCategories, setStarterCategories] = useState<Record<string, string>>({});
   const { confirm, dialog } = useDialogs();
   const [templates, setTemplates] = useState<Record<string, { label: string; description: string; sections: Section[] }> | null>(null);
   const [dragging, setDragging] = useState<{ kind: 'palette' | 'section'; label: string } | null>(null);
@@ -606,7 +607,9 @@ export default function SiteBuilderPage() {
   const openStarters = async () => {
     setError(null);
     try {
-      setStarters((await fetchApi('/site-builder/starters')).starters);
+      const res = await fetchApi('/site-builder/starters');
+      setStarterCategories(res.categories ?? {});
+      setStarters(res.starters);
     } catch (err) {
       setError(apiErrorMessage(err, 'Could not load the starter sites.'));
     }
@@ -931,6 +934,7 @@ export default function SiteBuilderPage() {
       {starters && (
         <StarterBrowser
           starters={starters}
+          categories={starterCategories}
           catalog={fontCatalog}
           labels={Object.fromEntries(Object.entries(defs).map(([k, d]) => [k, d.label]))}
           busy={busy === 'pages'}

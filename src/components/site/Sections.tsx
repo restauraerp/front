@@ -479,6 +479,9 @@ function linkFor(target: string, ctx: SiteContext, page?: string): string | null
     case 'menu': return ctx.menuUrl ?? `${ctx.basePath}/#menu`;
     case 'call': return ctx.restaurant.phone ? `tel:${ctx.restaurant.phone}` : null;
     case 'page': return page ? `${ctx.basePath}/${page}` : ctx.basePath || '/';
+    // A hotel's or a hall's banner, to its standard Rooms / Events page.
+    case 'rooms':
+    case 'events': return `${ctx.basePath}/${target}`;
     default: return null;
   }
 }

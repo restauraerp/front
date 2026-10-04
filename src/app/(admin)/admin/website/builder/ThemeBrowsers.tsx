@@ -179,14 +179,20 @@ export type Starter = {
   name: string;
   description: string;
   tags: string[];
+  category: string;
+  /** Modules the starter is built around that this restaurant does not have. */
+  missing: string[];
   theme: SiteTheme;
   pages: string[];
   home: string[];
 };
 
+const MODULE_NAMES: Record<string, string> = { hotel: 'the Hotel add-on', crm: 'CRM' };
+
 /** Whole starter websites: pick one to replace the draft site (after a confirm, in the caller). */
-export function StarterBrowser({ starters, catalog, labels, busy, onPick, onClose }: {
+export function StarterBrowser({ starters, categories, catalog, labels, busy, onPick, onClose }: {
   starters: Starter[];
+  categories: Record<string, string>;
   catalog: FontCatalog;
   labels: Record<string, string>;
   busy: boolean;
@@ -194,10 +200,11 @@ export function StarterBrowser({ starters, catalog, labels, busy, onPick, onClos
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState('');
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   const shown = starters.filter((s) => {
     const hay = `${s.name} ${s.description} ${s.tags.join(' ')}`.toLowerCase();
-    return words.every((w) => hay.includes(w));
+    return (!category || s.category === category) && words.every((w) => hay.includes(w));
   });
   const face = (n?: string): FontFace => ({ name: n ?? 'Inter', category: catalog[n ?? '']?.category ?? 'sans-serif', weights: catalog[n ?? '']?.weights ?? '400' });
 
@@ -211,9 +218,18 @@ export function StarterBrowser({ starters, catalog, labels, busy, onPick, onClos
         </p>
         <label className="input input-sm input-bordered flex items-center gap-2 w-full">
           <Search size={14} className="opacity-50" />
-          <input className="grow" placeholder="Search: biryani, cafe, pizza, delivery…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="grow" placeholder="Search: biryani, cafe, hotel, resort, wedding…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Kind of business">
+          {[['', 'All'], ...Object.entries(categories)].map(([key, label]) => (
+            <button key={key} type="button" aria-pressed={category === key} onClick={() => setCategory(key)}
+                    className={`btn btn-xs rounded-full ${category === key ? 'btn-primary' : 'btn-ghost border border-base-300'}`}>
+              {label} <span className="opacity-60">{key ? starters.filter((s) => s.category === key).length : starters.length}</span>
+            </button>
+          ))}
+        </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[60vh] overflow-y-auto p-1">
+          {shown.length === 0 && <p className="text-sm text-base-content/60 col-span-full py-6 text-center">No starter matches - try another word.</p>}
           {shown.map((s) => {
             const colors = colorsOf(s.theme);
             const v = paletteVars(colors);
@@ -223,12 +239,19 @@ export function StarterBrowser({ starters, catalog, labels, busy, onPick, onClos
                 <div className="p-4" style={{ background: colors.neutral, color: v['--color-neutral-content'] }}>
                   <div className="text-xl leading-tight" style={{ fontFamily: familyCss(face(s.theme.heading_font)) }}>{s.name}</div>
                   <div className="text-xs mt-1 opacity-80" style={{ fontFamily: familyCss(face(s.theme.body_font)) }}>{s.theme.heading_font} &amp; {s.theme.body_font}</div>
-                  <span className="inline-block mt-3 rounded px-2 py-1 text-xs" style={{ background: colors.primary, color: v['--color-primary-content'] }}>Order now</span>
+                  <span className="inline-block mt-3 rounded px-2 py-1 text-xs" style={{ background: colors.primary, color: v['--color-primary-content'] }}>
+                    {s.category === 'stay' ? 'Book a room' : s.category === 'events' ? 'Enquire' : 'Order now'}
+                  </span>
                 </div>
                 <div className="p-3 space-y-1.5" style={{ background: colors.base, color: v['--color-base-content'] }}>
                   <p className="text-xs opacity-80">{s.description}</p>
                   <p className="text-[11px] opacity-60">{s.pages.length} pages: {s.pages.join(', ')}</p>
                   <p className="text-[11px] opacity-60">Home: {s.home.map((t) => labels[t] ?? t).join(' · ')}</p>
+                  {s.missing.length > 0 && (
+                    <p className="text-[11px] font-medium text-warning-content bg-warning/80 rounded px-1.5 py-0.5 inline-block">
+                      Needs {s.missing.map((m) => MODULE_NAMES[m] ?? m).join(' and ')} for {s.category === 'stay' ? 'room booking' : 'venue enquiries'}
+                    </p>
+                  )}
                 </div>
               </button>
             );
