@@ -19,6 +19,32 @@ export default function SubscriptionCard({ status }: { status: SubscriptionStatu
 
   if (!status) return null;
 
+  // Marked as a demo by RestoraERP: nothing to pay, nothing falling due. The
+  // public demo keeps the illustrative card below, which is what a visitor
+  // trying the product should see.
+  if (status.demo_restaurant && !status.is_demo) {
+    return (
+      <Card title="Subscription">
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-base-content/60">Status</span>
+            <span className="badge badge-info badge-sm rounded-full text-white">Demo restaurant</span>
+          </div>
+          <div className="flex items-center gap-3 p-3 rounded-xl bg-base-200">
+            <Package className="text-primary" size={20} />
+            <div className="min-w-0">
+              <p className="text-xs text-base-content/50">Package</p>
+              <p className="font-semibold break-words">{status.plan_name ?? status.plan ?? '—'}</p>
+            </div>
+          </div>
+          <p className="text-sm text-base-content/70">
+            This restaurant is for testing and presentations. It is not billed and does not expire.
+          </p>
+        </div>
+      </Card>
+    );
+  }
+
   const trialing = status.tenant_status === 'trialing';
 
   // A trial and a paid subscription run off different dates - trial_ends_at

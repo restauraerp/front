@@ -326,6 +326,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const tour: { show: boolean; kind?: TourKind } = React.useMemo(() => {
     if (subscription?.is_demo === true) return { show: true, kind: 'demo' };
 
+    // Marked as a demo for testing or a sales presentation: no tour popping up
+    // in the middle of a pitch.
+    if (subscription?.demo_restaurant === true) return { show: false };
+
     if (subscription?.is_demo === false) {
       return subscription.tenant_status === 'trialing' ? { show: true, kind: 'trial' } : { show: false };
     }

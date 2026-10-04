@@ -39,6 +39,7 @@ type Props = {
 /** Which tour this account gets, mirroring the layout's decision. */
 function tourFor(status: SubscriptionStatus | null): TourKind | null {
   if (status?.is_demo === true) return 'demo';
+  if (status?.demo_restaurant === true) return null;
 
   // A trial gets its own tour. A paying restaurant gets none - there is nothing
   // here worth offering somebody who has been running the product for months.
