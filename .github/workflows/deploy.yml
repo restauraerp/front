@@ -126,18 +126,22 @@ jobs:
         run: |
           npm ci
           npm run build
+          # Prune devDependencies (TypeScript, ESLint, types...) so node_modules
+          # contains only production runtime dependencies for rsync. Offloads all
+          # package installation from the 1 GiB production host.
+          npm prune --omit=dev
 
       - name: Upload release
         run: |
           ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p /var/www/front/releases/$RELEASE"
           rsync -az --delete \
             -e "ssh -i ~/.ssh/id_deploy" \
-            --exclude='.git' --exclude='.github' --exclude='node_modules' \
+            --exclude='.git' --exclude='.github' \
             --exclude='.env' --exclude='.env.production' --exclude='tests' \
             --exclude='.idea' --exclude='.claude' \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/front/releases/$RELEASE/"
 
-      - name: Activate release (link shared, npm install, flip current, restart)
+      - name: Activate release (link shared, flip current, restart)
         run: |
           ssh -i ~/.ssh/id_deploy "$DEPLOY_USER@$DEPLOY_HOST" "RELEASE='$RELEASE' bash -s" <<'DEPLOY'
           set -euo pipefail
@@ -150,9 +154,6 @@ jobs:
           ln -sfn "$APP/shared/.env" "$REL/.env"
 
           cd "$REL"
-
-          # Next.js requires production dependencies to start
-          npm ci --omit=dev
 
           # Atomic cutover.
           ln -sfn "$REL" "$APP/current"
