@@ -13,6 +13,10 @@ interface ProfitReport {
     sales_revenue: number;
     delivery_charges: number;
     other_income: number;
+    /** Payments against venue bookings, by the day received. */
+    venue_income?: number;
+    /** Payments against hotel room bookings, by the day received. */
+    room_income?: number;
     total_income: number;
     operational_expenses: number;
     purchase_expenses: number;
@@ -50,7 +54,9 @@ export default function ProfitReportPage() {
           label="Total Income"
           value={formatTaka(summary.total_income)}
           sub={`Sales ${formatTaka(summary.sales_revenue)} + delivery ${formatTaka(summary.delivery_charges)}`
-            + (summary.other_income > 0 ? ` + ${formatTaka(summary.other_income)} logged` : '')}
+            + (summary.other_income > 0 ? ` + ${formatTaka(summary.other_income)} logged` : '')
+            + ((summary.venue_income ?? 0) > 0 ? ` + ${formatTaka(summary.venue_income ?? 0)} venues` : '')
+            + ((summary.room_income ?? 0) > 0 ? ` + ${formatTaka(summary.room_income ?? 0)} rooms` : '')}
           tone="success"
         />
         <StatTile
@@ -88,6 +94,8 @@ export default function ProfitReportPage() {
             { label: 'Sales Revenue', value: summary.sales_revenue, positive: true },
             { label: 'Delivery Charges', value: summary.delivery_charges, positive: true },
             { label: 'Other Income', value: summary.other_income, positive: true },
+            ...((summary.venue_income ?? 0) > 0 ? [{ label: 'Venue Bookings', value: summary.venue_income ?? 0, positive: true }] : []),
+            ...((summary.room_income ?? 0) > 0 ? [{ label: 'Room Bookings', value: summary.room_income ?? 0, positive: true }] : []),
             { label: 'Operational Expenses', value: -summary.operational_expenses, positive: summary.operational_expenses === 0 },
             { label: 'Purchase Expenses', value: -summary.purchase_expenses, positive: summary.purchase_expenses === 0 },
           ].map(({ label, value, positive }) => (

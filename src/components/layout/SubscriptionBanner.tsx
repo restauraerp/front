@@ -24,6 +24,10 @@ export type SubscriptionStatus = {
    *  cannot answer this: it outlives the demo visit and follows the visitor
    *  into their own account. */
   is_demo?: boolean;
+  /** Any restaurant marked as a demo, for testing or presentations: not billed,
+   *  so no trial countdown, upgrade prompt or onboarding tour. The public demo
+   *  is one too, and keeps its own banner through `is_demo`. */
+  demo_restaurant?: boolean;
   trial_ends_at?: string | null;
   trial_days_remaining?: number | null;
   /** The package itself. Sent for a healthy subscription too, not only a

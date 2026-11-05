@@ -2,7 +2,9 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchApi } from '@/lib/api';
+import { QRCodeSVG } from 'qrcode.react';
 import { useBranding } from '@/hooks/useBranding';
+import { displayFacebookUrl } from '@/lib/facebook';
 
 export default function ReceiptPage() {
   const params = useParams();
@@ -137,6 +139,17 @@ export default function ReceiptPage() {
       {order.payments && order.payments.length > 0 && (
         <div style={{ marginTop: '15px', fontSize: '0.85rem', textAlign: 'center' }}>
           <p style={{ margin: '0 0 5px 0' }}>PAID VIA {order.payments[0].method.toUpperCase()}</p>
+        </div>
+      )}
+
+      {/* Settings > Facebook page. Only when switched on and the link is a
+          real Facebook page - useBranding checks both. Pure black on white, at
+          a size a phone reads off a 58mm roll. */}
+      {branding.facebookQr && branding.facebookPage && (
+        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem' }}>
+          <p style={{ margin: '0 0 6px 0', fontWeight: 'bold' }}>Follow us on Facebook</p>
+          <QRCodeSVG value={branding.facebookPage} size={120} level="M" marginSize={1} style={{ display: 'block', margin: '0 auto' }} />
+          <p style={{ margin: '4px 0 0 0', fontSize: '0.7rem', wordBreak: 'break-all' }}>{displayFacebookUrl(branding.facebookPage)}</p>
         </div>
       )}
 

@@ -9,6 +9,13 @@ import { UserCircle, Link2, Copy, Check, X } from 'lucide-react';
 import styles from '@/components/ui/ui.module.css';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 
+/** A role as the form needs it. requires_login arrives as 0/1 from MySQL. */
+type RoleOption = { name: string; requires_login?: boolean | number };
+
+/** Whether new users given this role sign in - true when unknown. */
+const roleSignsIn = (role?: RoleOption): boolean =>
+  !role || !(role.requires_login === false || role.requires_login === 0);
+
 export default function EmployeesPage() {
   const [employees, setEmployees] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
@@ -219,7 +226,7 @@ export default function EmployeesPage() {
         </div>
       ),
     },
-    { key: 'email', label: 'Email' },
+    { key: 'email', label: 'Email', render: (row: any) => row.email || <span className="text-base-content/40">—</span> },
     { key: 'phone', label: 'Phone', render: (row: any) => row.phone || '-' },
     { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
     { key: 'location', label: 'Location', render: (row: any) => row.location ? row.location.name : '-' }
@@ -243,12 +250,31 @@ export default function EmployeesPage() {
         <Card title={editingId ? 'Edit Employee' : 'New Employee'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Name" name="name" value={formData.name} onChange={handleInputChange} required />
-            <div>
-              <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required disabled={editingId !== null && formData.role === 'restaurant_admin'} />
-              {editingId !== null && formData.role === 'restaurant_admin' && (
-                <p className="text-xs text-warning mt-1">The owner account email cannot be changed.</p>
-              )}
-            </div>
+            {/* First, because it decides the rest: a role set not to sign in
+                (Roles > "Members sign in to the panel", e.g. waiter) switches
+                sign-in off for a new user and hides email and password. */}
+            <SearchSelect
+              label="Role"
+              value={formData.role}
+              onChange={(v) => {
+                const name = String(v ?? '');
+                const role: RoleOption | undefined = roles.find(r => r.name === name);
+                setFormData(prev => ({
+                  ...prev,
+                  role: name,
+                  // Only for a new user: an existing one keeps their own setting.
+                  can_login: editingId !== null ? prev.can_login : name === 'restaurant_admin' || roleSignsIn(role),
+                }));
+              }}
+              options={roles.map((r: RoleOption) => ({
+                value: r.name,
+                label: r.name.replace('_', ' ').toUpperCase(),
+                hint: roleSignsIn(r) ? undefined : 'No sign-in',
+              }))}
+              placeholder="No Role"
+              searchPlaceholder="Search roles…"
+              clearable
+            />
             <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} placeholder="+1234567890" />
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl bg-base-200/60">
@@ -266,11 +292,19 @@ export default function EmployeesPage() {
                       ? 'The owner account must always be able to sign in.'
                       : formData.can_login
                         ? 'This user can sign in to the app with their email and password.'
-                        : 'This user exists only to be assigned work (deliveries, sales, payroll) and cannot sign in. No password is needed.'}
+                        : 'This user exists only to be assigned work (sales, deliveries, payroll) and cannot sign in. No email or password is needed.'}
                   </span>
                 </span>
               </label>
             </div>
+            {formData.can_login && (
+              <div>
+                <Input label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} required disabled={editingId !== null && formData.role === 'restaurant_admin'} />
+                {editingId !== null && formData.role === 'restaurant_admin' && (
+                  <p className="text-xs text-warning mt-1">The owner account email cannot be changed.</p>
+                )}
+              </div>
+            )}
             {formData.can_login && (
               <Input
                 label="Password"
@@ -305,16 +339,6 @@ export default function EmployeesPage() {
               options={locations.map((loc: any) => ({ value: loc.id, label: loc.name }))}
               placeholder="No Location"
               searchPlaceholder="Search locations…"
-              clearable
-            />
-            
-            <SearchSelect
-              label="Role"
-              value={formData.role}
-              onChange={(v) => setFormData(prev => ({ ...prev, role: String(v) }))}
-              options={roles.map((r: any) => ({ value: r.name, label: r.name.replace('_', ' ').toUpperCase() }))}
-              placeholder="No Role"
-              searchPlaceholder="Search roles…"
               clearable
             />
             

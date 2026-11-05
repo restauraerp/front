@@ -16,51 +16,161 @@ import SubscriptionBanner, { SubscriptionStatus } from '@/components/layout/Subs
 import {
   LayoutDashboard,
   ShoppingCart,
+  ShoppingBag,
   Package,
   Users,
   Boxes,
   ClipboardList,
-  Monitor,
+  ChefHat,
   Truck,
   Handshake,
   HeartHandshake,
   MapPin,
-  BookOpen,
+  Calculator,
+  Wallet,
   Settings,
+  Building2,
   UserCircle,
   Menu,
-  ChevronRight,
+  ChevronDown,
   UtensilsCrossed,
   Globe,
-  ScrollText,
   Home,
   ArrowLeft,
   BarChart3,
   Languages,
   X,
   Plug,
+  CalendarDays,
+  CalendarCheck,
+  PartyPopper,
+  BedDouble,
+  type LucideIcon,
 } from 'lucide-react';
 
-const navItems = [
-  { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/admin/pos', label: 'POS System', icon: ShoppingCart },
-  { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
-  { href: '/admin/catalog', label: 'Catalog', icon: Package },
-  { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
-  { href: '/admin/kiosk', label: 'Kitchen Kiosk', icon: Monitor },
-  { href: '/admin/hr', label: 'HRM', icon: Users },
-  { href: '/admin/delivery', label: 'Delivery', icon: Truck },
-  // The restaurant's Telegram bot for rider notifications. manage_integrations
-  // belongs to the Delivery module, so this only appears with it.
-  { href: '/admin/integrations', label: 'Integration', icon: Plug },
-  { href: '/admin/crm', label: 'CRM', icon: HeartHandshake },
-  { href: '/admin/partners', label: 'Partners', icon: Handshake },
-  { href: '/admin/locations', label: 'Locations', icon: MapPin },
-  { href: '/admin/accounting', label: 'Accounting', icon: BookOpen },
-  { href: '/admin/website', label: 'Website', icon: Globe },
-  { href: '/admin/reporting', label: 'Reporting', icon: BarChart3 },
-  { href: '/admin/settings', label: 'Settings', icon: Settings },
+type NavItem = { href: string; label: string; icon: LucideIcon };
+type NavGroup = { id: string; label: string; icon: LucideIcon; items: NavItem[] };
+
+/**
+ * The sidebar, grouped by the job somebody is doing rather than listed by
+ * module. Nineteen flat links read as a wall; seven headings with the day's
+ * work at the top and the set-up-once pages at the bottom read as a map.
+ *
+ * Every item keeps its own permission (routePermissions below), so a group is
+ * simply whatever of it the person may see - and a group they may see nothing
+ * of is not drawn at all.
+ */
+const navGroups: NavGroup[] = [
+  {
+    id: 'sales',
+    label: 'Sales',
+    icon: ShoppingBag,
+    items: [
+      { href: '/admin/pos', label: 'Point of Sale', icon: ShoppingCart },
+      { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+      { href: '/admin/kiosk', label: 'Kitchen Display', icon: ChefHat },
+      { href: '/admin/delivery', label: 'Delivery', icon: Truck },
+      // Delivery apps and other channels that send orders in, and what is owed
+      // to and from them.
+      { href: '/admin/partners', label: 'Sales Partners', icon: Handshake },
+    ],
+  },
+  {
+    id: 'guests',
+    label: 'Guests & Bookings',
+    icon: CalendarDays,
+    items: [
+      { href: '/admin/bookings', label: 'Table Bookings', icon: CalendarCheck },
+      { href: '/admin/venues', label: 'Venues & Events', icon: PartyPopper },
+      // The hotel add-on module; only restaurants that run a hotel have it.
+      { href: '/admin/hotel', label: 'Hotel Rooms', icon: BedDouble },
+      { href: '/admin/crm', label: 'Customers', icon: HeartHandshake },
+    ],
+  },
+  {
+    id: 'menu',
+    label: 'Menu & Stock',
+    icon: Package,
+    items: [
+      { href: '/admin/catalog', label: 'Menu Catalog', icon: UtensilsCrossed },
+      { href: '/admin/inventory', label: 'Inventory', icon: Boxes },
+    ],
+  },
+  {
+    id: 'finance',
+    label: 'Finance',
+    icon: Wallet,
+    items: [
+      { href: '/admin/accounting', label: 'Accounting', icon: Calculator },
+      { href: '/admin/reporting', label: 'Reports', icon: BarChart3 },
+    ],
+  },
+  {
+    id: 'online',
+    label: 'Online',
+    icon: Globe,
+    items: [
+      { href: '/admin/website', label: 'Website', icon: Globe },
+      // The restaurant's Telegram bot for rider notifications. manage_integrations
+      // belongs to the Delivery module, so this only appears with it.
+      { href: '/admin/integrations', label: 'Integrations', icon: Plug },
+    ],
+  },
+  {
+    id: 'setup',
+    label: 'Team & Setup',
+    icon: Building2,
+    items: [
+      { href: '/admin/hr', label: 'Staff & HR', icon: Users },
+      { href: '/admin/locations', label: 'Locations', icon: MapPin },
+      { href: '/admin/settings', label: 'Settings', icon: Settings },
+    ],
+  },
 ];
+
+const dashboardItem: NavItem = { href: '/admin', label: 'Dashboard', icon: LayoutDashboard };
+const navItems: NavItem[] = [dashboardItem, ...navGroups.flatMap((g) => g.items)];
+
+/**
+ * Which groups somebody has opened or shut, remembered per browser. A group
+ * nobody has touched follows the page: open when it holds the current page,
+ * shut otherwise.
+ *
+ * Read through useSyncExternalStore rather than an effect, so the server render
+ * (nothing remembered) and the first client render agree, and the remembered
+ * state arrives without a setState-in-effect. Storage can throw in a private
+ * window or with site data blocked; then it simply is not remembered.
+ */
+const GROUPS_KEY = 'admin-nav-groups';
+const groupListeners = new Set<() => void>();
+let groupSnapshot: string | null = null;
+
+const readGroups = (): string => {
+  if (groupSnapshot === null) {
+    try { groupSnapshot = window.localStorage.getItem(GROUPS_KEY) ?? '{}'; } catch { groupSnapshot = '{}'; }
+  }
+  return groupSnapshot;
+};
+
+const writeGroups = (next: Record<string, boolean>) => {
+  groupSnapshot = JSON.stringify(next);
+  try { window.localStorage.setItem(GROUPS_KEY, groupSnapshot); } catch { /* not remembered */ }
+  groupListeners.forEach((l) => l());
+};
+
+const subscribeGroups = (listener: () => void) => {
+  groupListeners.add(listener);
+  return () => { groupListeners.delete(listener); };
+};
+
+const parseGroups = (raw: string): Record<string, boolean> => {
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
 
 // One entry per navItem, no exceptions. A route missing from here used to fall
 // through hasAccess() as "allowed", which is how Reporting stayed on the
@@ -71,6 +181,10 @@ const routePermissions: Record<string, string> = {
   '/admin': 'view_dashboard',
   '/admin/pos': 'view_pos',
   '/admin/orders': 'view_orders',
+  // Part of CRM: absent from packages without it, like the endpoint.
+  '/admin/bookings': 'manage_reservations',
+  '/admin/venues': 'manage_venue_bookings',
+  '/admin/hotel': 'manage_hotel',
   '/admin/catalog': 'view_catalog',
   '/admin/inventory': 'view_inventory',
   '/admin/kiosk': 'view_kitchen_kiosk',
@@ -212,6 +326,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const tour: { show: boolean; kind?: TourKind } = React.useMemo(() => {
     if (subscription?.is_demo === true) return { show: true, kind: 'demo' };
 
+    // Marked as a demo for testing or a sales presentation: no tour popping up
+    // in the middle of a pitch.
+    if (subscription?.demo_restaurant === true) return { show: false };
+
     if (subscription?.is_demo === false) {
       return subscription.tenant_status === 'trialing' ? { show: true, kind: 'trial' } : { show: false };
     }
@@ -229,6 +347,39 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     // show one. Every navItem is mapped above, so this denies nothing today.
     if (!reqPerm) return false;
     return userPermissions.includes(reqPerm);
+  };
+
+  const openGroups = parseGroups(React.useSyncExternalStore(subscribeGroups, readGroups, () => '{}'));
+
+  const isActiveHref = (href: string) => pathname === href || (href !== '/admin' && pathname.startsWith(href));
+
+  const navLink = ({ href, label, icon: Icon }: NavItem) => {
+    const isActive = isActiveHref(href);
+    return (
+      <Link
+        href={href}
+        // The guided tour anchors on this rather than on a class or a
+        // position, so restyling the sidebar cannot silently break a
+        // tour. Derived from the href so a new nav item is taggable
+        // without anybody remembering to.
+        data-tour={`nav-${href.replace('/admin', '').replace(/^\//, '') || 'dashboard'}`}
+        onClick={() => setDrawerOpen(false)}
+        aria-current={isActive ? 'page' : undefined}
+        className={`flex items-center transition-all duration-300 ease-in-out ${
+          collapsed
+            ? 'justify-center w-11 h-11 mx-auto rounded-full px-0'
+            : 'px-3 py-2 rounded-lg w-full'
+        } ${
+          isActive
+            ? 'bg-primary text-primary-content shadow-sm'
+            : 'text-base-content hover:bg-base-300'
+        }`}
+        title={collapsed ? label : undefined}
+      >
+        <Icon size={18} className="shrink-0" />
+        <span className={`text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>{label}</span>
+      </Link>
+    );
   };
 
   const sidebar = (
@@ -256,37 +407,56 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-3 overflow-x-hidden">
-        <ul className="menu menu-sm px-2 gap-1">
-          {navItems.filter(item => hasAccess(item.href)).map(({ href, label, icon: Icon }) => {
-            const isActive = pathname === href || (href !== '/admin' && pathname.startsWith(href));
+      <nav className="flex-1 overflow-y-auto py-3 overflow-x-hidden" aria-label="Main">
+        <ul className="px-2 space-y-0.5">
+          {hasAccess(dashboardItem.href) && <li>{navLink(dashboardItem)}</li>}
+
+          {navGroups.map((group) => {
+            const items = group.items.filter((item) => hasAccess(item.href));
+            if (items.length === 0) return null;
+
+            // On the icon rail there is nowhere to put a heading, so a group
+            // is its items under a hairline - nothing is ever tucked away
+            // behind an icon nobody can read.
+            if (collapsed) {
+              return (
+                <li key={group.id} className="pt-1.5 mt-1.5 border-t border-base-300">
+                  <ul className="space-y-0.5">{items.map((item) => <li key={item.href}>{navLink(item)}</li>)}</ul>
+                </li>
+              );
+            }
+
+            // A heading over one link is noise; show the link.
+            if (items.length === 1) return <li key={group.id}>{navLink(items[0])}</li>;
+
+            const holdsActive = items.some((item) => isActiveHref(item.href));
+            const open = openGroups[group.id] ?? holdsActive;
+            const GroupIcon = group.icon;
+
             return (
-              <li key={href}>
-                <Link
-                  href={href}
-                  // The guided tour anchors on this rather than on a class or a
-                  // position, so restyling the sidebar cannot silently break a
-                  // tour. Derived from the href so a new nav item is taggable
-                  // without anybody remembering to.
-                  data-tour={`nav-${href.replace('/admin', '').replace(/^\//, '') || 'dashboard'}`}
-                  onClick={() => setDrawerOpen(false)}
-                  className={`flex items-center transition-all duration-300 ease-in-out ${
-                    collapsed
-                      ? 'justify-center w-11 h-11 mx-auto rounded-full px-0'
-                      : 'px-3 py-2.5 rounded-lg w-full'
-                  } ${
-                    isActive
-                      ? 'bg-primary text-primary-content shadow-sm'
-                      : 'text-base-content hover:bg-base-300'
-                  }`}
-                  title={collapsed ? label : undefined}
+              <li key={group.id} className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => writeGroups({ ...openGroups, [group.id]: !open })}
+                  aria-expanded={open}
+                  aria-controls={`nav-group-${group.id}`}
+                  // Pressed by the guided tour when a step points at a link
+                  // inside this group while it is shut.
+                  data-tour-reveal={`nav-group-${group.id}`}
+                  className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider text-base-content/60 hover:bg-base-300 hover:text-base-content transition-colors"
                 >
-                  <Icon size={18} className="shrink-0" />
-                  <div className={`flex items-center overflow-hidden transition-all duration-300 ease-in-out ${collapsed ? 'w-0 opacity-0 ml-0' : 'flex-1 opacity-100 ml-3'}`}>
-                    <span className="text-sm font-medium whitespace-nowrap flex-1">{label}</span>
-                    {isActive && <ChevronRight size={16} className="shrink-0" />}
-                  </div>
-                </Link>
+                  <GroupIcon size={16} className="shrink-0" />
+                  <span className="flex-1 text-left whitespace-nowrap">{group.label}</span>
+                  {!open && holdsActive && <span className="w-1.5 h-1.5 rounded-full bg-primary" aria-label="Current page is in here" />}
+                  <ChevronDown size={14} className={`shrink-0 transition-transform duration-200 ${open ? '' : '-rotate-90'}`} />
+                </button>
+                <ul
+                  id={`nav-group-${group.id}`}
+                  data-tour-region={`nav-group-${group.id}`}
+                  className={`mt-0.5 ml-[1.15rem] pl-2 border-l border-base-300 space-y-0.5 ${open ? '' : 'hidden'}`}
+                >
+                  {items.map((item) => <li key={item.href}>{navLink(item)}</li>)}
+                </ul>
               </li>
             );
           })}

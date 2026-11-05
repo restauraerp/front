@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import RestaurantIdentityCard from '@/components/settings/RestaurantIdentityCard';
 import SlipPrintingCard from '@/components/settings/SlipPrintingCard';
+import FacebookPageCard from '@/components/settings/FacebookPageCard';
 import BusinessDayCard from '@/components/settings/BusinessDayCard';
 
 export default function SettingsPage() {
@@ -104,6 +105,12 @@ export default function SettingsPage() {
           there are two dozen storefront keys and no reason to hide them. */}
       <div style={{ marginBottom: '2rem' }}>
         <RestaurantIdentityCard onSaved={loadData} />
+      </div>
+
+      {/* The restaurant's Facebook page, and the switch that prints it as a
+          QR code on customer receipts. */}
+      <div style={{ marginBottom: '2rem' }}>
+        <FacebookPageCard onSaved={loadData} />
       </div>
 
       {/* Which slips the restaurant prints - kitchen, customer receipt, and the

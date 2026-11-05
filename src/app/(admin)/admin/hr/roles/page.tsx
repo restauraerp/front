@@ -15,9 +15,12 @@ export default function RolesPage() {
   const [totalPages, setTotalPages] = useState(1);
   
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [formData, setFormData] = useState<{name: string, permissions: string[]}>({
+  // requires_login: whether people given this role sign in to the panel.
+  // The default for new users; each user can still be switched either way.
+  const [formData, setFormData] = useState<{name: string, permissions: string[], requires_login: boolean}>({
     name: '',
-    permissions: []
+    permissions: [],
+    requires_login: true,
   });
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [permSearch, setPermSearch] = useState('');
@@ -87,7 +90,7 @@ export default function RolesPage() {
       
       setIsFormOpen(false);
       setEditingId(null);
-      setFormData({ name: '', permissions: [] });
+      setFormData({ name: '', permissions: [], requires_login: true });
       loadData();
     } catch (err) {
       console.error(err);
@@ -99,7 +102,8 @@ export default function RolesPage() {
     setEditingId(row.id);
     setFormData({
       name: row.name || '',
-      permissions: row.permissions ? row.permissions.map((p: any) => p.name) : []
+      permissions: row.permissions ? row.permissions.map((p: any) => p.name) : [],
+      requires_login: row.requires_login === undefined ? true : Boolean(row.requires_login),
     });
     setPermSearch('');
     setIsFormOpen(true);
@@ -119,7 +123,18 @@ export default function RolesPage() {
 
   const columns = [
     { key: 'id', label: 'ID' },
-    { key: 'name', label: 'Role Name', render: (row: any) => row.name.replace(/_/g, ' ').toUpperCase() },
+    {
+      key: 'name',
+      label: 'Role Name',
+      render: (row: any) => (
+        <div>
+          <div>{row.name.replace(/_/g, ' ').toUpperCase()}</div>
+          {row.requires_login === false || row.requires_login === 0 ? (
+            <span className="badge badge-sm badge-ghost mt-1" title="New users given this role do not sign in to the panel">No sign-in</span>
+          ) : null}
+        </div>
+      ),
+    },
     { 
       key: 'permissions', 
       label: 'Permissions', 
@@ -140,7 +155,7 @@ export default function RolesPage() {
         <Button onClick={() => {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
-          setFormData({ name: '', permissions: [] });
+          setFormData({ name: '', permissions: [], requires_login: true });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Role'}
         </Button>
@@ -152,6 +167,26 @@ export default function RolesPage() {
             <div className="max-w-md">
               <Input label="Role Name (e.g. branch_manager)" name="name" value={formData.name} onChange={handleInputChange} required />
             </div>
+
+            <label className="flex items-start gap-3 max-w-xl cursor-pointer">
+              <input
+                type="checkbox"
+                className="toggle toggle-primary mt-0.5"
+                checked={formData.requires_login}
+                disabled={formData.name === 'restaurant_admin'}
+                onChange={(e) => setFormData(prev => ({ ...prev, requires_login: e.target.checked }))}
+              />
+              <span>
+                <span className="font-medium text-sm block">Members sign in to the panel</span>
+                <span className="text-xs text-base-content/60">
+                  {formData.name === 'restaurant_admin'
+                    ? 'The owner always signs in.'
+                    : formData.requires_login
+                      ? 'New users given this role get an email and password.'
+                      : 'New users given this role are created without an email or password - for staff who only need to exist in the system, like waiters. It can still be changed for an individual user.'}
+                </span>
+              </span>
+            </label>
 
             <div>
               <label className="font-medium text-sm text-base-content/70 mb-2 block">Assign Permissions</label>

@@ -27,7 +27,9 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
   // account, so trusting it told paying customers they were "looking at a demo
   // restaurant" and pushed them to buy a second time.
   const isDemo = status?.is_demo === true;
-  const isTrial = status?.tenant_status === 'trialing';
+  // A restaurant marked as a demo for testing or a presentation is not on a
+  // trial whatever its status says - nobody there is going to buy.
+  const isTrial = status?.tenant_status === 'trialing' && status?.demo_restaurant !== true;
   const daysLeft = status?.trial_days_remaining ?? null;
 
   // The actual end date, so "soon" is never left vague. Rendered in the

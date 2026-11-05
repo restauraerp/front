@@ -60,6 +60,10 @@ const OPTIONAL = {
   NEXT_PUBLIC_SENTRY_DSN: 'error monitoring; Sentry stays disabled when unset',
   NEXT_PUBLIC_SENTRY_ENVIRONMENT: 'labels events by environment; falls back to Sentry default',
   NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE: 'performance sampling; defaults to 0.1 when unset',
+  // Restaurant websites & site builder.
+  NEXT_PUBLIC_SITE_MCP_COMMAND: 'site builder MCP setup command shown in admin; falls back to default node path when unset',
+  NEXT_PUBLIC_SITE_CURRENCY: 'currency code sent with website conversions and cart events; defaults to BDT',
+  NEXT_PUBLIC_GOOGLE_MAPS_EMBED_KEY: 'Maps Embed API key for branch maps; falls back to keyless iframe when unset',
 };
 
 /** Supplied by next.config.ts rather than any env file, so never expected here. */

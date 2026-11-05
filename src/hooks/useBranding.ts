@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { fetchApi } from '@/lib/api';
+import { normaliseFacebookUrl } from '@/lib/facebook';
 import { DEFAULT_DAY_START } from '@/lib/reportRange';
 
 /**
@@ -89,6 +90,9 @@ export const BRANDING_KEYS = {
   currency: 'currency_symbol',
   logo: 'logo_url',
   receiptFooter: 'receipt_footer',
+  // Settings > Facebook Page. The QR switch is '1'/'0', off until turned on.
+  facebookPage: 'facebook_page_url',
+  facebookQr: 'receipt_facebook_qr',
 } as const;
 
 export interface Branding {
@@ -99,6 +103,10 @@ export interface Branding {
   currency: string;
   logo: string | null;
   receiptFooter: string | null;
+  /** The restaurant's Facebook page, cleaned up - null when unset or not Facebook. */
+  facebookPage: string | null;
+  /** Print the page as a QR code on the customer receipt: switched on AND a valid page. */
+  facebookQr: boolean;
   /** False until the settings arrive - a receipt must not print a fallback. */
   loaded: boolean;
 }
@@ -113,6 +121,8 @@ const FALLBACK: Omit<Branding, 'loaded'> = {
   currency: '৳',
   logo: null,
   receiptFooter: null,
+  facebookPage: null,
+  facebookQr: false,
 };
 
 let cached: Promise<Record<string, string>> | null = null;
@@ -190,6 +200,8 @@ export function useBranding(): Branding {
     currency: read(BRANDING_KEYS.currency) ?? FALLBACK.currency,
     logo: read(BRANDING_KEYS.logo),
     receiptFooter: read(BRANDING_KEYS.receiptFooter),
+    facebookPage: normaliseFacebookUrl(read(BRANDING_KEYS.facebookPage)),
+    facebookQr: read(BRANDING_KEYS.facebookQr) === '1' && normaliseFacebookUrl(read(BRANDING_KEYS.facebookPage)) !== null,
     loaded: true,
   };
 }

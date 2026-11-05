@@ -111,14 +111,19 @@ function isOnScreen(el: HTMLElement): boolean {
  * on a desktop: the hamburger is `lg:hidden`, so above that width there is
  * nothing to press and nothing to reveal.
  */
-function revealerFor(el: HTMLElement): HTMLElement | null {
-  const region = el.closest('[data-tour-region]')?.getAttribute('data-tour-region');
+function revealerFor(el: HTMLElement): { opener: HTMLElement; region: string } | null {
+  // Regions nest - a collapsed sidebar group inside the phone's drawer - so
+  // walk outward and press the innermost opener that can actually be pressed.
+  // On a phone that is the drawer first; the group's own header is off-canvas
+  // with it until the drawer is open, and is pressed on the next look.
+  for (let at = el.closest<HTMLElement>('[data-tour-region]'); at; at = at.parentElement?.closest<HTMLElement>('[data-tour-region]') ?? null) {
+    const region = at.getAttribute('data-tour-region') as string;
+    const opener = document.querySelector<HTMLElement>(`[data-tour-reveal="${region}"]`);
 
-  if (!region) return null;
+    if (opener !== null && isOnScreen(opener)) return { opener, region };
+  }
 
-  const opener = document.querySelector<HTMLElement>(`[data-tour-reveal="${region}"]`);
-
-  return opener !== null && isOnScreen(opener) ? opener : null;
+  return null;
 }
 
 /**
@@ -283,10 +288,11 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
   // that opens looking for a dialog that has not rendered yet would count that
   // as the dialog having been closed and move straight past itself.
   const arrivedRef = useRef<string | null>(null);
-  // The step whose hidden target the tour has already opened a drawer for. The
+  // The regions the tour has already opened, per step ("step:region"). The
   // control that reveals a region is the control that hides it again, so this
-  // is what keeps a reveal from becoming a toggle.
-  const revealedRef = useRef<string | null>(null);
+  // is what keeps a reveal from becoming a toggle - while still letting one
+  // step open a drawer and then the menu group inside it.
+  const revealedRef = useRef<Set<string>>(new Set());
 
   const step: TourStep | undefined = steps[index];
   const stage = step?.stage ?? 'explain';
@@ -627,7 +633,8 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
 
       if (present && el) {
         /*
-         * There, but off-canvas: the menu drawer on a phone, almost always.
+         * There, but hidden: the menu drawer on a phone, or a collapsed group
+         * of the sidebar, almost always.
          *
          * Opened once per step rather than every hundred milliseconds, because
          * the control that opens a drawer is the same control that closes it -
@@ -636,16 +643,14 @@ export default function Walkthrough({ kind, lang, contact }: Props) {
          * still says what to do, and the way past appears as it does anywhere
          * else the tour is waiting.
          */
-        if (revealedRef.current !== step.key) {
-          const opener = revealerFor(el);
+        const reveal = revealerFor(el);
 
-          if (opener) {
-            revealedRef.current = step.key;
-            opener.click();
-            window.setTimeout(find, 120);
+        if (reveal && !revealedRef.current.has(`${step.key}:${reveal.region}`)) {
+          revealedRef.current.add(`${step.key}:${reveal.region}`);
+          reveal.opener.click();
+          window.setTimeout(find, 120);
 
-            return;
-          }
+          return;
         }
 
         /*

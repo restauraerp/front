@@ -1,6 +1,6 @@
 {
   "name": "front",
-  "version": "1.00.69",
+  "version": "1.00.70",
   "private": true,
   "scripts": {
     "dev": "npm run walkthrough:copy && next dev -p 3029",
@@ -11,6 +11,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@next/third-parties": "^16.2.10",
     "@sentry/nextjs": "^10.74.0",
     "@tailwindcss/postcss": "^4.3.2",
@@ -18,6 +21,7 @@
     "lucide-react": "^1.22.0",
     "next": "16.2.9",
     "postcss": "^8.5.16",
+    "qrcode.react": "^4.2.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "recharts": "^3.9.2",

@@ -4,7 +4,8 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useSearchParams } from 'next/navigation';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, API_BASE_URL } from '@/lib/api';
+import { getTenant } from '@/lib/tenant';
 import Link from 'next/link';
 import { MapPin, ExternalLink } from 'lucide-react';
 
@@ -26,6 +27,7 @@ function BookingForm() {
     special_requests: ''
   });
   const [status, setStatus] = useState<'idle' | 'submitting' | 'success' | 'error'>('idle');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApi('/locations')
@@ -39,24 +41,68 @@ function BookingForm() {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  /**
+   * Sends the request to core-api's POST /site/{code}/reservations, which files
+   * it in CRM > Reservations as Pending for the restaurant to confirm.
+   *
+   * This used to wait a second and a half and say "Reservation Confirmed!"
+   * without sending anything, so guests believed they had a table and the
+   * restaurant never heard of them. Nothing here claims the table is booked:
+   * the restaurant confirms by phone.
+   */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    if (!formData.location_id) {
+      setError('Choose a branch first.');
+      return;
+    }
+
+    const tenant = getTenant();
+    if (!tenant) {
+      setError('This site is not set up to take reservations. Please call us instead.');
+      return;
+    }
+
     setStatus('submitting');
-    
-    // Simulate API call for booking submission
-    setTimeout(() => {
-      setStatus('success');
-      setFormData({
-        name: '',
-        email: '',
-        phone: '',
-        date: '',
-        time: '',
-        guests: '2',
-        location_id: initialLocationId,
-        special_requests: ''
+
+    // The endpoint has no email field; a guest who gave one gets it passed on
+    // in the note, so the restaurant still has it.
+    const notes = [formData.special_requests.trim(), formData.email.trim() ? `Email: ${formData.email.trim()}` : '']
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/site/${encodeURIComponent(tenant)}/reservations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          location_id: Number(formData.location_id),
+          date: formData.date,
+          time: formData.time,
+          guests: Number(formData.guests),
+          notes: notes || null,
+        }),
       });
-    }, 1500);
+      const body = await res.json().catch(() => null);
+
+      if (res.status === 404) {
+        throw new Error('Online reservations are not available here. Please call us to book a table.');
+      }
+      if (!res.ok) {
+        const first = body?.errors ? (Object.values(body.errors)[0] as string[])[0] : null;
+        throw new Error(first || body?.message || 'Your request could not be sent. Please call us instead.');
+      }
+
+      setStatus('success');
+    } catch (err) {
+      setError((err as Error).message);
+      setStatus('idle');
+    }
   };
 
   return (
@@ -71,11 +117,19 @@ function BookingForm() {
       {status === 'success' ? (
         <Card style={{ textAlign: 'center', padding: '4rem 2rem', backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' }}>
           <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🎉</div>
-          <h2 style={{ color: '#065f46', marginBottom: '1rem' }}>Reservation Confirmed!</h2>
+          <h2 style={{ color: '#065f46', marginBottom: '1rem' }}>Request sent</h2>
           <p style={{ color: '#047857', marginBottom: '2rem' }}>
-            Thank you for choosing us. We have received your booking request and will send a confirmation email shortly.
+            Thank you, {formData.name}. We have emailed {formData.email} and will confirm your table shortly.
           </p>
-          <Button onClick={() => setStatus('idle')} variant="secondary">Make Another Booking</Button>
+          <Button
+            onClick={() => {
+              setStatus('idle');
+              setFormData(prev => ({ ...prev, date: '', time: '', guests: '2', special_requests: '' }));
+            }}
+            variant="secondary"
+          >
+            Make another request
+          </Button>
         </Card>
       ) : (
         <Card>
@@ -127,8 +181,8 @@ function BookingForm() {
             </div>
             
             <Input label="Full Name" name="name" value={formData.name} onChange={handleInputChange} required />
-            <Input label="Email Address" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
-            <Input label="Phone Number" name="phone" value={formData.phone} onChange={handleInputChange} required />
+            <Input label="Phone Number" name="phone" type="tel" value={formData.phone} onChange={handleInputChange} placeholder="01XXXXXXXXX" required />
+            <Input label="Email Address (we confirm here)" name="email" type="email" value={formData.email} onChange={handleInputChange} required />
             
             <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
               <h3 style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '0.5rem', marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 600 }}>3. Reservation Details</h3>
@@ -146,7 +200,7 @@ function BookingForm() {
                 onChange={handleInputChange}
                 required
               >
-                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, '10+'].map(num => (
+                {Array.from({ length: 20 }, (_, i) => i + 1).map(num => (
                   <option key={num} value={num}>{num} {num === 1 ? 'Guest' : 'Guests'}</option>
                 ))}
               </select>
@@ -163,6 +217,10 @@ function BookingForm() {
               />
             </div>
             
+            {error && (
+              <div role="alert" className="alert alert-error text-sm" style={{ gridColumn: '1 / -1' }}>{error}</div>
+            )}
+
             <div style={{ gridColumn: '1 / -1', marginTop: '1rem' }}>
               <Button 
                 type="submit" 
@@ -170,7 +228,7 @@ function BookingForm() {
                 style={{ width: '100%', padding: '1rem', fontSize: '1.1rem' }}
                 disabled={status === 'submitting'}
               >
-                {status === 'submitting' ? 'Processing...' : 'Confirm Reservation'}
+                {status === 'submitting' ? 'Sending...' : 'Request a table'}
               </Button>
             </div>
           </form>

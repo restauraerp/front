@@ -11,7 +11,7 @@ import {
   ReportLoading, ReportError, ReportNeedsDates, StatTile, MetricNote,
 } from '@/components/reporting/ReportStates';
 
-type Source = 'income' | 'expense' | 'orders' | 'purchase_orders';
+type Source = 'income' | 'expense' | 'orders' | 'purchase_orders' | 'venue_bookings' | 'room_bookings';
 
 interface Line {
   header_id: number | null;
@@ -34,6 +34,8 @@ const SOURCE_LABEL: Record<Source, string> = {
   expense: 'Logged expense',
   orders: 'From orders',
   purchase_orders: 'Purchase orders',
+  venue_bookings: 'Venue bookings',
+  room_bookings: 'Room bookings',
 };
 
 function HeaderTable({ lines, tone }: { lines: Line[]; tone: 'success' | 'error' }) {
