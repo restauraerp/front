@@ -130,6 +130,10 @@ jobs:
           # contains only production runtime dependencies for rsync. Offloads all
           # package installation from the 1 GiB production host.
           npm prune --omit=dev
+          # Strip heavy build-only artifacts not needed at runtime (cache is 1+ GB, traces)
+          rm -rf .next/cache .next/diagnostics .next/trace* *.tsbuildinfo
+          # Remove any leftover source maps (already uploaded to Sentry during build)
+          find .next -name "*.map" -type f -delete
 
       - name: Upload release
         run: |
@@ -139,6 +143,12 @@ jobs:
             --exclude='.git' --exclude='.github' \
             --exclude='.env' --exclude='.env.production' --exclude='tests' \
             --exclude='.idea' --exclude='.claude' \
+            --exclude='.next/cache' \
+            --exclude='.next/diagnostics' \
+            --exclude='.next/trace*' \
+            --exclude='*.tsbuildinfo' \
+            --exclude='*.map' \
+            --exclude='scaffold_*.js' \
             ./ "$DEPLOY_USER@$DEPLOY_HOST:/var/www/front/releases/$RELEASE/"
 
       - name: Activate release (link shared, flip current, restart)

@@ -7,6 +7,7 @@ import packageJson from "./package.json";
 const apiInternalUrl = process.env.API_INTERNAL_URL || "http://127.0.0.1:8029";
 
 const nextConfig: NextConfig = {
+  cleanDistDir: true,
   env: {
     NEXT_PUBLIC_APP_VERSION: packageJson.version,
   },
@@ -70,6 +71,9 @@ export default isProdBuild
       // of the shipped client bundle.
       silent: !process.env.CI,
       disableLogger: true,
+      sourcemaps: {
+        deleteSourcemapsAfterUpload: true,
+      },
     })
   : nextConfig;
 
