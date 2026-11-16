@@ -13,6 +13,16 @@ const hindSiliguri = Hind_Siliguri({ subsets: ['bengali'], weight: ['400', '500'
 export const metadata: Metadata = {
   title: 'RestoraERP | Premium Restaurant Management',
   description: 'Manage your restaurant operations efficiently with RestoraERP.',
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
