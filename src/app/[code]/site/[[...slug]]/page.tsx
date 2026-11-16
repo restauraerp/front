@@ -46,18 +46,38 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   // Link previews need an absolute address; build it from the host the page
   // was asked for, so it is right on a subdomain and on the path form alike.
   const h = await headers();
-  const host = h.get('x-forwarded-host') || h.get('host');
+  const host = (h.get('x-forwarded-host') || h.get('host') || '').toLowerCase();
   const origin = host ? `${h.get('x-forwarded-proto') || 'https'}://${host}` : undefined;
   const image = data.page.og_image ?? data.restaurant.logo_url;
+
+  const isAppHost = host.startsWith('app.') || host.startsWith('admin.');
+  const cleanSlug = (slug ?? []).join('/');
+  const canonicalPath = cleanSlug ? `/${cleanSlug}` : '';
+  const canonicalUrl = origin ? `${origin}${canonicalPath}` : undefined;
 
   return {
     title,
     description,
+    robots: isAppHost
+      ? { index: false, follow: false }
+      : {
+          index: true,
+          follow: true,
+          googleBot: {
+            index: true,
+            follow: true,
+            'max-video-preview': -1,
+            'max-image-preview': 'large',
+            'max-snippet': -1,
+          },
+        },
+    alternates: canonicalUrl ? { canonical: canonicalUrl } : undefined,
     openGraph: {
       title,
       description,
       siteName: data.restaurant.name,
       type: 'website',
+      url: canonicalUrl,
       ...(image && origin ? { images: [`${origin}/storage/${image}`] } : {}),
     },
   };

@@ -36,13 +36,24 @@ async function getBranding(): Promise<Branding> {
   }
 }
 
-// Overrides the root layout's ERP-facing metadata for the public restaurant site.
+// Overrides the root layout's ERP-facing metadata for the public demo storefront.
+// This example restaurant site lives on app.restauraerp.com and must not be indexed.
 export async function generateMetadata(): Promise<Metadata> {
   const { name, description } = await getBranding();
 
   return {
     title: `${name} | Restaurant`,
     description: description || `Dine in, reserve a table, or order delivery from ${name}.`,
+    robots: {
+      index: false,
+      follow: false,
+      nocache: true,
+      googleBot: {
+        index: false,
+        follow: false,
+        noimageindex: true,
+      },
+    },
   };
 }
 
