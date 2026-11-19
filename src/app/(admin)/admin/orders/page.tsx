@@ -3,9 +3,22 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { SettleDueModal } from '@/components/orders/SettleDueModal';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2, UtensilsCrossed } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 import { useSlipSettings } from '@/hooks/useBranding';
+
+const TAB_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  active_orders: Clock,
+  dine_in: UtensilsCrossed,
+  takeaway: Package,
+  delivery: Truck,
+  customer_orders: Smartphone,
+  catering: ChefHat,
+  third_party: Share2,
+  due: AlertTriangle,
+  completed: CheckCircle,
+  trashed: Trash2,
+};
 
 /** The fields the row actions read off an order. */
 interface OrderRow {
@@ -77,6 +90,11 @@ const LiveTimer = ({ placedAt }: { placedAt: string }) => {
   return <span className="font-mono text-xs opacity-80 flex items-center gap-1"><Clock size={12}/> {elapsed}</span>;
 };
 
+const VALID_ORDER_TABS = [
+  'active_orders', 'dine_in', 'takeaway', 'delivery',
+  'customer_orders', 'catering', 'third_party', 'due', 'completed', 'trashed',
+];
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -84,6 +102,16 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('dine_in');
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(tenantKey('restora_active_order_tab'), key);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      window.history.replaceState(null, '', url.pathname + url.search);
+    }
+  };
   const [sortDineIn, setSortDineIn] = useState('time');
   const [sortOthers, setSortOthers] = useState('time');
 
@@ -164,6 +192,32 @@ export default function OrdersPage() {
   const [canEditOrder, setCanEditOrder] = useState(false);
 
   useEffect(() => {
+    // Restore active tab from URL or localStorage
+    if (typeof window !== 'undefined') {
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      const savedTab = localStorage.getItem(tenantKey('restora_active_order_tab'));
+      const candidate = urlTab || savedTab;
+      if (candidate && VALID_ORDER_TABS.includes(candidate)) {
+        setActiveTab(candidate);
+        if (!urlTab) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', candidate);
+          window.history.replaceState(null, '', url.pathname + url.search);
+        }
+      }
+
+      const onPopState = () => {
+        const currentTab = new URLSearchParams(window.location.search).get('tab');
+        if (currentTab && VALID_ORDER_TABS.includes(currentTab)) {
+          setActiveTab(currentTab);
+        }
+      };
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }
+  }, []);
+
+  useEffect(() => {
     loadOrders();
     fetchApi('/auth/me').then(res => {
       const roles = res?.roles?.map((r: any) => r.name) || [];
@@ -171,8 +225,11 @@ export default function OrdersPage() {
       if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
         setIsAdmin(true);
         setCanEditOrder(true);
-      } else if (perms.includes('edit_order')) {
-        setCanEditOrder(true);
+      } else {
+        if (perms.includes('edit_order')) {
+          setCanEditOrder(true);
+        }
+        setActiveTab(current => current === 'trashed' ? 'dine_in' : current);
       }
     }).catch(console.error);
     fetchApi('/locations').then(res => {
@@ -244,8 +301,7 @@ export default function OrdersPage() {
       try {
         const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
         if (activeLocationId) params.set('location_id', String(activeLocationId));
-        if (completedSort === 'payment_method') params.set('sort', 'payment_method');
-        if (completedSort === 'token') params.set('sort', 'token');
+        if (completedSort) params.set('sort', completedSort);
         if (completedMethod) params.set('payment_method', completedMethod);
 
         const res = await fetchApi(`/orders?${params.toString()}`);
@@ -796,6 +852,12 @@ export default function OrdersPage() {
                  return o.order_type === activeTab && !isCompleted;
                });
 
+    // Completed orders are server-paginated and pre-sorted by the backend according to completedSort.
+    // Client-side re-sorting would scramble the pagination order across pages.
+    if (activeTab === 'completed') {
+      return list;
+    }
+
     if (activeTab === 'dine_in') {
       list.sort((a, b) => {
         if (sortDineIn === 'token') return (a.token_number ?? 0) - (b.token_number ?? 0);
@@ -872,16 +934,53 @@ export default function OrdersPage() {
         </button>
       </div>
 
-      <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
+      <div
+        role="tablist"
+        aria-label="Order Types"
+        className="bg-base-100 border border-base-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1 overflow-x-auto hide-scrollbar"
+      >
         {Object.entries(tabLabels).map(([key, label]) => {
+          const isActive = activeTab === key;
+          const Icon = TAB_ICONS[key];
           const count = key !== 'completed' && key !== 'trashed' && key !== 'third_party' ? (tabCounts as any)[key] : null;
+
           return (
-            <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => setActiveTab(key)}>
-              {label}
-              {count !== null && count > 0 && (
-                <span className={`badge badge-xs font-bold ${activeTab === key ? 'badge-primary-content bg-white/30 text-white' : 'badge-neutral'}`}>{count}</span>
+            <button
+              key={key}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => handleTabChange(key)}
+              className={`
+                group relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer select-none
+                ${isActive
+                  ? 'bg-primary text-primary-content shadow-sm shadow-primary/25 font-bold scale-[1.01]'
+                  : 'text-base-content/70 hover:text-base-content hover:bg-base-200/70 active:scale-[0.98]'
+                }
+              `}
+            >
+              {Icon && (
+                <Icon
+                  size={15}
+                  className={`transition-transform duration-200 ${
+                    isActive ? 'text-primary-content scale-110' : 'text-base-content/50 group-hover:text-base-content/80'
+                  }`}
+                />
               )}
-            </a>
+              <span>{label}</span>
+              {count !== null && count > 0 && (
+                <span
+                  className={`
+                    text-[11px] font-bold px-1.5 py-0.5 rounded-full transition-all duration-200 min-w-5 text-center
+                    ${isActive
+                      ? 'bg-primary-content/25 text-primary-content'
+                      : 'bg-base-200/90 text-base-content/70 group-hover:bg-base-300'
+                    }
+                  `}
+                >
+                  {count > 999 ? '999+' : count}
+                </span>
+              )}
+            </button>
           );
         })}
       </div>
@@ -928,7 +1027,9 @@ export default function OrdersPage() {
                   aria-label="Sort completed orders"
                 >
                   <option value="recent">Newest first</option>
-                  <option value="token">Sort by Token</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="token">Sort by Token (1 → 99)</option>
+                  <option value="token_desc">Sort by Token (99 → 1)</option>
                   <option value="payment_method">Group by payment method</option>
                 </select>
               </>
