@@ -244,8 +244,7 @@ export default function OrdersPage() {
       try {
         const params = new URLSearchParams({ completed_only: '1', page: String(completedPage) });
         if (activeLocationId) params.set('location_id', String(activeLocationId));
-        if (completedSort === 'payment_method') params.set('sort', 'payment_method');
-        if (completedSort === 'token') params.set('sort', 'token');
+        if (completedSort) params.set('sort', completedSort);
         if (completedMethod) params.set('payment_method', completedMethod);
 
         const res = await fetchApi(`/orders?${params.toString()}`);
@@ -796,6 +795,12 @@ export default function OrdersPage() {
                  return o.order_type === activeTab && !isCompleted;
                });
 
+    // Completed orders are server-paginated and pre-sorted by the backend according to completedSort.
+    // Client-side re-sorting would scramble the pagination order across pages.
+    if (activeTab === 'completed') {
+      return list;
+    }
+
     if (activeTab === 'dine_in') {
       list.sort((a, b) => {
         if (sortDineIn === 'token') return (a.token_number ?? 0) - (b.token_number ?? 0);
@@ -928,7 +933,9 @@ export default function OrdersPage() {
                   aria-label="Sort completed orders"
                 >
                   <option value="recent">Newest first</option>
-                  <option value="token">Sort by Token</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="token">Sort by Token (1 → 99)</option>
+                  <option value="token_desc">Sort by Token (99 → 1)</option>
                   <option value="payment_method">Group by payment method</option>
                 </select>
               </>
