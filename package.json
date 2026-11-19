@@ -8,7 +8,8 @@
     "walkthrough:copy": "node scripts/walkthrough-copy.mjs",
     "build": "npm run check:env && npm run walkthrough:copy && next build --webpack",
     "start": "next start -p 3029",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --test src/"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
