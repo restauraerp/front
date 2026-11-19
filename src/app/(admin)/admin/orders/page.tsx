@@ -3,9 +3,22 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { SettleDueModal } from '@/components/orders/SettleDueModal';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2, UtensilsCrossed } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 import { useSlipSettings } from '@/hooks/useBranding';
+
+const TAB_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  active_orders: Clock,
+  dine_in: UtensilsCrossed,
+  takeaway: Package,
+  delivery: Truck,
+  customer_orders: Smartphone,
+  catering: ChefHat,
+  third_party: Share2,
+  due: AlertTriangle,
+  completed: CheckCircle,
+  trashed: Trash2,
+};
 
 /** The fields the row actions read off an order. */
 interface OrderRow {
@@ -921,16 +934,53 @@ export default function OrdersPage() {
         </button>
       </div>
 
-      <div className="tabs tabs-boxed bg-base-100 border border-base-200 p-1 font-semibold flex-nowrap overflow-x-auto justify-start hide-scrollbar">
+      <div
+        role="tablist"
+        aria-label="Order Types"
+        className="bg-base-100 border border-base-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1 overflow-x-auto hide-scrollbar"
+      >
         {Object.entries(tabLabels).map(([key, label]) => {
+          const isActive = activeTab === key;
+          const Icon = TAB_ICONS[key];
           const count = key !== 'completed' && key !== 'trashed' && key !== 'third_party' ? (tabCounts as any)[key] : null;
+
           return (
-            <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => handleTabChange(key)}>
-              {label}
-              {count !== null && count > 0 && (
-                <span className={`badge badge-xs font-bold ${activeTab === key ? 'badge-primary-content bg-white/30 text-white' : 'badge-neutral'}`}>{count}</span>
+            <button
+              key={key}
+              role="tab"
+              aria-selected={isActive}
+              onClick={() => handleTabChange(key)}
+              className={`
+                group relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200 cursor-pointer select-none
+                ${isActive
+                  ? 'bg-primary text-primary-content shadow-sm shadow-primary/25 font-bold scale-[1.01]'
+                  : 'text-base-content/70 hover:text-base-content hover:bg-base-200/70 active:scale-[0.98]'
+                }
+              `}
+            >
+              {Icon && (
+                <Icon
+                  size={15}
+                  className={`transition-transform duration-200 ${
+                    isActive ? 'text-primary-content scale-110' : 'text-base-content/50 group-hover:text-base-content/80'
+                  }`}
+                />
               )}
-            </a>
+              <span>{label}</span>
+              {count !== null && count > 0 && (
+                <span
+                  className={`
+                    text-[11px] font-bold px-1.5 py-0.5 rounded-full transition-all duration-200 min-w-5 text-center
+                    ${isActive
+                      ? 'bg-primary-content/25 text-primary-content'
+                      : 'bg-base-200/90 text-base-content/70 group-hover:bg-base-300'
+                    }
+                  `}
+                >
+                  {count > 999 ? '999+' : count}
+                </span>
+              )}
+            </button>
           );
         })}
       </div>
