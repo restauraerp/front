@@ -8,6 +8,11 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { tenantKey } from '@/lib/tenant';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import {
+  filterRidersByRole,
+  filterRidersForAssignment,
+  formatRiderOptions,
+} from './rider-selection';
 
 export default function DeliveryPage() {
   const [deliveries, setDeliveries] = useState<any[]>([]);
@@ -66,8 +71,7 @@ export default function DeliveryPage() {
     try {
       const res = await fetchApi('/users?nopaginate=1');
       const allUsers = res.data || res || [];
-      const riderUsers = allUsers.filter((u: any) => u.roles && u.roles.some((r: any) => r.name === 'rider'));
-      setRiders(riderUsers);
+      setRiders(filterRidersByRole(allUsers));
     } catch (err) {
       console.error(err);
     }
@@ -232,35 +236,33 @@ export default function DeliveryPage() {
         <Card title={editingId ? 'Edit Assignment' : 'Assign Delivery'} style={{ marginBottom: '2rem' }}>
           <form onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
             <Input label="Order ID" name="order_id" type="number" value={formData.order_id} onChange={handleInputChange} required />
-            <SearchSelect
-              label="Assign Rider"
-              value={formData.rider_id}
-              onChange={(v) => setFormData(prev => ({ ...prev, rider_id: String(v) }))}
-              options={riders
-                .filter((rider) => {
-                  if (formData.order_id) {
-                    const selectedOrder = orders.find((o: any) => o.id.toString() === formData.order_id);
-                    if (selectedOrder && selectedOrder.location_id) {
-                      return rider.location_id === selectedOrder.location_id;
-                    }
-                  } else if (activeLocationId) {
-                    return rider.location_id === activeLocationId;
-                  }
-                  return true;
-                })
-                .map(rider => {
-                  const activeCount = deliveries.filter((d: any) => d.rider_id === rider.id && !['Delivered', 'Failed', 'Cancelled'].includes(d.status)).length;
-                  const statusText = activeCount > 0 ? ` (${activeCount} active)` : '';
-                  return {
-                    value: rider.id,
-                    label: rider.name,
-                    hint: `${rider.location?.name || 'No Branch'}${statusText}`,
-                  };
+            <div>
+              <SearchSelect
+                label="Assign Rider"
+                value={formData.rider_id}
+                onChange={(v) => setFormData(prev => ({ ...prev, rider_id: String(v || '') }))}
+                options={formatRiderOptions({
+                  riders: filterRidersForAssignment({
+                    riders,
+                    orders,
+                    orderId: formData.order_id,
+                    activeLocationId,
+                  }),
+                  deliveries,
                 })}
-              placeholder="-- Select Rider (Optional) --"
-              searchPlaceholder="Search riders…"
-              clearable
-            />
+                placeholder={riders.length === 0 ? '-- No Riders Found (Add in HR) --' : '-- Select Rider (Optional) --'}
+                searchPlaceholder="Search riders…"
+                clearable
+              />
+              {riders.length === 0 && (
+                <p className="text-xs text-base-content/60 mt-1">
+                  Tip: Add delivery staff or assign roles under{' '}
+                  <Link href="/admin/hr/employees" className="underline text-primary">
+                    Staff & HR
+                  </Link>.
+                </p>
+              )}
+            </div>
             <Input label="Delivery Charge" name="delivery_charge" type="number" step="0.01" value={formData.delivery_charge} onChange={handleInputChange} required />
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
