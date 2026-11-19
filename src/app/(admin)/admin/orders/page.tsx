@@ -77,6 +77,11 @@ const LiveTimer = ({ placedAt }: { placedAt: string }) => {
   return <span className="font-mono text-xs opacity-80 flex items-center gap-1"><Clock size={12}/> {elapsed}</span>;
 };
 
+const VALID_ORDER_TABS = [
+  'active_orders', 'dine_in', 'takeaway', 'delivery',
+  'customer_orders', 'catering', 'third_party', 'due', 'completed', 'trashed',
+];
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -84,6 +89,16 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(true);
 
   const [activeTab, setActiveTab] = useState('dine_in');
+
+  const handleTabChange = (key: string) => {
+    setActiveTab(key);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(tenantKey('restora_active_order_tab'), key);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', key);
+      window.history.replaceState(null, '', url.pathname + url.search);
+    }
+  };
   const [sortDineIn, setSortDineIn] = useState('time');
   const [sortOthers, setSortOthers] = useState('time');
 
@@ -164,6 +179,32 @@ export default function OrdersPage() {
   const [canEditOrder, setCanEditOrder] = useState(false);
 
   useEffect(() => {
+    // Restore active tab from URL or localStorage
+    if (typeof window !== 'undefined') {
+      const urlTab = new URLSearchParams(window.location.search).get('tab');
+      const savedTab = localStorage.getItem(tenantKey('restora_active_order_tab'));
+      const candidate = urlTab || savedTab;
+      if (candidate && VALID_ORDER_TABS.includes(candidate)) {
+        setActiveTab(candidate);
+        if (!urlTab) {
+          const url = new URL(window.location.href);
+          url.searchParams.set('tab', candidate);
+          window.history.replaceState(null, '', url.pathname + url.search);
+        }
+      }
+
+      const onPopState = () => {
+        const currentTab = new URLSearchParams(window.location.search).get('tab');
+        if (currentTab && VALID_ORDER_TABS.includes(currentTab)) {
+          setActiveTab(currentTab);
+        }
+      };
+      window.addEventListener('popstate', onPopState);
+      return () => window.removeEventListener('popstate', onPopState);
+    }
+  }, []);
+
+  useEffect(() => {
     loadOrders();
     fetchApi('/auth/me').then(res => {
       const roles = res?.roles?.map((r: any) => r.name) || [];
@@ -171,8 +212,11 @@ export default function OrdersPage() {
       if (roles.includes('super_admin') || roles.includes('restaurant_admin')) {
         setIsAdmin(true);
         setCanEditOrder(true);
-      } else if (perms.includes('edit_order')) {
-        setCanEditOrder(true);
+      } else {
+        if (perms.includes('edit_order')) {
+          setCanEditOrder(true);
+        }
+        setActiveTab(current => current === 'trashed' ? 'dine_in' : current);
       }
     }).catch(console.error);
     fetchApi('/locations').then(res => {
@@ -881,7 +925,7 @@ export default function OrdersPage() {
         {Object.entries(tabLabels).map(([key, label]) => {
           const count = key !== 'completed' && key !== 'trashed' && key !== 'third_party' ? (tabCounts as any)[key] : null;
           return (
-            <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => setActiveTab(key)}>
+            <a key={key} className={`tab tab-sm md:tab-md lg:tab-lg whitespace-nowrap gap-1.5 ${activeTab === key ? 'tab-active' : ''}`} onClick={() => handleTabChange(key)}>
               {label}
               {count !== null && count > 0 && (
                 <span className={`badge badge-xs font-bold ${activeTab === key ? 'badge-primary-content bg-white/30 text-white' : 'badge-neutral'}`}>{count}</span>
