@@ -178,9 +178,21 @@ jobs:
           cd "$APP/current" && pm2 start npm --name "front" -- start
           pm2 save
 
-          # Keep the 5 most recent releases; delete older ones.
-          cd "$APP/releases"
-          ls -1dt */ | tail -n +6 | xargs -r rm -rf
+          # Keep the 3 most recent releases; delete older ones (never deleting the currently active release).
+          if [ -f "$REL/scripts/prune-releases.sh" ]; then
+            bash "$REL/scripts/prune-releases.sh" "$APP" 3
+          else
+            cd "$APP/releases"
+            CURRENT_REALPATH=$(readlink -f "$APP/current" 2>/dev/null || true)
+            for old_dir in $(ls -1dt */ 2>/dev/null | tail -n +4); do
+              old_realpath=$(readlink -f "$old_dir" 2>/dev/null || true)
+              if [ -n "$CURRENT_REALPATH" ] && [ "$old_realpath" = "$CURRENT_REALPATH" ]; then
+                echo "Warning: Skipping active release: $old_dir"
+                continue
+              fi
+              rm -rf "$old_dir"
+            done
+          fi
           echo "Deployed $RELEASE"
           DEPLOY
 

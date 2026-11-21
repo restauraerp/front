@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   isRiderRole,
+  hasDeliverPermission,
   filterRidersByRole,
   filterRidersForAssignment,
   formatRiderOptions,
@@ -18,6 +19,12 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
     { id: 6, name: 'Waiter John', roles: [{ name: 'waiter' }], location_id: 10 },
     { id: 7, name: 'Customer Bob', roles: [{ name: 'customer' }], location_id: null },
     { id: 8, name: 'Super Admin', roles: [{ name: 'super_admin' }], location_id: null },
+    // User with explicit can_deliver permission
+    { id: 9, name: 'Staff with Toggle', roles: [{ name: 'waiter' }], can_deliver: true, location_id: null },
+    // User with role holding deliver_orders permission
+    { id: 10, name: 'Staff with Role Perm', roles: [{ name: 'custom_courier', permissions: [{ name: 'deliver_orders' }] }], location_id: null },
+    // User with direct permission
+    { id: 11, name: 'Staff with Direct Perm', roles: [{ name: 'waiter' }], permissions: [{ name: 'deliver_orders' }], location_id: null },
   ];
 
   describe('isRiderRole()', () => {
@@ -35,13 +42,54 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
     });
   });
 
+  describe('hasDeliverPermission()', () => {
+    test('returns true for user with can_deliver: true', () => {
+      assert.equal(hasDeliverPermission({ id: 101, name: 'Driver', can_deliver: true }), true);
+    });
+
+    test('returns true for user with direct deliver_orders permission', () => {
+      assert.equal(hasDeliverPermission({ id: 102, name: 'Staff', permissions: [{ name: 'deliver_orders' }] }), true);
+    });
+
+    test('returns true for user whose role has deliver_orders permission', () => {
+      assert.equal(
+        hasDeliverPermission({
+          id: 103,
+          name: 'Staff',
+          roles: [{ name: 'custom_role', permissions: [{ name: 'deliver_orders' }] }],
+        }),
+        true
+      );
+    });
+
+    test('returns true for user with rider role name', () => {
+      assert.equal(hasDeliverPermission({ id: 104, name: 'Staff', roles: [{ name: 'rider' }] }), true);
+    });
+
+    test('returns false for user without delivery permission or rider role', () => {
+      assert.equal(
+        hasDeliverPermission({
+          id: 105,
+          name: 'Waiter',
+          can_deliver: false,
+          roles: [{ name: 'waiter', permissions: [{ name: 'view_pos' }] }],
+        }),
+        false
+      );
+      assert.equal(hasDeliverPermission(null), false);
+      assert.equal(hasDeliverPermission(undefined), false);
+    });
+  });
+
   describe('filterRidersByRole()', () => {
-    test('primary matching: picks users with rider, driver, or delivery roles', () => {
+    test('primary matching: picks users with delivery permission (direct, toggle, role) or rider role', () => {
       const riders = filterRidersByRole(sampleUsers);
-      assert.equal(riders.length, 4); // Faisal, Rakib, Branch 10 Driver, Branch 20 Rider
+      // Faisal (1), Rakib (2), Branch 10 Driver (3), Branch 20 Rider (4),
+      // Staff with Toggle (9), Staff with Role Perm (10), Staff with Direct Perm (11)
+      assert.equal(riders.length, 7);
       assert.deepEqual(
         riders.map((r) => r.id),
-        [1, 2, 3, 4]
+        [1, 2, 3, 4, 9, 10, 11]
       );
     });
 
@@ -84,11 +132,11 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
         activeLocationId: null,
       });
 
-      // Faisal (null), Rakib (null), and Branch 10 Driver (10) all qualify!
-      assert.equal(matches.length, 3);
+      // Faisal (null), Rakib (null), Branch 10 Driver (10), Staff 9 (null), Staff 10 (null), Staff 11 (null)
+      assert.equal(matches.length, 6);
       assert.deepEqual(
         matches.map((r) => r.id),
-        [1, 2, 3]
+        [1, 2, 3, 9, 10, 11]
       );
     });
 
@@ -100,11 +148,11 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
         activeLocationId: null,
       });
 
-      // Faisal (null), Rakib (null), and Branch 20 Rider (20) all qualify!
-      assert.equal(matches.length, 3);
+      // Faisal (null), Rakib (null), Branch 20 Rider (20), Staff 9 (null), Staff 10 (null), Staff 11 (null)
+      assert.equal(matches.length, 6);
       assert.deepEqual(
         matches.map((r) => r.id),
-        [1, 2, 4]
+        [1, 2, 4, 9, 10, 11]
       );
     });
 
@@ -128,10 +176,10 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
         activeLocationId: 10,
       });
 
-      assert.equal(matches.length, 3); // Faisal (null), Rakib (null), and Branch 10 Driver (10)
+      assert.equal(matches.length, 6);
       assert.deepEqual(
         matches.map((r) => r.id),
-        [1, 2, 3]
+        [1, 2, 3, 9, 10, 11]
       );
     });
 
@@ -143,7 +191,7 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
         activeLocationId: null,
       });
 
-      assert.equal(matches.length, 4);
+      assert.equal(matches.length, 7);
     });
 
     test('returns empty array when riders is empty or invalid', () => {

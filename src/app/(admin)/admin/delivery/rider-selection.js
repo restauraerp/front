@@ -13,9 +13,42 @@ export function isRiderRole(roleName) {
 }
 
 /**
- * Intelligent role filtering with fallback:
- * 1. Primary: Users who hold a rider/driver/delivery role.
- * 2. Fallback: If no users have a delivery role, return all staff users
+ * Checks if a user has permission to deliver orders:
+ * 1. Explicit boolean flag from backend (can_deliver attribute)
+ * 2. Direct permission on user model ('deliver_orders')
+ * 3. Inherited permission from a role ('deliver_orders')
+ * 4. Predefined rider role name
+ */
+export function hasDeliverPermission(user) {
+  if (!user) return false;
+
+  if (user.can_deliver === true) {
+    return true;
+  }
+
+  if (user.permissions && user.permissions.some((p) => p.name === 'deliver_orders')) {
+    return true;
+  }
+
+  if (
+    user.roles &&
+    user.roles.some((r) => {
+      if (r.permissions && r.permissions.some((p) => p.name === 'deliver_orders')) {
+        return true;
+      }
+      return isRiderRole(r.name);
+    })
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Intelligent role & permission filtering with fallback:
+ * 1. Primary: Users who hold delivery permission (via user toggle or role) or rider role.
+ * 2. Fallback: If no users have delivery permission, return all staff users
  *    (excluding customers / super admins) so dispatch operations are never blocked.
  */
 export function filterRidersByRole(users) {
@@ -23,10 +56,8 @@ export function filterRidersByRole(users) {
     return [];
   }
 
-  // 1. Primary: exact or keyword matching for delivery roles
-  const dedicatedRiders = users.filter(
-    (u) => u.roles && u.roles.some((r) => isRiderRole(r?.name))
-  );
+  // 1. Primary: users with delivery permission or rider role
+  const dedicatedRiders = users.filter((u) => hasDeliverPermission(u));
 
   if (dedicatedRiders.length > 0) {
     return dedicatedRiders;

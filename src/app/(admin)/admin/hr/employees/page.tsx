@@ -36,6 +36,7 @@ export default function EmployeesPage() {
     // Off for someone who only needs to exist as a user (a rider to assign,
     // a waiter to credit) and must never sign in.
     can_login: true,
+    can_deliver: false,
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -136,7 +137,7 @@ export default function EmployeesPage() {
       setIsFormOpen(false);
       setEditingId(null);
       setImageFile(null);
-      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true });
+      setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true, can_deliver: false });
       loadData();
     } catch (err) {
       console.error(err);
@@ -155,6 +156,7 @@ export default function EmployeesPage() {
       phone: row.phone || '',
       image_url: row.image_url || '',
       can_login: row.can_login !== false,
+      can_deliver: Boolean(row.can_deliver),
     });
     setImageFile(null);
     setIsFormOpen(true);
@@ -228,7 +230,18 @@ export default function EmployeesPage() {
     },
     { key: 'email', label: 'Email', render: (row: any) => row.email || <span className="text-base-content/40">—</span> },
     { key: 'phone', label: 'Phone', render: (row: any) => row.phone || '-' },
-    { key: 'role', label: 'Role', render: (row: any) => row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-' },
+    {
+      key: 'role',
+      label: 'Role',
+      render: (row: any) => (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span>{row.roles?.length ? row.roles[0].name.replace('_', ' ').toUpperCase() : '-'}</span>
+          {row.can_deliver && (
+            <span className="badge badge-xs badge-secondary font-medium">Delivery</span>
+          )}
+        </div>
+      ),
+    },
     { key: 'location', label: 'Location', render: (row: any) => row.location ? row.location.name : '-' }
   ];
 
@@ -240,7 +253,7 @@ export default function EmployeesPage() {
           setIsFormOpen(!isFormOpen);
           setEditingId(null);
           setImageFile(null);
-          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true });
+          setFormData({ name: '', email: '', password: '', location_id: '', role: '', phone: '', image_url: '', can_login: true, can_deliver: false });
         }}>
           {isFormOpen ? 'Close Form' : '+ New Employee'}
         </Button>
@@ -264,6 +277,7 @@ export default function EmployeesPage() {
                   role: name,
                   // Only for a new user: an existing one keeps their own setting.
                   can_login: editingId !== null ? prev.can_login : name === 'restaurant_admin' || roleSignsIn(role),
+                  can_deliver: name === 'rider' ? true : prev.can_deliver,
                 }));
               }}
               options={roles.map((r: RoleOption) => ({
@@ -293,6 +307,22 @@ export default function EmployeesPage() {
                       : formData.can_login
                         ? 'This user can sign in to the app with their email and password.'
                         : 'This user exists only to be assigned work (sales, deliveries, payroll) and cannot sign in. No email or password is needed.'}
+                  </span>
+                </span>
+              </label>
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label className="flex items-start gap-3 cursor-pointer p-3 rounded-xl bg-base-200/60">
+                <input
+                  type="checkbox"
+                  className="toggle toggle-secondary mt-0.5"
+                  checked={formData.can_deliver}
+                  onChange={(e) => setFormData(prev => ({ ...prev, can_deliver: e.target.checked }))}
+                />
+                <span>
+                  <span className="font-medium block">Can deliver orders</span>
+                  <span className="text-xs text-base-content/60">
+                    Allow this staff member to be assigned to delivery orders, even if their primary role is not Rider.
                   </span>
                 </span>
               </label>
