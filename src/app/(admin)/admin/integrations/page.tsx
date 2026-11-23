@@ -2,6 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Send, Plug, Copy, Check, ExternalLink, Share2, Unlink, AlertTriangle, Eye, EyeOff, RefreshCw, Bike } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
+import { useDialogs } from '@/components/ui/Dialogs';
 
 /**
  * Integration: the restaurant's own Telegram bot, and its riders' links.
@@ -36,6 +37,7 @@ const when = (iso: string | null) =>
   iso ? new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '';
 
 export default function IntegrationsPage() {
+  const { confirm: confirmDialog, dialog } = useDialogs();
   const [state, setState] = useState<State | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -84,7 +86,15 @@ export default function IntegrationsPage() {
   };
 
   const disconnect = async () => {
-    if (!confirm('Disconnect the Telegram bot? Riders stop getting notifications, and every rider will need a new onboarding link if you connect again.')) return;
+    const ok = await confirmDialog({
+      title: 'Disconnect Telegram bot?',
+      message: 'Riders will stop getting delivery notifications on Telegram, and every rider will need a new onboarding link if you connect again later.',
+      action: 'Disconnect Bot',
+      cancel: 'Keep Connected',
+      tone: 'btn-error',
+    });
+    if (!ok) return;
+
     try {
       await fetchApi('/integrations/telegram', { method: 'DELETE' });
       setIssued(null);
@@ -117,7 +127,15 @@ export default function IntegrationsPage() {
   };
 
   const unlink = async (rider: Rider) => {
-    if (!confirm(`Stop sending deliveries to ${rider.name} on Telegram? They will need a new link to reconnect.`)) return;
+    const ok = await confirmDialog({
+      title: `Disconnect ${rider.name}?`,
+      message: `Stop sending delivery notifications to ${rider.name} on Telegram? They will need a new link to reconnect.`,
+      action: 'Disconnect Rider',
+      cancel: 'Keep Connected',
+      tone: 'btn-error',
+    });
+    if (!ok) return;
+
     setBusyRider(rider.id);
     try {
       await fetchApi(`/integrations/telegram/riders/${rider.id}/link`, { method: 'DELETE' });
@@ -343,6 +361,7 @@ export default function IntegrationsPage() {
           </div>
         </div>
       )}
+      {dialog}
     </div>
   );
 }
