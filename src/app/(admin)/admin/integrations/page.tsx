@@ -26,6 +26,8 @@ type Rider = {
   telegram_username: string | null;
   linked_at: string | null;
   link_expires_at: string | null;
+  telegram_last_error?: string | null;
+  can_deliver?: boolean;
 };
 type State = { bot: Bot | null; limits: { per_second: number; per_minute: number }; riders: Rider[] };
 type IssuedLink = { riderId: number; link: string; expires_at: string };
@@ -270,7 +272,7 @@ export default function IntegrationsPage() {
 
             {state && state.riders.length === 0 ? (
               <p className="text-sm text-base-content/60 py-6 text-center">
-                No riders yet. Add employees with the <b>Rider</b>{' '}role in HRM - they don&apos;t need to be able to sign in.
+                No riders or delivery staff yet. Add employees with the <b>Rider</b> role or enable <b>Can deliver orders</b> on an employee in HRM.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -282,7 +284,12 @@ export default function IntegrationsPage() {
                     {state?.riders.map((rider) => (
                       <tr key={rider.id}>
                         <td>
-                          <div className="font-medium">{rider.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-medium">{rider.name}</span>
+                            {rider.can_deliver && (
+                              <span className="badge badge-xs badge-secondary font-medium">Delivery</span>
+                            )}
+                          </div>
                           <div className="text-xs text-base-content/60">{[rider.location, rider.phone].filter(Boolean).join(' · ')}</div>
                         </td>
                         <td>
@@ -291,6 +298,13 @@ export default function IntegrationsPage() {
                               <span className="badge badge-success badge-sm">Connected</span>
                               <div className="text-xs text-base-content/60 mt-1">
                                 {rider.telegram_username ? `@${rider.telegram_username} · ` : ''}since {when(rider.linked_at)}
+                              </div>
+                            </div>
+                          ) : rider.telegram_last_error ? (
+                            <div>
+                              <span className="badge badge-error badge-sm" title={rider.telegram_last_error}>Blocked / Unreachable</span>
+                              <div className="text-xs text-error mt-1 max-w-xs truncate" title={rider.telegram_last_error}>
+                                {rider.telegram_last_error}
                               </div>
                             </div>
                           ) : rider.link_expires_at ? (
@@ -312,7 +326,7 @@ export default function IntegrationsPage() {
                             </>
                           ) : (
                             <button className="btn btn-xs btn-primary" onClick={() => issueLink(rider)}>
-                              <Copy size={12} /> {rider.link_expires_at ? 'New link' : 'Copy onboarding link'}
+                              <Copy size={12} /> {rider.telegram_last_error ? 'Reconnect link' : rider.link_expires_at ? 'New link' : 'Copy onboarding link'}
                             </button>
                           )}
                         </td>
