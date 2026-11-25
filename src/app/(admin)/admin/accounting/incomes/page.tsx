@@ -53,6 +53,7 @@ export default function IncomesPage() {
       title="Income"
       subtitle={single ? "Log income that arrives outside the till." : "Log income that arrives outside the till, across your branches."}
       endpoint="/incomes"
+      enableTrash={true}
       addLabel="+ Log Income"
       tableColumns={[
         { key: 'id', label: 'ID' },

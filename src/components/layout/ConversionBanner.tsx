@@ -48,12 +48,31 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
           ? `Your free trial ends on ${endsOn}.`
           : 'You are on a free trial.';
 
-  // A subscribed account is neither, and gets nothing at all.
-  const audience = isTrial ? 'trial' : isDemo ? 'demo' : null;
+  // A subscribed account is neither, and gets nothing at all unless expiring soon.
+  const isSubscribedExpiringSoon = status?.tenant_status === 'active'
+    && status?.demo_restaurant !== true
+    && (status?.expiring_soon === true || (status?.days_until_expiry !== null && status?.days_until_expiry !== undefined && status.days_until_expiry <= 3 && status.days_until_expiry >= 0));
+
+  const audience = isTrial ? 'trial' : isDemo ? 'demo' : isSubscribedExpiringSoon ? 'expiring' : null;
 
   const trialLink = verifyUrl('trial');
 
-  if (!audience || !trialLink) return null;
+  if (!audience || (audience !== 'expiring' && !trialLink)) return null;
+
+  const subDaysLeft = status?.days_until_expiry ?? null;
+  const subEndsAt = status?.expires_at ? new Date(status.expires_at) : null;
+  const subEndsOn = subEndsAt && !Number.isNaN(subEndsAt.getTime())
+    ? subEndsAt.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    : null;
+
+  const expiringMessage =
+    subDaysLeft !== null && subDaysLeft <= 0
+      ? 'Your subscription ends today.'
+      : subDaysLeft === 1
+        ? 'Your subscription ends tomorrow.'
+        : subEndsOn
+          ? `Your subscription ends on ${subEndsOn} (${subDaysLeft} days left).`
+          : 'Your subscription is ending soon.';
 
   /**
    * Upgrading has to prove which restaurant is asking, so the API mints a
@@ -93,14 +112,14 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
           </span>
 
           <a
-            href={trialLink}
+            href={trialLink ?? undefined}
             className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
           >
             Start your 7-day free trial
             <ArrowRight size={14} />
           </a>
         </>
-      ) : (
+      ) : audience === 'trial' ? (
         <>
           <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
             <span className="flex items-center gap-2 font-medium">
@@ -122,6 +141,27 @@ export default function ConversionBanner({ status }: { status: SubscriptionStatu
             className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
           >
             {upgrading ? 'Opening…' : 'Upgrade now'}
+            {!upgrading && <ArrowRight size={14} />}
+          </button>
+        </>
+      ) : (
+        <>
+          <span className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+            <span className="flex items-center gap-2 font-medium">
+              <Clock size={16} className="shrink-0" />
+              {expiringMessage}
+            </span>
+
+            <span className="opacity-90">Renew now to continue using the application.</span>
+          </span>
+
+          <button
+            type="button"
+            onClick={startUpgrade}
+            disabled={upgrading}
+            className="btn btn-xs sm:btn-sm btn-secondary text-secondary-content border-none font-bold rounded-full"
+          >
+            {upgrading ? 'Opening…' : 'Renew for next month'}
             {!upgrading && <ArrowRight size={14} />}
           </button>
         </>

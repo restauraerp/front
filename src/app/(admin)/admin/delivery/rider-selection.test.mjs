@@ -243,4 +243,99 @@ describe('Rider Selection - Comprehensive Feature & Edge Case Tests', () => {
       assert.deepEqual(formatRiderOptions({ riders: null, deliveries: [] }), []);
     });
   });
+
+  describe('POS Delivery Person Assignment Logic', () => {
+    test('hides delivery assignment field when delivery persons list is empty', () => {
+      const orderType = 'delivery';
+      const deliveryPersons = [];
+      const showDeliveredByField = orderType === 'delivery' && deliveryPersons.length > 0;
+      assert.equal(showDeliveredByField, false);
+    });
+
+    test('shows "DELIVERED BY (OPTIONAL)" when orderType is delivery and delivery persons exist', () => {
+      const orderType = 'delivery';
+      const deliveryPersons = [
+        { id: 1, name: 'Rider John', phone: '01711111111', location_id: null },
+      ];
+      const showDeliveredByField = orderType === 'delivery' && deliveryPersons.length > 0;
+      const label = orderType === 'delivery' ? 'DELIVERED BY (OPTIONAL)' : 'SERVED BY (OPTIONAL)';
+
+      assert.equal(showDeliveredByField, true);
+      assert.equal(label, 'DELIVERED BY (OPTIONAL)');
+    });
+
+    test('shows "SERVED BY (OPTIONAL)" for non-delivery orders when staff count > 1', () => {
+      const orderType = 'dine_in';
+      const employees = [
+        { id: 1, name: 'Waiter Alice' },
+        { id: 2, name: 'Waiter Bob' },
+      ];
+      const showServedByField = employees.length > 1;
+      const label = orderType === 'delivery' ? 'DELIVERED BY (OPTIONAL)' : 'SERVED BY (OPTIONAL)';
+
+      assert.equal(showServedByField, true);
+      assert.equal(label, 'SERVED BY (OPTIONAL)');
+    });
+
+    test('resets servedBy when switching order types if selected ID is not in new pool', () => {
+      const employees = [{ id: 10, name: 'Waiter 10' }, { id: 11, name: 'Waiter 11' }];
+      const deliveryPersons = [{ id: 20, name: 'Rider 20' }];
+
+      let servedBy = 10; // currently a waiter
+
+      // Switching to delivery
+      const newType = 'delivery';
+      if (newType === 'delivery') {
+        if (!deliveryPersons.some((p) => p.id === servedBy)) {
+          servedBy = '';
+        }
+      }
+      assert.equal(servedBy, '', 'Should clear waiter ID when switching to delivery');
+
+      // Now set to delivery person
+      servedBy = 20;
+
+      // Switching to dine_in
+      const nonDeliveryType = 'dine_in';
+      if (nonDeliveryType !== 'delivery') {
+        if (!employees.some((e) => e.id === servedBy)) {
+          servedBy = '';
+        }
+      }
+      assert.equal(servedBy, '', 'Should clear rider ID when switching to non-delivery');
+    });
+
+    test('formats delivery person options correctly for POS dropdown', () => {
+      const deliveryPersons = [
+        { id: 1, name: 'Floating Driver', phone: '01700000000', location_id: null },
+        { id: 2, name: 'Branch 5 Driver', email: 'driver5@rest.com', location_id: 5, location: { name: 'Gulshan Branch' } },
+        { id: 3, name: 'Branch 8 Driver', location_id: 8, location: { name: 'Dhanmondi Branch' } },
+      ];
+
+      // Active location is 5: Floating Driver + Branch 5 Driver match, Branch 8 does NOT
+      const activeRiders = filterRidersForAssignment({
+        riders: deliveryPersons,
+        orders: [],
+        activeLocationId: 5,
+      });
+
+      const options = activeRiders.map((rider) => ({
+        value: rider.id,
+        label: rider.name || `Rider #${rider.id}`,
+        hint: rider.phone || rider.email || (rider.location?.name ? rider.location.name : 'All Branches'),
+      }));
+
+      assert.equal(options.length, 2);
+      assert.deepEqual(options[0], {
+        value: 1,
+        label: 'Floating Driver',
+        hint: '01700000000',
+      });
+      assert.deepEqual(options[1], {
+        value: 2,
+        label: 'Branch 5 Driver',
+        hint: 'driver5@rest.com',
+      });
+    });
+  });
 });

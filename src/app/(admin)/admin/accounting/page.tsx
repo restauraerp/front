@@ -5,21 +5,22 @@ import Link from 'next/link';
 import { Card } from '@/components/ui/Card';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { fetchApi } from '@/lib/api';
-import { BookOpen, Receipt, Percent, Tag, TrendingUp, PieChart } from 'lucide-react';
+import { BookOpen, Receipt, Percent, Tag, TrendingUp, PieChart, Wallet } from 'lucide-react';
 
 export default function AccountingDashboard() {
-  const [stats, setStats] = useState({ ledgers: 0, incomes: 0, expenses: 0, taxes: 0, headers: 0 });
+  const [stats, setStats] = useState({ ledgers: 0, incomes: 0, expenses: 0, taxes: 0, headers: 0, storages: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadStats() {
       try {
-        const [ledgerRes, incomeRes, expenseRes, taxRes, headerRes] = await Promise.all([
+        const [ledgerRes, incomeRes, expenseRes, taxRes, headerRes, storageRes] = await Promise.all([
           fetchApi('/accounting-ledgers?per_page=1'),
           fetchApi('/incomes?per_page=1'),
           fetchApi('/expenses?per_page=1'),
           fetchApi('/tax-rules'),
           fetchApi('/accounting-headers?per_page=1'),
+          fetchApi('/cash-storages?per_page=1'),
         ]);
 
         const ledgerCount = ledgerRes?.total || ledgerRes?.meta?.total || (Array.isArray(ledgerRes?.data) ? ledgerRes.data.length : 0) || 0;
@@ -27,6 +28,7 @@ export default function AccountingDashboard() {
         const expenseCount = expenseRes?.total || expenseRes?.meta?.total || (Array.isArray(expenseRes?.data) ? expenseRes.data.length : 0) || 0;
         const taxCount = taxRes?.total || taxRes?.meta?.total || (Array.isArray(taxRes?.data) ? taxRes.data.length : (Array.isArray(taxRes) ? taxRes.length : 0)) || 0;
         const headerCount = headerRes?.total || headerRes?.meta?.total || (Array.isArray(headerRes?.data) ? headerRes.data.length : 0) || 0;
+        const storageCount = storageRes?.total || storageRes?.meta?.total || (Array.isArray(storageRes?.data) ? storageRes.data.length : 0) || 0;
 
         setStats({
           ledgers: ledgerCount,
@@ -34,6 +36,7 @@ export default function AccountingDashboard() {
           expenses: expenseCount,
           taxes: taxCount,
           headers: headerCount,
+          storages: storageCount,
         });
       } catch (error) {
         console.error("Failed to load accounting stats", error);
@@ -128,6 +131,20 @@ export default function AccountingDashboard() {
           </div>
           <Link href="/admin/accounting/headers" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
             Manage Headers &rarr;
+          </Link>
+        </Card>
+
+        <Card title={<div className="flex items-center gap-2"><Wallet className="text-primary" size={20} /> Cash Storages & Tills</div>}>
+          <div className="mb-4">
+            <p className="text-base-content/70 mb-2">Manage cash drawers, card POS terminals, and bKash wallets.</p>
+            {loading ? (
+              <div className="skeleton h-8 w-24"></div>
+            ) : (
+              <div className="text-3xl font-bold text-primary">{stats.storages} <span className="text-sm font-normal text-base-content/60">Storages</span></div>
+            )}
+          </div>
+          <Link href="/admin/accounting/cash-storages" className="text-primary font-medium hover:underline inline-flex items-center gap-1">
+            Manage Cash Storages &rarr;
           </Link>
         </Card>
       </div>

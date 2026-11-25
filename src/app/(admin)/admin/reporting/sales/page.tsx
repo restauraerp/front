@@ -40,6 +40,12 @@ interface SalesReport {
     outstanding_revenue: number;
     unpaid_orders: number;
     avg_order_value: number;
+    partner_orders_count?: number;
+    partner_gross_revenue?: number;
+    partner_commission_total?: number;
+    partner_net_revenue?: number;
+    direct_orders_count?: number;
+    direct_gross_revenue?: number;
   };
   series: SalesSeriesPoint[];
 }
@@ -47,10 +53,11 @@ interface SalesReport {
 export default function SalesReportPage() {
   const { period, branch } = useReportFilters();
   const [chartType, setChartType] = useState<'bar' | 'line'>('bar');
+  const [channel, setChannel] = useState<'all' | 'direct' | 'partner'>('all');
 
   const { data, loading, error, reload } = useReport<SalesReport>(
     '/reports/sales',
-    { from: period.from, to: period.to, bucket: period.bucket, location_id: branch },
+    { from: period.from, to: period.to, bucket: period.bucket, location_id: branch, channel },
     { skip: period.incomplete },
   );
 
@@ -81,9 +88,32 @@ export default function SalesReportPage() {
 
   return (
     <>
-      <p className="text-sm text-base-content/60 mb-4">
-        Showing <span className="font-semibold text-base-content">{period.label}</span>
-      </p>
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+        <p className="text-sm text-base-content/60">
+          Showing <span className="font-semibold text-base-content">{period.label}</span>
+        </p>
+
+        <div className="join">
+          <button
+            className={`join-item btn btn-sm ${channel === 'all' ? 'btn-primary' : 'btn-outline border-base-300'}`}
+            onClick={() => setChannel('all')}
+          >
+            All Channels
+          </button>
+          <button
+            className={`join-item btn btn-sm ${channel === 'direct' ? 'btn-primary' : 'btn-outline border-base-300'}`}
+            onClick={() => setChannel('direct')}
+          >
+            Direct Restaurant
+          </button>
+          <button
+            className={`join-item btn btn-sm ${channel === 'partner' ? 'btn-primary' : 'btn-outline border-base-300'}`}
+            onClick={() => setChannel('partner')}
+          >
+            3rd Party Partners
+          </button>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-6">
         <StatTile
@@ -138,6 +168,52 @@ export default function SalesReportPage() {
           ))}
         </div>
       </Card>
+
+      {channel === 'all' && (summary.partner_orders_count ?? 0) > 0 && (
+        <Card title="Direct vs 3rd Party Partner Channel Comparison" className="mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Direct Restaurant Orders</div>
+              <div className="text-lg font-semibold mt-0.5">{formatCount(summary.direct_orders_count ?? 0)}</div>
+              <div className="text-xs text-base-content/60 mt-0.5">{formatTaka(summary.direct_gross_revenue ?? 0)} gross</div>
+            </div>
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Partner Orders</div>
+              <div className="text-lg font-semibold mt-0.5">{formatCount(summary.partner_orders_count ?? 0)}</div>
+              <div className="text-xs text-base-content/60 mt-0.5">{formatTaka(summary.partner_gross_revenue ?? 0)} gross</div>
+            </div>
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Partner Commission Retained</div>
+              <div className="text-lg font-semibold text-warning mt-0.5">-{formatTaka(summary.partner_commission_total ?? 0)}</div>
+              <div className="text-xs text-base-content/60 mt-0.5">Aggregator cut</div>
+            </div>
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Net Partner Earnings</div>
+              <div className="text-lg font-semibold text-primary mt-0.5">{formatTaka(summary.partner_net_revenue ?? 0)}</div>
+              <div className="text-xs text-base-content/60 mt-0.5">Owed to restaurant</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {channel === 'partner' && (
+        <Card title="3rd Party Partner Summary" className="mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Billed to Diners (Gross)</div>
+              <div className="text-lg font-semibold mt-0.5">{formatTaka(summary.gross_revenue)}</div>
+            </div>
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Aggregator Commission Retained</div>
+              <div className="text-lg font-semibold text-warning mt-0.5">-{formatTaka(summary.partner_commission_total ?? 0)}</div>
+            </div>
+            <div className="bg-base-200/60 rounded-xl px-4 py-3">
+              <div className="text-xs text-base-content/50">Net Restaurant Earnings</div>
+              <div className="text-lg font-semibold text-primary mt-0.5">{formatTaka(summary.partner_net_revenue ?? 0)}</div>
+            </div>
+          </div>
+        </Card>
+      )}
 
       {series.length > 0 && (
         <Card tour="sales-trend" title="Sales Trend" className="mb-6">

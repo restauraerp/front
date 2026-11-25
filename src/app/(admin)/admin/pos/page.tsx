@@ -13,6 +13,7 @@ import TableSelector from './components/TableSelector';
 import CustomerPicker from './components/CustomerPicker';
 import OnlineOrderLink from './components/OnlineOrderLink';
 import AddressAutocomplete from '@/components/ui/AddressAutocomplete';
+import { filterRidersForAssignment } from '../delivery/rider-selection';
 import { tenantKey } from '@/lib/tenant';
 import { isSellable } from '@/lib/product';
 
@@ -60,11 +61,13 @@ function POS() {
   // Who to credit for the sale. Separate from the account running the till,
   // which is very often shared - see the served_by_user_id migration.
   const [employees, setEmployees] = useState<any[]>([]);
+  const [deliveryPersons, setDeliveryPersons] = useState<any[]>([]);
   const [servedBy, setServedBy] = useState<number | ''>('');
   // A third party that sent this order in. Their cut is worked out server-side
   // from their own rate - the till never prices it.
   const [partners, setPartners] = useState<any[]>([]);
   const [partnerId, setPartnerId] = useState<number | ''>('');
+  const [partnerOrderId, setPartnerOrderId] = useState('');
   const [customers, setCustomers] = useState<any[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<number | null>(null);
   const [discounts, setDiscounts] = useState<any[]>([]);
@@ -98,6 +101,23 @@ function POS() {
     [employees],
   );
 
+  // Delivery persons options: includes branch indication or phone hint.
+  const deliveryPersonOptions = useMemo(
+    () => {
+      const activeRiders = filterRidersForAssignment({
+        riders: deliveryPersons,
+        orders: [],
+        activeLocationId,
+      });
+      return activeRiders.map((rider: any) => ({
+        value: rider.id,
+        label: rider.name || `Rider #${rider.id}`,
+        hint: rider.phone || rider.email || (rider.location?.name ? rider.location.name : 'All Branches'),
+      }));
+    },
+    [deliveryPersons, activeLocationId],
+  );
+
   useEffect(() => {
     Promise.all([
       fetchApi('/products?nopaginate=1'),
@@ -112,8 +132,9 @@ function POS() {
       fetchApi('/locations'),
       fetchOptional<any>('/users?nopaginate=1', []),
       fetchOptional<any>('/partners?nopaginate=1&active_only=1', []),
+      fetchOptional<any>('/delivery-persons', []),
     ])
-      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes, partnerRes]) => {
+      .then(([prodRes, setRes, catRes, custRes, discRes, taxRes, locRes, staffRes, partnerRes, deliveryPersonsRes]) => {
         setProducts(prodRes.data || prodRes || []);
         const map: Record<string, string> = {};
         (setRes.data || setRes || []).forEach((s: any) => { map[s.key] = s.value; });
@@ -131,6 +152,7 @@ function POS() {
         setLocations(locs);
         setEmployees(staffRes?.data || staffRes || []);
         setPartners(partnerRes?.data || partnerRes || []);
+        setDeliveryPersons(deliveryPersonsRes?.data || deliveryPersonsRes || []);
 
         let savedLoc = null;
         if (typeof window !== 'undefined') {
@@ -357,6 +379,7 @@ function POS() {
         table_id: orderType === 'dine_in' ? selectedTable : null,
         served_by_user_id: servedBy === '' ? null : servedBy,
         partner_id: partnerId === '' ? null : partnerId,
+        partner_order_id: partnerId === '' ? null : (partnerOrderId.trim() || null),
         customer_id: selectedCustomer,
         discount_id: appliedDiscount?.id || null,
         delivery_time: deliveryTime || null,
@@ -397,6 +420,7 @@ function POS() {
       // quietly credit them anyway.
       setServedBy('');
       setPartnerId('');
+      setPartnerOrderId('');
       setAppliedDiscount(null);
       setOrderDiscountValue('');
       setOrderDiscountReason('');
@@ -543,48 +567,93 @@ function POS() {
           </button>
           {showOrderConfig && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-              <OrderTypeSelector value={orderType} onChange={setOrderType} />
+              <OrderTypeSelector
+                value={orderType}
+                onChange={(newType) => {
+                  setOrderType(newType);
+                  if (newType === 'delivery') {
+                    if (!deliveryPersons.some((p: any) => p.id === servedBy)) {
+                      setServedBy('');
+                    }
+                  } else {
+                    if (!employees.some((e: any) => e.id === servedBy)) {
+                      setServedBy('');
+                    }
+                  }
+                }}
+              />
 
-              {/* Hidden when there is nobody to choose between: a restaurant
-                  with one staff account has no attribution question to answer,
-                  and an empty picker is just another thing to skip past.
-
-                  Searchable rather than a plain dropdown - a restaurant with
-                  forty staff cannot be scrolled through mid-service, and two
-                  people called Rahim are told apart by the hint. */}
-              {employees.length > 1 && (
-                <div>
-                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SERVED BY (OPTIONAL)</p>
-                  <SearchSelect
-                    value={servedBy}
-                    onChange={(value) => setServedBy(value === '' ? '' : Number(value))}
-                    options={employeeOptions}
-                    placeholder="Nobody in particular"
-                    searchPlaceholder="Type a name…"
-                    emptyText="No employee matches that search."
-                    clearable
-                  />
-                </div>
+              {/* Served by / Delivered by attribution.
+                  When delivery type is selected, label is DELIVERED BY (OPTIONAL)
+                  and the delivery person can be assigned if available.
+                  If there is no delivery person, this input field will not show.
+                  For non-delivery types, label is SERVED BY (OPTIONAL) and lists staff. */}
+              {orderType === 'delivery' ? (
+                deliveryPersons.length > 0 && (
+                  <div>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>DELIVERED BY (OPTIONAL)</p>
+                    <SearchSelect
+                      value={servedBy}
+                      onChange={(value) => setServedBy(value === '' ? '' : Number(value))}
+                      options={deliveryPersonOptions}
+                      placeholder="Nobody in particular"
+                      searchPlaceholder="Type a delivery person name…"
+                      emptyText="No delivery person matches that search."
+                      clearable
+                    />
+                  </div>
+                )
+              ) : (
+                employees.length > 1 && (
+                  <div>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>SERVED BY (OPTIONAL)</p>
+                    <SearchSelect
+                      value={servedBy}
+                      onChange={(value) => setServedBy(value === '' ? '' : Number(value))}
+                      options={employeeOptions}
+                      placeholder="Nobody in particular"
+                      searchPlaceholder="Type a name…"
+                      emptyText="No employee matches that search."
+                      clearable
+                    />
+                  </div>
+                )
               )}
               {/* Only shown once a partner exists, and only for the order types
                   an aggregator actually sends. */}
               {partners.length > 0 && ['delivery', 'takeaway'].includes(orderType) && (
-                <div>
-                  <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>CAME THROUGH (OPTIONAL)</p>
-                  <select
-                    className="select select-bordered select-sm w-full"
-                    style={{ fontSize: '0.8rem' }}
-                    value={partnerId}
-                    onChange={(e) => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
-                    aria-label="Third party that sent this order"
-                  >
-                    <option value="">Direct — not through a partner</option>
-                    {partners.map((partner: any) => (
-                      <option key={partner.id} value={partner.id}>
-                        {partner.name} ({Number(partner.commission_rate).toFixed(0)}%)
-                      </option>
-                    ))}
-                  </select>
+                <div className="space-y-2">
+                  <div>
+                    <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>CAME THROUGH (OPTIONAL)</p>
+                    <select
+                      className="select select-bordered select-sm w-full"
+                      style={{ fontSize: '0.8rem' }}
+                      value={partnerId}
+                      onChange={(e) => setPartnerId(e.target.value === '' ? '' : Number(e.target.value))}
+                      aria-label="Third party that sent this order"
+                    >
+                      <option value="">Direct — not through a partner</option>
+                      {partners.map((partner: any) => (
+                        <option key={partner.id} value={partner.id}>
+                          {partner.name} ({Number(partner.commission_rate).toFixed(0)}%)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  {partnerId !== '' && (
+                    <div>
+                      <p style={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b7280', marginBottom: '0.3rem' }}>PARTNER ORDER # / REF</p>
+                      <input
+                        type="text"
+                        className="input input-bordered input-sm w-full"
+                        style={{ fontSize: '0.8rem' }}
+                        placeholder="e.g. FP-98234 or Pathao Order ID"
+                        value={partnerOrderId}
+                        onChange={(e) => setPartnerOrderId(e.target.value)}
+                      />
+                      <p className="text-[10px] text-warning mt-1">Payment is collected later via partner settlement (marked as Due).</p>
+                    </div>
+                  )}
                 </div>
               )}
 

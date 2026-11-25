@@ -3,9 +3,10 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { SettleDueModal } from '@/components/orders/SettleDueModal';
-import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2, UtensilsCrossed } from 'lucide-react';
+import { ChefHat, CheckCircle, XCircle, RefreshCw, Package, Truck, DollarSign, CreditCard, Banknote, Smartphone, Printer, Clock, MapPin, Pencil, X, Plus, Minus, Eye, Trash2, RotateCcw, AlertTriangle, Share2, UtensilsCrossed, Wallet } from 'lucide-react';
 import { tenantKey } from '@/lib/tenant';
 import { useSlipSettings } from '@/hooks/useBranding';
+import { getOrderStatusTheme } from '@/lib/orderStatus';
 
 const TAB_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
   active_orders: Clock,
@@ -43,18 +44,6 @@ const paymentBadge = (status?: string | null): { className: string; label: strin
   return { className: 'badge-error text-white', label: 'Unpaid' };
 };
 
-const statusConfig: Record<string, { badge: string; label: string }> = {
-  pending: { badge: 'badge-warning', label: 'Pending' },
-  cooking: { badge: 'badge-info', label: 'Cooking' },
-  ready_to_serve: { badge: 'badge-success', label: 'Ready to Serve' },
-  served: { badge: 'badge-primary', label: 'Served' },
-  packed: { badge: 'badge-primary', label: 'Packed' },
-  picked_up: { badge: 'badge-secondary', label: 'Picked Up By Delivery' },
-  delivered: { badge: 'badge-accent', label: 'Delivered' },
-  cancelled: { badge: 'badge-error', label: 'Cancelled' },
-  paid: { badge: 'badge-neutral', label: 'Paid' },
-};
-
 const stageButton: Record<string, { label: string; icon: any; color: string }> = {
   cooking: { label: 'Start Cooking', icon: ChefHat, color: 'btn-info' },
   ready_to_serve: { label: 'Ready to Serve', icon: CheckCircle, color: 'btn-success' },
@@ -90,6 +79,40 @@ const LiveTimer = ({ placedAt }: { placedAt: string }) => {
   return <span className="font-mono text-xs opacity-80 flex items-center gap-1"><Clock size={12}/> {elapsed}</span>;
 };
 
+const minutesUntilDue = (order: any, now: number) =>
+  order.delivery_time ? Math.round((new Date(order.delivery_time).getTime() - now) / 60000) : 0;
+
+const dueLabel = (minutes: number) => {
+  if (minutes <= 0) return `Overdue by ${Math.abs(minutes)} min`;
+  if (minutes < 60) return `Start in ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (minutes < 24 * 60) return `Start in ${hours}h${rest ? ` ${rest}m` : ''}`;
+  return `Due in ${Math.round(minutes / (24 * 60))} day(s)`;
+};
+
+const getCardBorder = (status: string, overdue: boolean) => {
+  switch (status) {
+    case 'cooking':
+      return 'border-t-info';
+    case 'ready_to_serve':
+      return 'border-t-success';
+    case 'served':
+    case 'packed':
+      return 'border-t-primary';
+    case 'picked_up':
+      return 'border-t-secondary';
+    case 'delivered':
+      return 'border-t-accent';
+    case 'cancelled':
+    case 'trashed':
+      return 'border-t-error';
+    case 'pending':
+    default:
+      return overdue ? 'border-t-error' : 'border-t-warning';
+  }
+};
+
 const VALID_ORDER_TABS = [
   'active_orders', 'dine_in', 'takeaway', 'delivery',
   'customer_orders', 'catering', 'third_party', 'due', 'completed', 'trashed',
@@ -114,12 +137,27 @@ export default function OrdersPage() {
   };
   const [sortDineIn, setSortDineIn] = useState('time');
   const [sortOthers, setSortOthers] = useState('time');
+  const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedMode = localStorage.getItem(tenantKey('restora_orders_view_mode'));
+      if (savedMode === 'table' || savedMode === 'cards') {
+        setViewMode(savedMode);
+      }
+    }
+    const clock = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(clock);
+  }, []);
 
   const [paymentOrder, setPaymentOrder] = useState<any>(null);
   const [paymentMethod, setPaymentMethod] = useState('cash');
   // Why this payment looks the way it does - the bKash transaction id, the
   // card's last four, which guest settled a shared table.
   const [paymentNote, setPaymentNote] = useState('');
+  const [cashStorages, setCashStorages] = useState<any[]>([]);
+  const [selectedStorageId, setSelectedStorageId] = useState<string>('');
   // Reconciling the till against a mobile-money statement means looking at one
   // method at a time.
   const [completedSort, setCompletedSort] = useState('recent');
@@ -251,9 +289,23 @@ export default function OrdersPage() {
       }
     }).catch(console.error);
 
+    fetchApi('/cash-storages?nopaginate=1&is_active=1').then(res => {
+      setCashStorages(res.data || res || []);
+    }).catch(console.error);
+
     const interval = setInterval(loadOrders, 10000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    const targetType = paymentMethod === 'mfs' ? 'bkash' : paymentMethod;
+    const matching = cashStorages.filter(s => s.type === targetType && (activeLocationId ? (!s.location_id || s.location_id === activeLocationId) : true));
+    if (matching.length > 0) {
+      setSelectedStorageId(String(matching[0].id));
+    } else {
+      setSelectedStorageId('');
+    }
+  }, [paymentMethod, cashStorages, activeLocationId]);
 
   const loadOrders = async () => {
     try {
@@ -594,6 +646,7 @@ export default function OrdersPage() {
         body: JSON.stringify({
           payment_method: paymentMethod,
           payment_note: paymentNote || null,
+          cash_storage_id: selectedStorageId ? Number(selectedStorageId) : null,
         })
       });
       (document.getElementById('payment_modal') as HTMLDialogElement)?.close();
@@ -630,9 +683,14 @@ export default function OrdersPage() {
           </button>
         )}
         {canEditOrder && !isEditing && order.payment_status !== 'paid' && (
-          <button className="btn btn-xs btn-outline gap-1" onClick={() => window.location.href = `/admin/pos?edit=${order.id}`}>
-            <Pencil size={12} /> Edit in POS
-          </button>
+          <>
+            <button className="btn btn-xs btn-outline gap-1 font-semibold" onClick={() => startEdit(order)} title="Quick edit item quantities">
+              <Pencil size={11} /> Items
+            </button>
+            <button className="btn btn-xs btn-outline gap-1 font-semibold" onClick={() => window.location.href = `/admin/pos?edit=${order.id}`} title="Edit in POS">
+              POS
+            </button>
+          </>
         )}
         {canEditOrder && !isEditing && ['pending', 'cooking'].includes(order.status) && (
           <button className="btn btn-xs btn-error btn-outline gap-1" onClick={() => handleDelete(order.id)}>
@@ -656,6 +714,14 @@ export default function OrdersPage() {
                 <Printer size={12} />
               </button>
             )}
+            <button
+              className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10"
+              title="Share Invoice on WhatsApp"
+              onClick={() => handleShareInvoice(order)}
+              disabled={sharingId === order.id}
+            >
+              {sharingId === order.id ? <span className="loading loading-spinner loading-xs" /> : <Share2 size={12} />}
+            </button>
           </div>
         )}
         {isEditing && (
@@ -673,173 +739,430 @@ export default function OrdersPage() {
   };
 
   const renderOrderCard = (order: any) => {
-    const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
+    const s = getOrderStatusTheme(order.status);
+    const minutes = minutesUntilDue(order, now);
+    const overdue = order.status === 'pending' && order.delivery_time ? minutes <= 0 : false;
+    const topBorder = getCardBorder(order.status, overdue);
     const showLogistics = ['delivery', 'catering'].includes(order.order_type);
     const isEditing = editingOrderId === order.id;
     const displayItems = isEditing ? editedItems : (order.items || []);
+    const actions = getNextActions(order);
+    const primaryAction = !isEditing && actions.length > 0 ? actions[0] : null;
+    const secondaryActions = !isEditing && actions.length > 1 ? actions.slice(1) : [];
 
     return (
-      <div key={order.id} data-tour="orders-board" className="bg-base-100 border border-base-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <div className="font-extrabold text-lg text-primary mb-0.5 flex items-center gap-2">
-              <span>{order.table?.name || (order.order_type ? order.order_type.replace('_', ' ').toUpperCase() : 'NO TABLE')}</span>
+      <div
+        key={order.id}
+        data-tour="orders-board"
+        className={`flex flex-col bg-base-100 p-5 rounded-2xl shadow-md border border-base-200/80 border-t-4 transition-all hover:shadow-lg ${topBorder} ${order.status === 'trashed' ? 'opacity-80' : ''}`}
+      >
+        {/* Ticket Header */}
+        <div className="flex justify-between items-start mb-3 pb-3 border-b border-base-200">
+          <div className="min-w-0 flex-1 pr-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-xl font-black text-base-content tracking-tight">
+                {order.table?.name || (order.order_type ? order.order_type.replace('_', ' ').toUpperCase() : 'NO TABLE')}
+              </h3>
               {order.token_number != null && (
-                <span className="badge badge-secondary badge-sm font-extrabold" title="Token Number">
+                <span className="badge badge-secondary font-black text-xs shadow-sm" title="Token Number">
                   Token #{order.token_number}
                 </span>
               )}
               {order.source === 'online' && (
-                <span className="badge badge-accent badge-sm font-extrabold" title="Placed by the customer through the online order link">
-                  Online
+                <span className="badge badge-accent badge-xs font-black shadow-sm" title="Placed online by customer">
+                  ONLINE
                 </span>
               )}
             </div>
-            <div className="text-xs text-base-content/60">
-              Order #{order.id} {order.token_number != null ? `(Token #${order.token_number}) ` : ''}• {order.customer?.name || 'Walk-in'}
-              {order.source === 'online' && order.customer?.phone && (
-                <> • <a href={`tel:${order.customer.phone}`} className="link">{order.customer.phone}</a></>
+            <div className="text-xs text-base-content/60 mt-0.5 truncate">
+              Order #{order.id} • {order.customer?.name || 'Walk-in'}
+              {order.customer?.phone && (
+                <> • <a href={`tel:${order.customer.phone}`} className="link text-info font-medium">{order.customer.phone}</a></>
               )}
             </div>
           </div>
-          <div className="flex flex-col items-end gap-1">
-            <span className={`badge ${s.badge} badge-sm font-bold shadow-sm`}>{s.label}</span>
+          <div className="flex flex-col items-end gap-1 shrink-0">
+            <span className={`badge ${s.badge} badge-sm font-bold shadow-sm uppercase`}>{s.label}</span>
             <span className={`badge ${paymentBadge(order.payment_status).className} badge-sm font-bold shadow-sm`}>
               {paymentBadge(order.payment_status).label}
+            </span>
+            <span className="text-[11px] font-mono opacity-60">
+              {order.created_at ? new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
             </span>
           </div>
         </div>
 
-        {showLogistics && (
-          <div className="mb-3 bg-blue-50/50 p-2 rounded-lg border border-blue-100/50">
-            <div className="text-xs font-semibold mb-1 flex items-center gap-1">
-              <Clock size={12} className="text-primary"/>
-              {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP'}
+        {/* Pending / Overdue Scheduled Due Banner */}
+        {order.status === 'pending' && order.delivery_time && (
+          <div className={`mb-3 rounded-xl px-3 py-2 text-xs border ${overdue ? 'bg-error/15 text-error border-error/30 font-bold' : minutes < 30 ? 'bg-warning/15 text-warning-content border-warning/30 font-semibold' : 'bg-base-200/70 border-base-200'}`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold flex items-center gap-1.5"><Clock size={13} /> {dueLabel(minutes)}</span>
+              <span className="opacity-75">{new Date(order.delivery_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
             </div>
-            <div className="text-[10px] opacity-80 flex items-start gap-1">
-              <MapPin size={12} className="mt-0.5 text-error flex-shrink-0" />
+            <span className="block text-[11px] opacity-75 mt-0.5">Due {new Date(order.delivery_time).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })}</span>
+          </div>
+        )}
+
+        {/* Logistics Information Banner */}
+        {showLogistics && (
+          <div className="mb-3 bg-blue-50/60 dark:bg-blue-950/20 p-2.5 rounded-xl border border-blue-100 dark:border-blue-900/50 text-xs">
+            <div className="font-semibold text-primary mb-1 flex items-center gap-1.5">
+              <Clock size={13} />
+              {order.delivery_time ? new Date(order.delivery_time).toLocaleString() : 'ASAP Delivery'}
+            </div>
+            <div className="opacity-80 flex items-start gap-1.5">
+              <MapPin size={13} className="mt-0.5 text-error shrink-0" />
               <span className="line-clamp-2">{order.delivery_address || 'No address provided'}</span>
             </div>
-            {order.latitude && order.longitude && (
-              <a href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" className="text-[10px] text-blue-500 hover:underline mt-1 inline-block">
-                View on Maps
+            {order.latitude && order.longitude ? (
+              <a href={`https://www.google.com/maps/search/?api=1&query=${order.latitude},${order.longitude}`} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline mt-1 inline-block font-semibold">
+                📍 View on Maps
               </a>
+            ) : order.delivery_address ? (
+              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.delivery_address)}`} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline mt-1 inline-block font-semibold">
+                📍 Search on Maps
+              </a>
+            ) : null}
+          </div>
+        )}
+
+        {/* Customer Note */}
+        {order.customer_note && (
+          <div className="mb-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs p-2.5 rounded-xl whitespace-pre-line">
+            <span className="font-bold">Customer note:</span> {order.customer_note}
+          </div>
+        )}
+
+        {/* Due Note or Partner Info */}
+        {activeTab === 'due' ? (
+          order.due_note ? (
+            <div className="mb-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs p-2.5 rounded-xl">
+              <span className="font-bold">Due Note:</span> {order.due_note}
+            </div>
+          ) : null
+        ) : activeTab === 'third_party' ? (
+          <div className="mb-3 bg-base-200/60 text-xs p-2.5 rounded-xl border border-base-200">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-base-content/90">{order.partner?.name || '3rd Party Partner'}</span>
+              {order.partner_order_id && <span className="font-mono text-primary font-bold text-xs">Ref: {order.partner_order_id}</span>}
+            </div>
+            {order.due_note && (
+              <div className="text-[11px] opacity-75 mt-1"><span className="font-semibold">Note:</span> {order.due_note}</div>
+            )}
+            {order.partner_commission_rate != null && (
+              <div className="text-[11px] opacity-60 mt-0.5">{order.partner_commission_rate}% partner commission</div>
             )}
           </div>
+        ) : (
+          (() => {
+            const payment = order.payments?.find((p: any) => p.status === 'completed') || order.payments?.[0];
+            const method = payment?.method || order.payment_method;
+            if (!method) return null;
+            const labels: Record<string, string> = { cash: 'Cash', card: 'Card', mfs: 'Mobile Money', due: 'On Account' };
+            return (
+              <div className="mb-2.5 text-xs flex items-center justify-between text-base-content/80 bg-base-200/40 px-2.5 py-1.5 rounded-lg border border-base-200/60">
+                <div className="flex items-center gap-1.5">
+                  <span className="opacity-60">Payment:</span>
+                  <span className="font-semibold">{labels[method] || method}</span>
+                </div>
+                {payment?.cash_storage?.name && (
+                  <span className="badge badge-ghost badge-xs font-semibold">📦 {payment.cash_storage.name}</span>
+                )}
+              </div>
+            );
+          })()
         )}
 
-        {order.customer_note && (
-          <div className="mb-3 bg-amber-50 border border-amber-200 text-amber-900 text-xs p-2 rounded-lg whitespace-pre-line">
-            <span className="font-semibold">Customer note:</span> {order.customer_note}
+        {/* Timer & Total Price Bar */}
+        <div className="flex items-center justify-between mb-3 bg-base-200/60 p-2.5 rounded-xl border border-base-200/70">
+          <div>
+            <LiveTimer placedAt={order.created_at} />
+            <div className="text-[11px] opacity-70 flex items-center gap-1 mt-0.5">
+              <Clock size={11} />
+              {new Date(order.created_at).toLocaleDateString([], { day: 'numeric', month: 'short' })},{' '}
+              {new Date(order.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </div>
           </div>
-        )}
-
-        <div className="flex items-center justify-between mb-3 bg-base-200/50 p-2 rounded-lg">
-          <LiveTimer placedAt={order.created_at} />
-          <span className="font-bold text-sm">৳{order.total}</span>
+          <div className="text-right">
+            <span className="font-black text-lg text-primary">৳{order.total}</span>
+            {order.amount_outstanding != null && Number(order.amount_outstanding) > 0 && (
+              <div className="text-[10px] text-error font-bold">Due: ৳{Number(order.amount_outstanding).toFixed(2)}</div>
+            )}
+          </div>
         </div>
 
-        {/* Items list — tall enough to show ≥3 rows before scrolling */}
-        <div className="flex-1 overflow-y-auto mb-1 pr-1 text-sm space-y-1" style={{ maxHeight: '192px' }}>
+        {/* Food Items List — Kitchen Display style */}
+        <div className="flex-1 overflow-y-auto mb-3 space-y-2 pr-1" style={{ maxHeight: '220px' }}>
           {displayItems.map((item: any) => {
             const product = item.product ?? {};
             const imgUrl = product.images?.[0]?.url;
             const needsCooking = product.needs_cooking;
-            const qty = isEditing ? item.quantity : (item.quantity ?? item.qty ?? '?');
+            const qty = isEditing ? item.quantity : (item.quantity ?? item.qty ?? 1);
 
             return (
-              <div key={item.id} className="flex items-center gap-2 text-base-content/80 bg-base-100 p-1 rounded-md border border-base-200 shadow-sm">
-                <div className="w-8 h-8 rounded overflow-hidden bg-base-200 flex-shrink-0 flex items-center justify-center">
+              <div key={item.id} className="flex gap-2.5 bg-base-200/50 p-2.5 rounded-xl items-center border border-base-200/70">
+                <span className="font-black text-base text-primary shrink-0 w-7 text-center">{qty}x</span>
+                <div className="w-10 h-10 rounded-lg overflow-hidden bg-base-300 shrink-0 border border-base-200 flex items-center justify-center">
                   {imgUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img src={`/storage/${imgUrl}`} alt={product.name} className="w-full h-full object-cover" />
                   ) : (
-                    <span className="text-[10px] font-bold text-base-content/30">{(product.name || '?').substring(0, 2).toUpperCase()}</span>
+                    <ChefHat size={16} className="text-base-content/30" />
                   )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1 min-w-0">
-                    <span className="truncate text-xs font-semibold">{product.name || `Item #${item.product_id}`}</span>
-                    {needsCooking && <span title="Needs cooking"><ChefHat size={11} className="text-amber-500 flex-shrink-0" /></span>}
-                    {product.type === 'combo' && <span className="badge badge-xs bg-purple-100 text-purple-700 border-0">Combo</span>}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="font-bold text-sm truncate">{product.name || `Item #${item.product_id}`}</span>
+                    {needsCooking && <span title="Needs cooking"><ChefHat size={12} className="text-amber-500 shrink-0" /></span>}
+                    {product.type === 'combo' && <span className="badge badge-xs bg-purple-100 text-purple-700 border-0 font-bold">Combo</span>}
                   </div>
                   {product.type === 'combo' && product.combo_items?.length > 0 && (
-                    <div className="mt-0.5 text-[10px] text-base-content/50 truncate">
-                      {product.combo_items.map((ci: any) => ci.product?.name || ci.inventory_item?.title || 'Item').join(', ')}
+                    <div className="mt-0.5 space-y-0.5">
+                      {product.combo_items.map((ci: any, idx: number) => (
+                        <p key={idx} className="text-[11px] text-base-content/60 flex items-center gap-1">
+                          <span className="opacity-40">↳</span>
+                          <span className="font-medium">{ci.quantity > 1 ? `${ci.quantity}× ` : ''}{ci.product?.name || ci.inventory_item?.title || 'Item'}</span>
+                        </p>
+                      ))}
                     </div>
                   )}
+                  {item.notes && <p className="text-xs text-error mt-0.5 italic font-medium break-words">* {item.notes}</p>}
                 </div>
-                {isEditing ? (
-                  <div className="flex items-center gap-1 flex-shrink-0">
+                {isEditing && (
+                  <div className="flex items-center gap-1 shrink-0 ml-1">
                     <button
+                      type="button"
                       onClick={() => setEditedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: Math.max(0, i.quantity - 1) } : i))}
-                      className="btn btn-xs btn-ghost px-1"
-                    ><Minus size={10} /></button>
-                    <span className="text-xs font-bold w-5 text-center">{item.quantity}</span>
+                      className="btn btn-xs btn-ghost btn-square"
+                      title="Decrease quantity"
+                    ><Minus size={12} /></button>
+                    <span className="text-xs font-black w-5 text-center">{item.quantity}</span>
                     <button
+                      type="button"
                       onClick={() => setEditedItems(prev => prev.map(i => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i))}
-                      className="btn btn-xs btn-ghost px-1"
-                    ><Plus size={10} /></button>
+                      className="btn btn-xs btn-ghost btn-square"
+                      title="Increase quantity"
+                    ><Plus size={12} /></button>
                     <button
+                      type="button"
                       onClick={() => setEditedItems(prev => prev.filter(i => i.id !== item.id))}
-                      className="btn btn-xs btn-ghost text-error px-1"
-                    ><X size={10} /></button>
+                      className="btn btn-xs btn-ghost btn-square text-error"
+                      title="Remove item"
+                    ><X size={12} /></button>
                   </div>
-                ) : (
-                  <span className="badge badge-ghost badge-sm font-bold flex-shrink-0">×{qty}</span>
                 )}
               </div>
             );
           })}
         </div>
 
-        {activeTab === 'trashed' ? (
-          <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-            <button className="btn btn-xs btn-ghost border border-base-300" title="View Details" onClick={() => setDetailOrder(order)}>
-              <Eye size={12} /> View
+        {/* Card Footer / Actions */}
+        {isEditing ? (
+          <div className="mt-auto pt-3 border-t border-base-200 flex gap-2">
+            <button
+              type="button"
+              className="btn btn-primary flex-1 font-bold h-11"
+              onClick={() => saveEdit(order.id)}
+              disabled={editSaving}
+            >
+              {editSaving ? <span className="loading loading-spinner loading-xs" /> : null} Save Changes
             </button>
-            <div className="ml-auto">
-              <button className="btn btn-xs btn-success btn-outline gap-1" title="Restore Order" onClick={() => handleRestoreOrder(order.id)}>
-                <RotateCcw size={12} /> Restore
-              </button>
-            </div>
+            <button type="button" className="btn btn-ghost h-11 font-semibold" onClick={cancelEdit}>
+              Cancel
+            </button>
+          </div>
+        ) : activeTab === 'trashed' ? (
+          <div className="mt-auto pt-3 border-t border-base-200 flex items-center justify-between gap-2">
+            <button className="btn btn-sm btn-ghost border border-base-300 gap-1 font-semibold" title="View Details" onClick={() => setDetailOrder(order)}>
+              <Eye size={14} /> View Details
+            </button>
+            <button className="btn btn-sm btn-success btn-outline gap-1 font-bold" title="Restore Order" onClick={() => handleRestoreOrder(order.id)}>
+              <RotateCcw size={14} /> Restore Order
+            </button>
           </div>
         ) : activeTab === 'completed' || activeTab === 'third_party' ? (
-          <div className="flex gap-1 flex-wrap mt-3 pt-3 border-t border-base-200">
-            {slips.kitchen && (
-              <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
-                <ChefHat size={12} />
-              </button>
-            )}
-            {slips.delivery && order.order_type === 'delivery' && (
-              <button className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10" onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')} title="Delivery Slip">
-                <Truck size={12} />
-              </button>
-            )}
-            {slips.customer && (
-              <button className="btn btn-xs btn-ghost border border-base-300" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
-                <Printer size={12} />
-              </button>
-            )}
-            <button className="btn btn-xs btn-ghost border border-base-300" title="View Details" onClick={() => setDetailOrder(order)}>
-              <Eye size={12} />
-            </button>
-            {isAdmin && (
-              <div className="ml-auto">
-                <button className="btn btn-xs btn-error btn-outline gap-1" title="Trash Order" onClick={() => handleTrashOrder(order.id)}>
-                  <Trash2 size={12} /> Trash
+          <div className="mt-auto pt-3 border-t border-base-200 flex flex-col gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {slips.kitchen && (
+                <button className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10 gap-1" onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')} title="Chef Slip">
+                  <ChefHat size={12} /> Chef
                 </button>
-              </div>
-            )}
+              )}
+              {slips.delivery && order.order_type === 'delivery' && (
+                <button className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10 gap-1" onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')} title="Delivery Slip">
+                  <Truck size={12} /> Delivery
+                </button>
+              )}
+              {slips.customer && (
+                <button className="btn btn-xs btn-ghost border border-base-300 gap-1" onClick={() => window.open(`/receipt/${order.id}`, '_blank')} title="Receipt">
+                  <Printer size={12} /> Receipt
+                </button>
+              )}
+              <button className="btn btn-xs btn-ghost border border-base-300 gap-1" title="View Details" onClick={() => setDetailOrder(order)}>
+                <Eye size={12} /> Details
+              </button>
+              <button
+                className="btn btn-xs btn-ghost border border-base-300 text-success gap-1"
+                title="Share Invoice on WhatsApp"
+                onClick={() => handleShareInvoice(order)}
+                disabled={sharingId === order.id}
+              >
+                {sharingId === order.id ? <span className="loading loading-spinner loading-xs" /> : <Share2 size={12} />} Share
+              </button>
+              {isAdmin && (
+                <div className="ml-auto">
+                  <button className="btn btn-xs btn-error btn-outline gap-1" title="Trash Order" onClick={() => handleTrashOrder(order.id)}>
+                    <Trash2 size={12} /> Trash
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
-          renderActions(order)
+          <div className="mt-auto pt-3 border-t border-base-200 flex flex-col gap-2.5">
+            {/* Pinned Primary Stage Advance Button (Kitchen Display ticket style) */}
+            {primaryAction && (
+              <button
+                type="button"
+                data-tour="order-advance"
+                className={`btn w-full text-white font-black text-base h-11 shadow-sm ${primaryAction.color}`}
+                onClick={() => handleUpdateStatus(order, primaryAction.status)}
+              >
+                {React.createElement(primaryAction.icon, { size: 18, className: 'shrink-0' })}
+                {primaryAction.label}
+              </button>
+            )}
+
+            {/* Any secondary status advance options if multiple next_statuses exist */}
+            {secondaryActions.length > 0 && (
+              <div className="flex gap-1.5 flex-wrap">
+                {secondaryActions.map((sec: any) => {
+                  const SecIcon = sec.icon;
+                  return (
+                    <button
+                      key={sec.status}
+                      type="button"
+                      className={`btn btn-xs flex-1 gap-1 ${sec.color}`}
+                      onClick={() => handleUpdateStatus(order, sec.status)}
+                    >
+                      <SecIcon size={12} /> {sec.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Secondary Action Toolbar: Pay, Settle Due, POS, Quick Items Edit, Cancel, Print Slips, View, Share */}
+            <div className="flex items-center gap-1.5 flex-wrap pt-1">
+              {order.payment_status === 'due' && (
+                <button
+                  type="button"
+                  className="btn btn-xs btn-warning font-bold gap-1 shadow-sm"
+                  onClick={() => handleSettle(order)}
+                >
+                  <Banknote size={12} /> Collect ৳{Number(order.amount_outstanding ?? order.total ?? 0).toFixed(2)}
+                </button>
+              )}
+              {!['paid', 'due'].includes(order.payment_status) && (
+                <button
+                  type="button"
+                  data-tour="order-pay"
+                  className="btn btn-xs btn-success text-white font-bold gap-1 shadow-sm"
+                  onClick={() => handleUpdateStatus(order, 'pay_modal')}
+                >
+                  <DollarSign size={12} /> Pay
+                </button>
+              )}
+              {canEditOrder && order.payment_status !== 'paid' && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline gap-1 font-semibold"
+                    onClick={() => startEdit(order)}
+                    title="Quick edit item quantities on card"
+                  >
+                    <Pencil size={11} /> Edit Items
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-outline gap-1 font-semibold"
+                    onClick={() => window.location.href = `/admin/pos?edit=${order.id}`}
+                    title="Open in full POS"
+                  >
+                    POS
+                  </button>
+                </>
+              )}
+              {canEditOrder && ['pending', 'cooking'].includes(order.status) && (
+                <button
+                  type="button"
+                  className="btn btn-xs btn-error btn-outline gap-1"
+                  onClick={() => handleDelete(order.id)}
+                  title="Cancel Order"
+                >
+                  <XCircle size={11} /> Cancel
+                </button>
+              )}
+
+              {/* Slips and utilities on the right */}
+              <div className="ml-auto flex items-center gap-1">
+                {slips.kitchen && (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost border border-base-300 text-info hover:bg-info/10 p-1"
+                    onClick={() => window.open(`/kitchen-print/${order.id}`, '_blank')}
+                    title="Chef Slip"
+                  >
+                    <ChefHat size={13} />
+                  </button>
+                )}
+                {slips.delivery && order.order_type === 'delivery' && (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost border border-base-300 text-success hover:bg-success/10 p-1"
+                    onClick={() => window.open(`/delivery-print/${order.id}`, '_blank')}
+                    title="Delivery Slip"
+                  >
+                    <Truck size={13} />
+                  </button>
+                )}
+                {slips.customer && (
+                  <button
+                    type="button"
+                    className="btn btn-xs btn-ghost border border-base-300 p-1"
+                    onClick={() => window.open(`/receipt/${order.id}`, '_blank')}
+                    title="Customer Receipt"
+                  >
+                    <Printer size={13} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="btn btn-xs btn-ghost border border-base-300 p-1"
+                  title="View Details"
+                  onClick={() => setDetailOrder(order)}
+                >
+                  <Eye size={13} />
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-xs btn-ghost border border-base-300 text-success p-1"
+                  title="Share Invoice on WhatsApp"
+                  onClick={() => handleShareInvoice(order)}
+                  disabled={sharingId === order.id}
+                >
+                  {sharingId === order.id ? <span className="loading loading-spinner loading-xs" /> : <Share2 size={13} />}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     );
   };
 
   const filteredOrders = useMemo(() => {
-    let list = activeTab === 'due' ? [...dueOrders]
+    const list = activeTab === 'due' ? [...dueOrders]
              : activeTab === 'completed' ? [...completedOrders]
              : activeTab === 'trashed' ? [...trashedOrders]
              : activeTab === 'third_party' ? [...partnerOrders]
@@ -1059,6 +1382,28 @@ export default function OrdersPage() {
                 )}
               </>
             )}
+            <div className="join ml-auto sm:ml-2">
+              <button
+                type="button"
+                className={`btn btn-xs join-item ${viewMode === 'cards' ? 'btn-primary font-bold' : 'btn-outline border-base-300'}`}
+                onClick={() => {
+                  setViewMode('cards');
+                  if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_orders_view_mode'), 'cards');
+                }}
+              >
+                Cards
+              </button>
+              <button
+                type="button"
+                className={`btn btn-xs join-item ${viewMode === 'table' ? 'btn-primary font-bold' : 'btn-outline border-base-300'}`}
+                onClick={() => {
+                  setViewMode('table');
+                  if (typeof window !== 'undefined') localStorage.setItem(tenantKey('restora_orders_view_mode'), 'table');
+                }}
+              >
+                Table
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1080,29 +1425,30 @@ export default function OrdersPage() {
             </p>
           </div>
         ) : (
-          activeTab === 'dine_in' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {filteredOrders.map(order => renderOrderCard(order))}
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-1 md:hidden gap-4">
+          <>
+            {viewMode === 'cards' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                 {filteredOrders.map(order => renderOrderCard(order))}
               </div>
-              <div className="hidden md:block overflow-x-auto">
-                <table className="table table-zebra w-full">
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:hidden gap-4">
+                  {filteredOrders.map(order => renderOrderCard(order))}
+                </div>
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="table table-zebra w-full">
                   <thead>
                     <tr>
                       <th>Order Info</th>
                       {['active_orders', 'customer_orders', 'completed', 'due', 'trashed', 'third_party'].includes(activeTab) && <th>Type</th>}
                       {['delivery', 'catering'].includes(activeTab) && <th>Logistics</th>}
-                      <th>Date</th>
+                      <th>Date &amp; Time</th>
                       <th>Items</th>
                       <th>Total</th>
                       {activeTab === 'due' ? (
                         <th>Due Note</th>
                       ) : activeTab === 'third_party' ? (
-                        <th>Partner / Ref</th>
+                        <th>Note / Ref #</th>
                       ) : (
                         <th>Payment Method</th>
                       )}
@@ -1112,15 +1458,20 @@ export default function OrdersPage() {
                   </thead>
                   <tbody>
                     {filteredOrders.map(order => {
-                      const s = statusConfig[order.status] || { badge: 'badge-ghost', label: order.status || 'Pending' };
+                      const s = getOrderStatusTheme(order.status);
                       return (
-                        <tr key={order.id} className="hover">
+                        <tr key={order.id} className={`${s.rowBg} ${s.borderLeft} transition-colors hover:bg-base-200/50`}>
                           <td>
                             <div className="font-bold flex items-center gap-1.5">
                               <span>#{order.id}</span>
                               {order.token_number != null && (
                                 <span className="badge badge-secondary badge-xs font-extrabold" title="Token Number">
                                   T#{order.token_number}
+                                </span>
+                              )}
+                              {order.table?.name && (
+                                <span className="badge badge-primary badge-xs font-bold" title="Table">
+                                  🪑 {order.table.name}
                                 </span>
                               )}
                               {order.source === 'online' && (
@@ -1165,8 +1516,20 @@ export default function OrdersPage() {
                             </td>
                           )}
                           <td className="text-xs whitespace-nowrap">
-                            <div>{new Date(order.created_at).toLocaleDateString()}</div>
-                            <div className="opacity-70">{new Date(order.created_at).toLocaleTimeString()}</div>
+                            <div className="font-semibold text-base-content/90">
+                              {new Date(order.created_at).toLocaleDateString([], {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </div>
+                            <div className="opacity-70 flex items-center gap-1 mt-0.5 text-[11px]">
+                              <Clock size={11} className="text-base-content/50" />
+                              {new Date(order.created_at).toLocaleTimeString([], {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </div>
                           </td>
                           <td>
                             <div className="space-y-0.5 text-xs max-w-[180px]">
@@ -1193,18 +1556,41 @@ export default function OrdersPage() {
                             </td>
                           ) : activeTab === 'third_party' ? (
                             <td className="text-xs max-w-[160px]">
-                              <div className="font-semibold">{order.partner?.name || '—'}</div>
+                              <div className="font-semibold text-base-content/90">{order.partner?.name || '3rd Party'}</div>
+                              {order.partner_order_id && (
+                                <div className="font-mono text-primary font-medium text-[11px]">Ref: {order.partner_order_id}</div>
+                              )}
+                              {order.due_note && (
+                                <div className="text-base-content/70 text-[11px] mt-0.5 line-clamp-2">
+                                  <span className="font-medium">Note:</span> {order.due_note}
+                                </div>
+                              )}
                               {order.partner_commission_rate != null && (
-                                <div className="opacity-60">{order.partner_commission_rate}% commission</div>
+                                <div className="opacity-60 text-[10px] mt-0.5">{order.partner_commission_rate}% commission</div>
                               )}
                             </td>
                           ) : (
-                            <td className="text-xs">
+                            <td className="text-xs max-w-[160px]">
                               {(() => {
-                                const method = order.payments?.[0]?.method;
-                                if (!method) return <span className="opacity-40">—</span>;
-                                const labels: Record<string, string> = { cash: 'Cash', card: 'Card', mfs: 'Mobile Money' };
-                                return <span className="font-medium">{labels[method] || method}</span>;
+                                const payment = order.payments?.find((p: any) => p.status === 'completed') || order.payments?.[0];
+                                const method = payment?.method || order.payment_method;
+                                if (!method) {
+                                  return (
+                                    <span className="badge badge-ghost badge-xs opacity-60">
+                                      {order.payment_status === 'unpaid' ? 'Unpaid' : '—'}
+                                    </span>
+                                  );
+                                }
+                                const labels: Record<string, string> = { cash: 'Cash', card: 'Card', mfs: 'Mobile Money', due: 'On Account' };
+                                const storageName = payment?.cash_storage?.name;
+                                return (
+                                  <div>
+                                    <div className="font-medium text-base-content/90">{labels[method] || method}</div>
+                                    {storageName && (
+                                      <div className="text-[10px] text-primary/80 font-medium">📦 {storageName}</div>
+                                    )}
+                                  </div>
+                                );
                               })()}
                             </td>
                           )}
@@ -1290,89 +1676,90 @@ export default function OrdersPage() {
                   </tbody>
                 </table>
               </div>
-
-              {activeTab === 'completed' && completedTotalPages > 1 && (
-                <div className="flex justify-center mt-6">
-                  <div className="join">
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setCompletedPage(p => Math.max(1, p - 1))}
-                      disabled={completedPage === 1 || completedLoading}
-                    >«</button>
-                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
-                      Page {completedPage} of {completedTotalPages}
-                    </button>
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
-                      disabled={completedPage === completedTotalPages || completedLoading}
-                    >»</button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'due' && dueTotalPages > 1 && (
-                <div className="flex justify-center mt-6">
-                  <div className="join">
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setDuePage(p => Math.max(1, p - 1))}
-                      disabled={duePage === 1 || dueLoading}
-                    >«</button>
-                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
-                      Page {duePage} of {dueTotalPages}
-                    </button>
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setDuePage(p => Math.min(dueTotalPages, p + 1))}
-                      disabled={duePage === dueTotalPages || dueLoading}
-                    >»</button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'trashed' && trashedTotalPages > 1 && (
-                <div className="flex justify-center mt-6">
-                  <div className="join">
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setTrashedPage(p => Math.max(1, p - 1))}
-                      disabled={trashedPage === 1 || trashedLoading}
-                    >«</button>
-                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
-                      Page {trashedPage} of {trashedTotalPages}
-                    </button>
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setTrashedPage(p => Math.min(trashedTotalPages, p + 1))}
-                      disabled={trashedPage === trashedTotalPages || trashedLoading}
-                    >»</button>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'third_party' && partnerTotalPages > 1 && (
-                <div className="flex justify-center mt-6">
-                  <div className="join">
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setPartnerPage(p => Math.max(1, p - 1))}
-                      disabled={partnerPage === 1 || partnerLoading}
-                    >«</button>
-                    <button className="join-item btn btn-sm bg-base-100 cursor-default">
-                      Page {partnerPage} of {partnerTotalPages}
-                    </button>
-                    <button
-                      className="join-item btn btn-sm"
-                      onClick={() => setPartnerPage(p => Math.min(partnerTotalPages, p + 1))}
-                      disabled={partnerPage === partnerTotalPages || partnerLoading}
-                    >»</button>
-                  </div>
-                </div>
-              )}
             </>
-          )
-        )}
+          )}
+
+          {activeTab === 'completed' && completedTotalPages > 1 && (
+            <div className="flex justify-center mt-6">
+              <div className="join">
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setCompletedPage(p => Math.max(1, p - 1))}
+                  disabled={completedPage === 1 || completedLoading}
+                >«</button>
+                <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                  Page {completedPage} of {completedTotalPages}
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setCompletedPage(p => Math.min(completedTotalPages, p + 1))}
+                  disabled={completedPage === completedTotalPages || completedLoading}
+                >»</button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'due' && dueTotalPages > 1 && (
+            <div className="flex justify-center mt-6">
+              <div className="join">
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setDuePage(p => Math.max(1, p - 1))}
+                  disabled={duePage === 1 || dueLoading}
+                >«</button>
+                <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                  Page {duePage} of {dueTotalPages}
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setDuePage(p => Math.min(dueTotalPages, p + 1))}
+                  disabled={duePage === dueTotalPages || dueLoading}
+                >»</button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'trashed' && trashedTotalPages > 1 && (
+            <div className="flex justify-center mt-6">
+              <div className="join">
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setTrashedPage(p => Math.max(1, p - 1))}
+                  disabled={trashedPage === 1 || trashedLoading}
+                >«</button>
+                <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                  Page {trashedPage} of {trashedTotalPages}
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setTrashedPage(p => Math.min(trashedTotalPages, p + 1))}
+                  disabled={trashedPage === trashedTotalPages || trashedLoading}
+                >»</button>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'third_party' && partnerTotalPages > 1 && (
+            <div className="flex justify-center mt-6">
+              <div className="join">
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setPartnerPage(p => Math.max(1, p - 1))}
+                  disabled={partnerPage === 1 || partnerLoading}
+                >«</button>
+                <button className="join-item btn btn-sm bg-base-100 cursor-default">
+                  Page {partnerPage} of {partnerTotalPages}
+                </button>
+                <button
+                  className="join-item btn btn-sm"
+                  onClick={() => setPartnerPage(p => Math.min(partnerTotalPages, p + 1))}
+                  disabled={partnerPage === partnerTotalPages || partnerLoading}
+                >»</button>
+              </div>
+            </div>
+          )}
+        </>
+      )}
       </Card>
 
       {/* Payment modal */}
@@ -1477,7 +1864,7 @@ export default function OrdersPage() {
               </>
             ) : (
             <>
-            <div className="mb-8">
+            <div className="mb-6">
               <label className="label px-0 pt-0"><span className="label-text font-bold text-base-content/80">Select Payment Method</span></label>
               <div className="grid grid-cols-3 gap-3">
                 <button onClick={() => setPaymentMethod('cash')} className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 ${paymentMethod === 'cash' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-base-200 bg-base-100 hover:border-primary/30 hover:bg-base-200'}`}>
@@ -1487,10 +1874,37 @@ export default function OrdersPage() {
                   <CreditCard size={28} className="mb-2" /><span className="font-semibold text-sm">Card</span>
                 </button>
                 <button onClick={() => setPaymentMethod('mfs')} className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 ${paymentMethod === 'mfs' ? 'border-primary bg-primary/10 text-primary shadow-sm' : 'border-base-200 bg-base-100 hover:border-primary/30 hover:bg-base-200'}`}>
-                  <Smartphone size={28} className="mb-2" /><span className="font-semibold text-sm">MFS</span>
+                  <Smartphone size={28} className="mb-2" /><span className="font-semibold text-sm">bKash / MFS</span>
                 </button>
               </div>
             </div>
+
+            {(() => {
+              const targetType = paymentMethod === 'mfs' ? 'bkash' : paymentMethod;
+              const matching = cashStorages.filter(s => s.type === targetType && (activeLocationId ? (!s.location_id || s.location_id === activeLocationId) : true));
+              if (matching.length === 0) return null;
+              return (
+                <div className="form-control w-full mb-4">
+                  <label className="label py-1">
+                    <span className="label-text text-sm font-semibold flex items-center gap-1.5">
+                      <Wallet size={14} className="text-primary" /> Deposit into Storage / Till
+                    </span>
+                  </label>
+                  <select
+                    className="select select-bordered select-sm w-full"
+                    value={selectedStorageId}
+                    onChange={(e) => setSelectedStorageId(e.target.value)}
+                    aria-label="Cash Storage"
+                  >
+                    {matching.map((s: any) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} {s.location ? `(${s.location.name})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })()}
 
             <div className="form-control w-full mb-4">
               <label className="label py-1">
@@ -1549,13 +1963,26 @@ export default function OrdersPage() {
             <div className="space-y-3 text-sm">
               <div className="grid grid-cols-2 gap-2 bg-base-200/50 p-3 rounded-lg">
                 <div><span className="opacity-60">Token Number:</span> <span className="font-bold text-secondary">{detailOrder.token_number != null ? `#${detailOrder.token_number}` : 'N/A'}</span></div>
-                <div><span className="opacity-60">Status:</span> <span className="font-semibold capitalize">{detailOrder.status}</span></div>
+                <div className="flex items-center gap-1.5"><span className="opacity-60">Status:</span> <span className={`badge badge-sm font-semibold ${getOrderStatusTheme(detailOrder.status).badge}`}>{getOrderStatusTheme(detailOrder.status).label}</span></div>
                 <div><span className="opacity-60">Payment:</span> <span className={`font-semibold ${detailOrder.payment_status === 'paid' ? 'text-success' : detailOrder.payment_status === 'due' ? 'text-warning' : 'text-error'}`}>{paymentBadge(detailOrder.payment_status).label}</span></div>
                 {detailOrder.payments?.[0]?.note && (
                   <div className="col-span-2"><span className="opacity-60">Payment note:</span> <span className="font-semibold">{detailOrder.payments[0].note}</span></div>
                 )}
                 {detailOrder.payment_status === 'due' && detailOrder.due_note && (
                   <div className="col-span-2"><span className="opacity-60">On account:</span> <span className="font-semibold">{detailOrder.due_note}</span></div>
+                )}
+                {detailOrder.partner && (
+                  <div>
+                    <span className="opacity-60">Partner:</span> <span className="font-semibold">{detailOrder.partner.name}</span>
+                    {detailOrder.partner_commission_rate != null && (
+                      <span className="text-xs opacity-60 ml-1">({detailOrder.partner_commission_rate}% cut)</span>
+                    )}
+                  </div>
+                )}
+                {detailOrder.partner_order_id && (
+                  <div>
+                    <span className="opacity-60">Partner Ref:</span> <span className="font-mono font-bold text-primary">{detailOrder.partner_order_id}</span>
+                  </div>
                 )}
                 <div><span className="opacity-60">Type:</span> <span className="font-semibold">{tabLabels[detailOrder.order_type] || detailOrder.order_type?.replace('_', ' ')}</span></div>
                 <div><span className="opacity-60">Customer:</span> <span className="font-semibold">{detailOrder.customer?.name || 'Walk-in'}</span></div>

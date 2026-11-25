@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Banknote, CreditCard, Smartphone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Banknote, CreditCard, Smartphone, Wallet } from 'lucide-react';
 import { fetchApi, apiErrorMessage } from '@/lib/api';
 
 /** The little an order has to carry to be settled. */
@@ -49,8 +49,26 @@ export function SettleDueModal({ order, onClose, onSettled }: Props) {
   const [amount, setAmount] = useState(outstanding.toFixed(2));
   const [method, setMethod] = useState<string>('cash');
   const [note, setNote] = useState('');
+  const [cashStorages, setCashStorages] = useState<any[]>([]);
+  const [selectedStorageId, setSelectedStorageId] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchApi('/cash-storages?nopaginate=1&is_active=1')
+      .then((res) => setCashStorages(res.data || res || []))
+      .catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const targetType = method === 'mfs' ? 'bkash' : method;
+    const matching = cashStorages.filter((s) => s.type === targetType);
+    if (matching.length > 0) {
+      setSelectedStorageId(String(matching[0].id));
+    } else {
+      setSelectedStorageId('');
+    }
+  }, [method, cashStorages]);
 
   const entered = Number(amount);
   // Checked here so a typo is caught before a round trip; the API refuses the
@@ -70,7 +88,12 @@ export function SettleDueModal({ order, onClose, onSettled }: Props) {
     try {
       await fetchApi(`/orders/${order.id}/settle`, {
         method: 'POST',
-        body: JSON.stringify({ amount: entered.toFixed(2), method, note: note || null }),
+        body: JSON.stringify({
+          amount: entered.toFixed(2),
+          method,
+          note: note || null,
+          cash_storage_id: selectedStorageId ? Number(selectedStorageId) : null,
+        }),
       });
       onSettled();
       onClose();
@@ -144,6 +167,33 @@ export function SettleDueModal({ order, onClose, onSettled }: Props) {
             ))}
           </div>
         </div>
+
+        {(() => {
+          const targetType = method === 'mfs' ? 'bkash' : method;
+          const matching = cashStorages.filter((s) => s.type === targetType);
+          if (matching.length === 0) return null;
+          return (
+            <div className="form-control w-full mb-4">
+              <label className="label py-1">
+                <span className="label-text text-sm font-semibold flex items-center gap-1.5">
+                  <Wallet size={14} className="text-primary" /> Deposit into Storage / Till
+                </span>
+              </label>
+              <select
+                className="select select-bordered select-sm w-full"
+                value={selectedStorageId}
+                onChange={(e) => setSelectedStorageId(e.target.value)}
+                aria-label="Cash Storage"
+              >
+                {matching.map((s: any) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} {s.location ? `(${s.location.name})` : ''}
+                  </option>
+                ))}
+              </select>
+            </div>
+          );
+        })()}
 
         <div className="form-control w-full mb-5">
           <label className="label py-1" htmlFor="settle-note">

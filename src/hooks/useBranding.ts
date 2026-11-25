@@ -54,6 +54,32 @@ export interface SlipSettings {
 }
 
 /**
+ * Customer receipt formatting & font scaling keys.
+ * Stored in website_settings to allow restaurants to toggle between detailed
+ * and minimal paper-saving layouts and adjust font sizing for thermal printer rolls.
+ */
+export const RECEIPT_KEYS = {
+  format: 'receipt_format',
+  fontScale: 'receipt_font_scale',
+} as const;
+
+export type ReceiptFormat = 'detailed' | 'minimal';
+export type ReceiptFontScale = '80%' | '90%' | '100%' | '110%' | '120%';
+
+export const RECEIPT_DEFAULTS = {
+  format: 'detailed' as ReceiptFormat,
+  fontScale: '100%' as ReceiptFontScale,
+};
+
+export interface ReceiptSettings {
+  format: ReceiptFormat;
+  fontScale: ReceiptFontScale;
+  isMinimal: boolean;
+  scaleFactor: number;
+  loaded: boolean;
+}
+
+/**
  * Business-day settings - the timezone reports are read in, the time of day the
  * business day rolls over, and which weekday a week starts on. Stored in the
  * same key/value table; the names match core-api's App\Support\Time\BusinessTime.
@@ -107,6 +133,14 @@ export interface Branding {
   facebookPage: string | null;
   /** Print the page as a QR code on the customer receipt: switched on AND a valid page. */
   facebookQr: boolean;
+  /** Customer receipt layout: 'detailed' (standard) or 'minimal' (paper-saving). */
+  receiptFormat: ReceiptFormat;
+  /** Font scale for customer receipt (e.g. '80%', '100%', '120%'). */
+  receiptFontScale: ReceiptFontScale;
+  /** Convenient flag for conditional styling: receiptFormat === 'minimal'. */
+  isMinimalReceipt: boolean;
+  /** Numeric font scaling factor (e.g. 0.8, 1.0, 1.2). */
+  receiptScaleFactor: number;
   /** False until the settings arrive - a receipt must not print a fallback. */
   loaded: boolean;
 }
@@ -123,6 +157,10 @@ const FALLBACK: Omit<Branding, 'loaded'> = {
   receiptFooter: null,
   facebookPage: null,
   facebookQr: false,
+  receiptFormat: RECEIPT_DEFAULTS.format,
+  receiptFontScale: RECEIPT_DEFAULTS.fontScale,
+  isMinimalReceipt: false,
+  receiptScaleFactor: 1.0,
 };
 
 let cached: Promise<Record<string, string>> | null = null;
@@ -192,6 +230,20 @@ export function useBranding(): Branding {
     return value === '' ? null : value;
   };
 
+  const rawFormat = (read(RECEIPT_KEYS.format) ?? '').toLowerCase();
+  const receiptFormat: ReceiptFormat = rawFormat === 'minimal' ? 'minimal' : 'detailed';
+
+  let rawScale = read(RECEIPT_KEYS.fontScale) ?? '';
+  if (rawScale && !rawScale.endsWith('%')) {
+    rawScale = `${rawScale}%`;
+  }
+  const validScales: ReceiptFontScale[] = ['80%', '90%', '100%', '110%', '120%'];
+  const receiptFontScale: ReceiptFontScale = validScales.includes(rawScale as ReceiptFontScale)
+    ? (rawScale as ReceiptFontScale)
+    : RECEIPT_DEFAULTS.fontScale;
+
+  const receiptScaleFactor = parseInt(receiptFontScale, 10) / 100;
+
   return {
     name: read(BRANDING_KEYS.name) ?? FALLBACK.name,
     address: read(BRANDING_KEYS.address),
@@ -202,6 +254,10 @@ export function useBranding(): Branding {
     receiptFooter: read(BRANDING_KEYS.receiptFooter),
     facebookPage: normaliseFacebookUrl(read(BRANDING_KEYS.facebookPage)),
     facebookQr: read(BRANDING_KEYS.facebookQr) === '1' && normaliseFacebookUrl(read(BRANDING_KEYS.facebookPage)) !== null,
+    receiptFormat,
+    receiptFontScale,
+    isMinimalReceipt: receiptFormat === 'minimal',
+    receiptScaleFactor,
     loaded: true,
   };
 }
@@ -333,6 +389,59 @@ export function useBusinessTime(): BusinessTimeSettings {
     dayStart,
     dayStartMinutes: parseHm(dayStart),
     weekStartDay: /^[0-6]$/.test(weekRaw) ? Number(weekRaw) : 0,
+    loaded: settings !== null,
+  };
+}
+
+/**
+ * Customer receipt formatting & font scaling settings.
+ * Lets the receipt view adapt between a full detailed receipt and a minimal
+ * paper-saving layout, with font scaling between 80% and 120%.
+ */
+export function useReceiptSettings(): ReceiptSettings {
+  const [settings, setSettings] = useState<Record<string, string> | null>(null);
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const notify = () => setVersion((n) => n + 1);
+    listeners.add(notify);
+
+    return () => {
+      listeners.delete(notify);
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    loadSettings().then((value) => {
+      if (active) setSettings(value);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [version]);
+
+  const rawFormat = (settings?.[RECEIPT_KEYS.format] ?? '').trim().toLowerCase();
+  const format: ReceiptFormat = rawFormat === 'minimal' ? 'minimal' : 'detailed';
+
+  let rawScale = (settings?.[RECEIPT_KEYS.fontScale] ?? '').trim();
+  if (rawScale && !rawScale.endsWith('%')) {
+    rawScale = `${rawScale}%`;
+  }
+  const validScales: ReceiptFontScale[] = ['80%', '90%', '100%', '110%', '120%'];
+  const fontScale: ReceiptFontScale = validScales.includes(rawScale as ReceiptFontScale)
+    ? (rawScale as ReceiptFontScale)
+    : RECEIPT_DEFAULTS.fontScale;
+
+  const scaleFactor = parseInt(fontScale, 10) / 100;
+
+  return {
+    format,
+    fontScale,
+    isMinimal: format === 'minimal',
+    scaleFactor,
     loaded: settings !== null,
   };
 }

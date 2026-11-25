@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { AlertTriangle, Clock, Mail, Phone, MessageCircle, ExternalLink } from 'lucide-react';
+import { AlertTriangle, Clock, Mail, Phone, MessageCircle, ExternalLink, ArrowRight } from 'lucide-react';
 
 /**
  * The subscription block GET /auth/me returns.
@@ -44,6 +44,8 @@ export type SubscriptionStatus = {
   grace_days?: number | null;
   /** Whole days until the paid period ends; negative once it has passed. */
   days_until_expiry?: number | null;
+  /** Whether the subscription is ending within 3 days. */
+  expiring_soon?: boolean;
 };
 
 /**
@@ -54,10 +56,33 @@ export type SubscriptionStatus = {
  * Failed: 403 Forbidden".
  */
 export default function SubscriptionBanner({ status }: { status: SubscriptionStatus | null }) {
-  if (!status || status.state === 'full' || !status.message) return null;
+  const [upgrading, setUpgrading] = React.useState(false);
+
+  if (!status || (status.state === 'full' && !status.expiring_soon) || !status.message) return null;
 
   const readOnly = status.state === 'read_only' || status.state === 'blocked';
+  const isExpiringSoon = status.expiring_soon === true || (status.state === 'full' && status.days_until_expiry !== null && status.days_until_expiry !== undefined && status.days_until_expiry <= 3 && status.days_until_expiry >= 0);
   const contact = status.contact ?? {};
+
+  const startUpgrade = async () => {
+    if (upgrading) return;
+    setUpgrading(true);
+
+    try {
+      const { fetchApi } = await import('@/lib/api');
+      const res = await fetchApi('/billing/upgrade-link', { method: 'POST' });
+
+      if (res?.url) {
+        window.location.href = res.url;
+        return;
+      }
+
+      throw new Error('No upgrade URL returned');
+    } catch (error) {
+      console.error('Could not start renewal', error);
+      setUpgrading(false);
+    }
+  };
 
   return (
     <div
@@ -71,28 +96,35 @@ export default function SubscriptionBanner({ status }: { status: SubscriptionSta
         // Full-bleed strip rather than a floating card: it sits flush under the
         // topbar and should read as part of the chrome.
         'rounded-none border-x-0 border-t-0',
-        readOnly ? 'alert-error' : 'alert-warning',
+        readOnly ? 'alert-error' : isExpiringSoon ? 'alert-warning' : 'alert-warning',
       ].join(' ')}
     >
       {readOnly ? <AlertTriangle size={20} className="shrink-0" /> : <Clock size={20} className="shrink-0" />}
 
-      <div className="min-w-0 text-center sm:text-start">
+      <div className="min-w-0 text-center sm:text-start flex-1">
         <p className="font-semibold leading-tight">
-          {readOnly ? 'Saving is paused' : 'Action needed to keep saving'}
+          {readOnly ? 'Saving is paused' : isExpiringSoon ? 'Subscription expiring soon' : 'Action needed to keep saving'}
         </p>
         <p className="text-sm opacity-90 leading-snug mt-0.5">{status.message}</p>
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:justify-end">
+      <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-end">
+        {/* Direct link for the next month's subscription */}
+        <button
+          type="button"
+          onClick={startUpgrade}
+          disabled={upgrading}
+          className="btn btn-sm btn-primary text-white border-none font-bold gap-1.5 shadow-sm"
+        >
+          {upgrading ? 'Opening…' : readOnly ? 'Renew to restore saving' : 'Renew for next month'}
+          {!upgrading && <ArrowRight size={14} />}
+        </button>
+
         {contact.url && (
           <a
             href={contact.url}
             target="_blank"
             rel="noopener noreferrer"
-            // Explicit colours, not btn-neutral: inside a coloured alert the
-            // neutral background is overridden while the alert's white text
-            // colour still inherits, leaving white-on-white. Stating both ends
-            // of the pair keeps it readable on error and warning alike.
             className="btn btn-sm gap-1.5 bg-base-100 text-base-content border-base-100 hover:bg-base-200 hover:border-base-200"
           >
             View plans
@@ -100,9 +132,6 @@ export default function SubscriptionBanner({ status }: { status: SubscriptionSta
           </a>
         )}
 
-        {/* Icon-only, with the address or number in the tooltip. Spelling out a
-            long email inside a button is what made this row sprawl on desktop
-            and wrap onto three lines on a phone. */}
         {contact.whatsapp && (
           <a
             href={`https://wa.me/${contact.whatsapp.replace(/[^0-9]/g, '')}`}

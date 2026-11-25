@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, ClipboardList, Phone, RefreshCw } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/api';
 import { readTrackedOrders, writeTrackedOrders } from './trackedOrders';
+import { getOrderStatusTheme } from '@/lib/orderStatus';
 
 type CustomerOrder = {
   id: number;
@@ -23,17 +24,6 @@ type CustomerOrder = {
 
 /** How often an unfinished order is re-checked while the list is open. */
 const REFRESH_MS = 20_000;
-
-const STATUS_TONE: Record<string, string> = {
-  pending: 'badge-info',
-  cooking: 'badge-warning',
-  ready_to_serve: 'badge-success',
-  packed: 'badge-success',
-  picked_up: 'badge-primary',
-  delivered: 'badge-neutral',
-  served: 'badge-neutral',
-  cancelled: 'badge-error',
-};
 
 /**
  * The customer's own orders at this restaurant, live.
@@ -115,47 +105,50 @@ export default function MyOrders({ slug, onBack }: { slug: string; onBack: () =>
         </div>
       ) : (
         <ul className="space-y-3">
-          {orders.map((o) => (
-            <li key={o.id} className="bg-base-100 rounded-xl p-4 space-y-3">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="font-semibold">
-                    Order #{o.id}{o.token_number != null && <span className="text-base-content/60 font-normal"> · Token {o.token_number}</span>}
+          {orders.map((o) => {
+            const s = getOrderStatusTheme(o.status);
+            return (
+              <li key={o.id} className={`${s.cardBg} ${s.borderLeft} rounded-xl p-4 space-y-3 shadow-sm`}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">
+                      Order #{o.id}{o.token_number != null && <span className="text-base-content/60 font-normal"> · Token {o.token_number}</span>}
+                    </div>
+                    <div className="text-xs text-base-content/60">
+                      {o.order_type === 'delivery' ? 'Delivery' : 'Pickup'}
+                      {o.location ? ` · ${o.location.name}` : ''}
+                      {o.placed_at ? ` · ${new Date(o.placed_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+                    </div>
                   </div>
-                  <div className="text-xs text-base-content/60">
-                    {o.order_type === 'delivery' ? 'Delivery' : 'Pickup'}
-                    {o.location ? ` · ${o.location.name}` : ''}
-                    {o.placed_at ? ` · ${new Date(o.placed_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : ''}
+                  <div className="flex flex-col items-end gap-1">
+                    <span className={`badge ${s.badge} font-semibold`}>{o.status_label || s.label}</span>
+                    {o.status !== 'cancelled' && (
+                      <span className={`badge badge-sm ${o.paid ? 'badge-success badge-outline' : 'badge-ghost'}`}>{o.paid ? 'Paid' : 'Unpaid'}</span>
+                    )}
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
-                  <span className={`badge ${STATUS_TONE[o.status] ?? 'badge-ghost'} font-semibold`}>{o.status_label}</span>
-                  {o.status !== 'cancelled' && (
-                    <span className={`badge badge-sm ${o.paid ? 'badge-success badge-outline' : 'badge-ghost'}`}>{o.paid ? 'Paid' : 'Unpaid'}</span>
-                  )}
+
+                <ul className="text-sm divide-y divide-base-200">
+                  {o.items.map((item, i) => (
+                    <li key={i} className="py-1 flex justify-between gap-2">
+                      <span>{item.qty} × {item.name}</span>
+                      <span>{money(item.total)}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <div className="text-sm space-y-0.5">
+                  {o.tax_amount > 0 && <div className="flex justify-between text-base-content/70"><span>Tax</span><span>{money(o.tax_amount)}</span></div>}
+                  {o.delivery_charge > 0 && <div className="flex justify-between text-base-content/70"><span>Delivery charge</span><span>{money(o.delivery_charge)}</span></div>}
+                  <div className="flex justify-between font-semibold"><span>Total</span><span>{money(o.total)}</span></div>
                 </div>
-              </div>
 
-              <ul className="text-sm divide-y divide-base-200">
-                {o.items.map((item, i) => (
-                  <li key={i} className="py-1 flex justify-between gap-2">
-                    <span>{item.qty} × {item.name}</span>
-                    <span>{money(item.total)}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="text-sm space-y-0.5">
-                {o.tax_amount > 0 && <div className="flex justify-between text-base-content/70"><span>Tax</span><span>{money(o.tax_amount)}</span></div>}
-                {o.delivery_charge > 0 && <div className="flex justify-between text-base-content/70"><span>Delivery charge</span><span>{money(o.delivery_charge)}</span></div>}
-                <div className="flex justify-between font-semibold"><span>Total</span><span>{money(o.total)}</span></div>
-              </div>
-
-              {!o.finished && o.location?.phone && (
-                <a className="btn btn-xs btn-ghost border-base-300 gap-1" href={`tel:${o.location.phone}`}><Phone size={12} /> Call {o.location.name}</a>
-              )}
-            </li>
-          ))}
+                {!o.finished && o.location?.phone && (
+                  <a className="btn btn-xs btn-ghost border-base-300 gap-1" href={`tel:${o.location.phone}`}><Phone size={12} /> Call {o.location.name}</a>
+                )}
+              </li>
+            );
+          })}
         </ul>
       )}
 
