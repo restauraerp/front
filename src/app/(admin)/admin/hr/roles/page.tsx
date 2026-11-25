@@ -1,16 +1,19 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { fetchApi } from '@/lib/api';
+import { fetchApi, apiErrorMessage } from '@/lib/api';
 import { Card } from '@/components/ui/Card';
 import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Search } from 'lucide-react';
+import { Search, RefreshCw } from 'lucide-react';
+import { useDialogs } from '@/components/ui/Dialogs';
 
 export default function RolesPage() {
+  const { confirm, alert, dialog } = useDialogs();
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   
@@ -94,7 +97,12 @@ export default function RolesPage() {
       loadData();
     } catch (err) {
       console.error(err);
-      alert('Failed to save role');
+      await alert({
+        title: 'Save Failed',
+        message: apiErrorMessage(err, 'Failed to save role.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
@@ -110,14 +118,69 @@ export default function RolesPage() {
   };
 
   const handleDelete = async (row: any) => {
-    if (confirm(`Are you sure you want to delete ${row.name}?`)) {
-      try {
-        await fetchApi(`/roles/${row.id}`, { method: 'DELETE' });
-        loadData();
-      } catch (err) {
-        console.error(err);
-        alert('Failed to delete role');
+    const ok = await confirm({
+      title: 'Delete Role?',
+      message: `Are you sure you want to delete ${row.name.replace(/_/g, ' ')}? This action cannot be undone.`,
+      action: 'Delete',
+      cancel: 'Cancel',
+      tone: 'btn-error',
+    });
+    if (!ok) return;
+
+    try {
+      await fetchApi(`/roles/${row.id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error(err);
+      await alert({
+        title: 'Delete Failed',
+        message: apiErrorMessage(err, 'Failed to delete role.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
+    }
+  };
+
+  const handleSyncPredefined = async () => {
+    const ok = await confirm({
+      title: 'Populate Predefined Roles?',
+      message: 'This will check for any standard system roles (such as Waiter) introduced after this restaurant was created and populate them without modifying your existing roles.',
+      action: 'Populate Roles',
+      cancel: 'Cancel',
+      tone: 'btn-primary',
+    });
+    if (!ok) return;
+
+    try {
+      setSyncing(true);
+      const res = await fetchApi('/roles/sync-predefined', { method: 'POST' });
+      const added: string[] = res?.added || [];
+      if (added.length > 0) {
+        await alert({
+          title: 'Roles Populated',
+          message: `Successfully populated ${added.length} role(s): ${added.map((r: string) => r.replace(/_/g, ' ').toUpperCase()).join(', ')}.`,
+          action: 'OK',
+          tone: 'btn-success',
+        });
+      } else {
+        await alert({
+          title: 'All Up to Date',
+          message: 'All predefined system roles already exist for this restaurant. No new roles needed to be added.',
+          action: 'OK',
+          tone: 'btn-primary',
+        });
       }
+      loadData();
+    } catch (err) {
+      console.error(err);
+      await alert({
+        title: 'Sync Failed',
+        message: apiErrorMessage(err, 'Failed to populate predefined roles.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -150,15 +213,25 @@ export default function RolesPage() {
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
         <h1 className="text-2xl font-bold">Roles & Permissions Management</h1>
-        <Button onClick={() => {
-          setIsFormOpen(!isFormOpen);
-          setEditingId(null);
-          setFormData({ name: '', permissions: [], requires_login: true });
-        }}>
-          {isFormOpen ? 'Close Form' : '+ New Role'}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleSyncPredefined}
+            disabled={syncing}
+          >
+            <RefreshCw size={16} className={`mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+            Populate Default Roles
+          </Button>
+          <Button onClick={() => {
+            setIsFormOpen(!isFormOpen);
+            setEditingId(null);
+            setFormData({ name: '', permissions: [], requires_login: true });
+          }}>
+            {isFormOpen ? 'Close Form' : '+ New Role'}
+          </Button>
+        </div>
       </div>
 
       {isFormOpen && (
@@ -239,6 +312,7 @@ export default function RolesPage() {
           </>
         )}
       </Card>
+      {dialog}
     </div>
   );
 }

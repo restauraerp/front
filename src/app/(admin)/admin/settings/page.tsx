@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import RestaurantIdentityCard from '@/components/settings/RestaurantIdentityCard';
 import SlipPrintingCard from '@/components/settings/SlipPrintingCard';
+import ReceiptSettingsCard from '@/components/settings/ReceiptSettingsCard';
 import FacebookPageCard from '@/components/settings/FacebookPageCard';
 import BusinessDayCard from '@/components/settings/BusinessDayCard';
 
@@ -119,6 +120,11 @@ export default function SettingsPage() {
           the setting is called `slip_delivery_enabled` to turn it on. */}
       <div style={{ marginBottom: '2rem' }}>
         <SlipPrintingCard />
+      </div>
+
+      {/* Customer receipt layout (Detailed vs Minimal Roll-Saving) and font size scaling. */}
+      <div style={{ marginBottom: '2rem' }}>
+        <ReceiptSettingsCard />
       </div>
 
       {/* When the business day starts, the reporting timezone, and the week

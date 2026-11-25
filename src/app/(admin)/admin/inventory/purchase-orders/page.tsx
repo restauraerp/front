@@ -6,7 +6,8 @@ import { Table } from '@/components/ui/Table';
 import { Button } from '@/components/ui/Button';
 import { SearchSelect } from '@/components/ui/SearchSelect';
 import { MultiImageUpload, ExistingImage } from '@/components/ui/MultiImageUpload';
-import { Plus, Trash2, Paperclip } from 'lucide-react';
+import { Plus, Trash2, Paperclip, Search, X } from 'lucide-react';
+import { useDialogs } from '@/components/ui/Dialogs';
 
 type LineItem = {
   inventory_item_id: number | '';
@@ -22,6 +23,7 @@ const STATUSES = ['pending', 'approved', 'received', 'cancelled'];
 const LINE_GRID = 'grid sm:grid-cols-[minmax(0,1fr)_8rem_10rem_8rem_3rem]';
 
 export default function PurchaseOrdersPage() {
+  const { confirm, alert, dialog } = useDialogs();
   const [orders, setOrders] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -30,6 +32,9 @@ export default function PurchaseOrdersPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -50,8 +55,16 @@ export default function PurchaseOrdersPage() {
   const currency = settings.currency_symbol || '৳';
 
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchQuery(searchInput.trim());
+      setPage(1);
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+  useEffect(() => {
     loadOrders();
-  }, [page]);
+  }, [page, searchQuery]);
 
   useEffect(() => {
     loadReferenceData();
@@ -60,7 +73,12 @@ export default function PurchaseOrdersPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const res = await fetchApi(`/purchase-orders?page=${page}`);
+      const params = new URLSearchParams();
+      params.set('page', String(page));
+      if (searchQuery) {
+        params.set('search', searchQuery);
+      }
+      const res = await fetchApi(`/purchase-orders?${params.toString()}`);
       setOrders(res.data || res || []);
       setTotalPages(res.last_page || 1);
     } catch (err) {
@@ -229,19 +247,36 @@ export default function PurchaseOrdersPage() {
       setIsFormOpen(true);
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Could not open that purchase order.'));
+      await alert({
+        title: 'Open Failed',
+        message: apiErrorMessage(err, 'Could not open that purchase order.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
   const handleDelete = async (row: any) => {
-    if (!confirm(`Delete purchase order #${row.id}? The stock it delivered will be taken back out of inventory.`)) return;
+    const ok = await confirm({
+      title: 'Delete Purchase Order?',
+      message: `Delete purchase order #${row.id}? The stock it delivered will be taken back out of inventory.`,
+      action: 'Delete PO',
+      cancel: 'Cancel',
+      tone: 'btn-error',
+    });
+    if (!ok) return;
 
     try {
       await fetchApi(`/purchase-orders/${row.id}`, { method: 'DELETE' });
       loadOrders();
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to delete this purchase order.'));
+      await alert({
+        title: 'Delete Failed',
+        message: apiErrorMessage(err, 'Failed to delete this purchase order.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
@@ -498,8 +533,44 @@ export default function PurchaseOrdersPage() {
       )}
 
       <Card>
+        <div className="flex flex-col sm:flex-row gap-3 justify-between items-center mb-4">
+          <div className="relative w-full sm:w-80">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-base-content/40" />
+            <input
+              type="text"
+              className="input input-bordered input-sm w-full pl-9 pr-8"
+              placeholder="Search by item, supplier, PO #…"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+            />
+            {searchInput && (
+              <button
+                type="button"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-base-content/40 hover:text-base-content"
+                onClick={() => setSearchInput('')}
+                title="Clear search"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {searchQuery && (
+            <div className="text-xs text-base-content/60 w-full sm:w-auto text-left sm:text-right">
+              Showing results for &ldquo;<span className="font-medium text-base-content">{searchQuery}</span>&rdquo;
+            </div>
+          )}
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-8"><span className="loading loading-spinner text-primary"></span></div>
+        ) : orders.length === 0 && searchQuery ? (
+          <div className="text-center py-12">
+            <p className="text-base-content/70 font-medium">No purchase orders found matching &ldquo;{searchQuery}&rdquo;</p>
+            <p className="text-xs text-base-content/50 mt-1">Try searching by a different inventory item name, supplier, or PO number.</p>
+            <Button variant="secondary" className="btn-sm mt-3" onClick={() => setSearchInput('')}>
+              Clear Search
+            </Button>
+          </div>
         ) : (
           <>
             <Table columns={columns} data={orders} onEdit={handleEdit} onDelete={handleDelete} />
@@ -515,6 +586,7 @@ export default function PurchaseOrdersPage() {
           </>
         )}
       </Card>
+      {dialog}
     </div>
   );
 }

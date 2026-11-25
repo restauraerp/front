@@ -54,6 +54,7 @@ export default function ExpensesPage() {
       title="Expenses"
       subtitle={single ? "Log and track operational expenses." : "Log and track operational expenses across your branches."}
       endpoint="/expenses"
+      enableTrash={true}
       addLabel="+ Log Expense"
       tableColumns={[
         { key: 'id', label: 'ID' },

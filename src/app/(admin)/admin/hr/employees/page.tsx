@@ -8,15 +8,17 @@ import { Input } from '@/components/ui/Input';
 import { UserCircle, Link2, Copy, Check, X } from 'lucide-react';
 import styles from '@/components/ui/ui.module.css';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { useDialogs } from '@/components/ui/Dialogs';
 
 /** A role as the form needs it. requires_login arrives as 0/1 from MySQL. */
-type RoleOption = { name: string; requires_login?: boolean | number };
+type RoleOption = { name: string; requires_login?: boolean | number | string };
 
 /** Whether new users given this role sign in - true when unknown. */
 const roleSignsIn = (role?: RoleOption): boolean =>
-  !role || !(role.requires_login === false || role.requires_login === 0);
+  !role || !(role.requires_login === false || role.requires_login === 0 || role.requires_login === '0');
 
 export default function EmployeesPage() {
+  const { confirm, alert, dialog } = useDialogs();
   const [employees, setEmployees] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -141,7 +143,12 @@ export default function EmployeesPage() {
       loadData();
     } catch (err) {
       console.error(err);
-      alert(apiErrorMessage(err, 'Failed to save employee'));
+      await alert({
+        title: 'Save Failed',
+        message: apiErrorMessage(err, 'Failed to save employee.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
@@ -163,14 +170,26 @@ export default function EmployeesPage() {
   };
 
   const handleDelete = async (row: any) => {
-    if (confirm(`Are you sure you want to delete ${row.name}?`)) {
-      try {
-        await fetchApi(`/users/${row.id}`, { method: 'DELETE' });
-        loadData();
-      } catch (err) {
-        console.error(err);
-        alert('Failed to delete employee');
-      }
+    const ok = await confirm({
+      title: 'Delete Employee?',
+      message: `Are you sure you want to delete ${row.name}? This action cannot be undone.`,
+      action: 'Delete',
+      cancel: 'Cancel',
+      tone: 'btn-error',
+    });
+    if (!ok) return;
+
+    try {
+      await fetchApi(`/users/${row.id}`, { method: 'DELETE' });
+      loadData();
+    } catch (err) {
+      console.error(err);
+      await alert({
+        title: 'Delete Failed',
+        message: apiErrorMessage(err, 'Failed to delete employee.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
@@ -181,7 +200,12 @@ export default function EmployeesPage() {
       setLoginLinkModal(prev => prev ? { ...prev, url: res.one_time_login_url, loading: false } : null);
     } catch (err) {
       console.error(err);
-      alert('Failed to generate login link');
+      await alert({
+        title: 'Login Link Failed',
+        message: apiErrorMessage(err, 'Failed to generate login link.'),
+        action: 'Close',
+        tone: 'btn-error',
+      });
       setLoginLinkModal(null);
     }
   };
@@ -193,7 +217,12 @@ export default function EmployeesPage() {
       setLoginLinkModal(prev => prev ? { ...prev, copied: true } : null);
       setTimeout(() => setLoginLinkModal(prev => prev ? { ...prev, copied: false } : null), 2000);
     } catch {
-      alert('Failed to copy');
+      await alert({
+        title: 'Copy Failed',
+        message: 'Failed to copy login link to clipboard.',
+        action: 'Close',
+        tone: 'btn-error',
+      });
     }
   };
 
@@ -272,11 +301,14 @@ export default function EmployeesPage() {
               onChange={(v) => {
                 const name = String(v ?? '');
                 const role: RoleOption | undefined = roles.find(r => r.name === name);
+                const signsIn = name === 'restaurant_admin' || roleSignsIn(role);
                 setFormData(prev => ({
                   ...prev,
                   role: name,
                   // Only for a new user: an existing one keeps their own setting.
-                  can_login: editingId !== null ? prev.can_login : name === 'restaurant_admin' || roleSignsIn(role),
+                  can_login: editingId !== null ? prev.can_login : signsIn,
+                  email: editingId === null && !signsIn ? '' : prev.email,
+                  password: editingId === null && !signsIn ? '' : prev.password,
                   can_deliver: name === 'rider' ? true : prev.can_deliver,
                 }));
               }}
@@ -440,6 +472,7 @@ export default function EmployeesPage() {
           <div className="modal-backdrop" onClick={() => setLoginLinkModal(null)} />
         </div>
       )}
+      {dialog}
     </div>
   );
 }

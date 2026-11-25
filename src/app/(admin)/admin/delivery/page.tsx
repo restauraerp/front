@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { tenantKey } from '@/lib/tenant';
 import { SearchSelect } from '@/components/ui/SearchSelect';
+import { getOrderStatusTheme } from '@/lib/orderStatus';
 import {
   filterRidersByRole,
   filterRidersForAssignment,
@@ -317,8 +318,9 @@ export default function DeliveryPage() {
                   ) : (
                     filteredOrders.map((order) => {
                       const isAssigned = deliveries.some(d => d.order_id === order.id);
+                      const s = getOrderStatusTheme(order.status);
                       return (
-                        <tr key={order.id}>
+                        <tr key={order.id} className={`${s.rowBg} ${s.borderLeft} transition-colors hover:bg-base-200/50`}>
                           <td className="font-semibold">
                             <div className="flex items-center gap-1.5">
                               <span>#{order.id}</span>
@@ -335,8 +337,8 @@ export default function DeliveryPage() {
                           </td>
                           <td>৳{Number(order.total).toFixed(2)}</td>
                           <td>
-                            <span className={`badge ${order.status === 'completed' ? 'badge-success' : 'badge-warning'} badge-sm`}>
-                              {order.status}
+                            <span className={`badge badge-sm font-semibold ${s.badge}`}>
+                              {s.label}
                             </span>
                           </td>
                           <td>

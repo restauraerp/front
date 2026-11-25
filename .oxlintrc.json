@@ -1,0 +1,20 @@
+{
+  "plugins": ["react", "nextjs", "typescript"],
+  "categories": {
+    "correctness": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "warn",
+    "no-unused-expressions": "warn"
+  },
+  "ignorePatterns": [
+    ".next/**",
+    "out/**",
+    "build/**",
+    "node_modules/**",
+    "scripts/**",
+    "walkthrough/**",
+    "scaffold_*.js",
+    "*.test.mjs"
+  ]
+}
